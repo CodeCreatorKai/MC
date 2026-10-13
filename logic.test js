@@ -1,0 +1,175 @@
+// Run with:  node tests/logic.test.js
+// Exercises the game logic (no browser needed): world, raycast, collision, mesher, server rules.
+const assert = require('assert');
+const { CONFIG, BlockRegistry, World, MapGenerator, buildChunkMesh, Player, GameServer, AIR, B, VERTEX_FLOATS } = require('../game.js');
+
+let passed = 0;
+function test(name, fn) { try { fn(); passed++; console.log('  ok  ' + name); } catch (e) { console.error('FAIL  ' + name + '\n      ' + e.message); process.exitCode = 1; } }
+const idle = { forward: false, back: false, left: false, right: false, jump: false, crouch: false };
+function flatWorld() {
+  const w = new World(32, 20, 32);
+  for (let z = 0; z < 32; z++) for (let x = 0; x < 32; x++) { w.set(x, 0, z, B('bedrock'), true); w.set(x, 1, z, B('stone'), true); }
+  return w; // walkable surface at y = 2
+}
+const step = (p, w, n, c = idle) => { for (let i = 0; i < n; i++) p.update(CONFIG.STEP, c, w); };
+
+console.log('Block registry');
+test('air is id 0 and non-solid', () => { assert.strictEqual(BlockRegistry.byType('air').id, 0); assert.strictEqual(BlockRegistry.byId(0).solid, false); });
+test('stone is tougher than glass and sand falls', () => {
+  assert.ok(BlockRegistry.byType('stone').hardness > BlockRegistry.byType('glass').hardness);
+  assert.ok(BlockRegistry.byType('stone').blastResistance > BlockRegistry.byType('wood').blastResistance);
+  assert.strictEqual(BlockRegistry.byType('sand').gravityAffected, true);
+  assert.strictEqual(BlockRegistry.byType('wood').flammable, true);
+});
+
+console.log('World + map');
+test('map generates at 100x100x40 with bedrock floor and ground at spawns', () => {
+  const w = new World(); const map = MapGenerator.generate(w);
+  assert.deepStrictEqual([w.sizeX, w.sizeY, w.sizeZ], [100, 40, 100]);
+  assert.strictEqual(w.get(10, 0, 10), B('bedrock'));
+  assert.strictEqual(map.spawns.length, 6);
+  for (const s of map.spawns) {
+    assert.ok(w.isSolid(Math.floor(s.x), s.y - 1, Math.floor(s.z)), 'ground under spawn');
+    assert.ok(!w.isSolid(Math.floor(s.x), s.y, Math.floor(s.z)) && !w.isSolid(Math.floor(s.x), s.y + 1, Math.floor(s.z)), 'air at spawn');
+  }
+});
+test('generation is deterministic', () => {
+  const a = new World(), b = new World(); MapGenerator.generate(a, 'plains', 5); MapGenerator.generate(b, 'plains', 5);
+  assert.ok(Buffer.compare(Buffer.from(a.blocks), Buffer.from(b.blocks)) === 0);
+});
+test('set() notifies listeners only on a real change', () => {
+  const w = flatWorld(); let n = 0; w.listeners.push(() => n++);
+  w.set(3, 5, 3, B('wood')); w.set(3, 5, 3, B('wood')); w.set(3, 5, 3, AIR);
+  assert.strictEqual(n, 2);
+});
+
+console.log('Raycast');
+test('hits the top face of the floor from above', () => {
+  const w = flatWorld(); const hit = w.raycast({ x: 5.5, y: 5, z: 5.5 }, { x: 0, y: -1, z: 0 }, 10);
+  assert.deepStrictEqual([hit.x, hit.y, hit.z, hit.nx, hit.ny, hit.nz], [5, 1, 5, 0, 1, 0]);
+});
+test('reports the side face normal and respects max distance', () => {
+  const w = flatWorld(); w.set(8, 2, 5, B('stone'));
+  const hit = w.raycast({ x: 5.5, y: 2.5, z: 5.5 }, { x: 1, y: 0, z: 0 }, 10);
+  assert.deepStrictEqual([hit.x, hit.nx], [8, -1]);
+  assert.strictEqual(w.raycast({ x: 5.5, y: 2.5, z: 5.5 }, { x: 1, y: 0, z: 0 }, 2), null);
+});
+test('diagonal ray finds the block it points at', () => {
+  const w = flatWorld(); w.set(10, 4, 10, B('wood'));
+  const d = { x: 4.5, y: 1.5, z: 4.5 }, l = Math.hypot(d.x, d.y, d.z);
+  const hit = w.raycast({ x: 5.5, y: 2.5, z: 5.5 }, { x: d.x / l, y: d.y / l, z: d.z / l }, 20);
+  assert.deepStrictEqual([hit.x, hit.y, hit.z], [10, 4, 10]);
+});
+
+console.log('Player physics');
+test('lands on the floor and stays grounded without sinking or jittering', () => {
+  const w = flatWorld(); const p = new Player('t'); p.teleport(5.5, 6, 5.5);
+  step(p, w, 120);
+  assert.ok(p.onGround); assert.ok(Math.abs(p.pos.y - 2) < 1e-6, 'y=' + p.pos.y);
+  const y0 = p.pos.y; step(p, w, 60); assert.strictEqual(p.pos.y, y0);
+});
+test('jump reaches ~1.4 blocks, clearing a 1-block step but not 2', () => {
+  const w = flatWorld(); const p = new Player('t'); p.teleport(5.5, 2, 5.5); step(p, w, 5);
+  let peak = 0; p.update(CONFIG.STEP, { ...idle, jump: true }, w);
+  for (let i = 0; i < 60; i++) { p.update(CONFIG.STEP, idle, w); peak = Math.max(peak, p.pos.y - 2); }
+  assert.ok(peak > 1.25 && peak < 1.6, 'peak=' + peak);
+});
+test('walls stop horizontal movement (no tunnelling, no sticking)', () => {
+  const w = flatWorld(); for (let y = 2; y < 6; y++) w.set(8, y, 5, B('stone'));
+  const p = new Player('t'); p.teleport(5.5, 2, 5.5); p.yaw = -Math.PI / 2; // facing +X
+  step(p, w, 120, { ...idle, forward: true });
+  assert.ok(p.pos.x <= 8 - 0.3 + 1e-3 && p.pos.x > 7.5, 'x=' + p.pos.x);
+  p.vel.x = 60; step(p, w, 10); assert.ok(p.pos.x < 8, 'tunnelled at high speed: x=' + p.pos.x);
+});
+test('cannot leave the map horizontally', () => {
+  const w = flatWorld(); const p = new Player('t'); p.teleport(2, 2, 2); p.yaw = Math.PI / 2; // facing -X
+  step(p, w, 300, { ...idle, forward: true }); assert.ok(p.pos.x >= 0.3 - 1e-3, 'x=' + p.pos.x);
+});
+test('walking speed matches config and crouch is slower', () => {
+  const w = flatWorld(); const a = new Player('a'); a.teleport(4, 2, 16); a.yaw = -Math.PI / 2; step(a, w, 60, { ...idle, forward: true });
+  const b = new Player('b'); b.teleport(4, 2, 16); b.yaw = -Math.PI / 2; step(b, w, 60, { ...idle, forward: true, crouch: true });
+  assert.ok(Math.abs(Math.hypot(a.vel.x, a.vel.z) - CONFIG.PLAYER.WALK) < 1e-6);
+  assert.ok(Math.hypot(b.vel.x, b.vel.z) < Math.hypot(a.vel.x, a.vel.z));
+});
+test('strafing diagonal is not faster than straight', () => {
+  const w = flatWorld(); const p = new Player('t'); p.teleport(4, 2, 16); step(p, w, 40, { ...idle, forward: true, right: true });
+  assert.ok(Math.hypot(p.vel.x, p.vel.z) <= CONFIG.PLAYER.WALK + 1e-6);
+});
+test('headbump zeroes upward velocity', () => {
+  const w = flatWorld(); w.set(5, 4, 5, B('stone')); // ceiling just above head (feet 2 + 1.8 = 3.8)
+  const p = new Player('t'); p.teleport(5.5, 2, 5.5); step(p, w, 3); p.update(CONFIG.STEP, { ...idle, jump: true }, w);
+  step(p, w, 3); assert.ok(p.vel.y <= 0 && p.pos.y + 1.8 <= 4 + 1e-3);
+});
+
+console.log('Mesher');
+test('single block emits 6 faces, 36 vertices', () => {
+  const w = new World(16, 8, 16); w.set(5, 3, 5, B('stone'));
+  assert.strictEqual(buildChunkMesh(w, 0, 0).vertexCount, 36);
+});
+test('adjacent blocks hide shared faces', () => {
+  const w = new World(16, 8, 16); w.set(5, 3, 5, B('stone')); w.set(6, 3, 5, B('stone'));
+  assert.strictEqual(buildChunkMesh(w, 0, 0).vertexCount, 10 * 6);
+});
+test('glass shows faces next to stone but not between glass blocks', () => {
+  const w = new World(16, 8, 16); w.set(5, 3, 5, B('glass')); w.set(6, 3, 5, B('glass'));
+  assert.strictEqual(buildChunkMesh(w, 0, 0).vertexCount, 10 * 6);
+  const w2 = new World(16, 8, 16); w2.set(5, 3, 5, B('glass')); w2.set(6, 3, 5, B('stone'));
+  assert.strictEqual(buildChunkMesh(w2, 0, 0).vertexCount, 11 * 6); // glass 5 faces + stone 6 faces
+});
+test('every triangle winds counter-clockwise seen from outside (back-face culling safe)', () => {
+  const w = new World(16, 8, 16); w.set(5, 3, 5, B('stone')); w.set(5, 4, 5, B('wood'));
+  const { data, vertexCount } = buildChunkMesh(w, 0, 0); const cx = 5.5, cz = 5.5;
+  for (let t = 0; t < vertexCount; t += 3) {
+    const v = [0, 1, 2].map((k) => Array.from(data.slice((t + k) * VERTEX_FLOATS, (t + k) * VERTEX_FLOATS + 3)));
+    const e1 = v[1].map((c, i) => c - v[0][i]), e2 = v[2].map((c, i) => c - v[0][i]);
+    const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    const c = v[0].map((_, i) => (v[0][i] + v[1][i] + v[2][i]) / 3);
+    const out = [c[0] - cx, c[1] - 4, c[2] - cz];
+    assert.ok(n[0] * out[0] + n[1] * out[1] + n[2] * out[2] > 0, 'triangle ' + t / 3 + ' faces inward');
+  }
+});
+test('ambient occlusion darkens a concave corner', () => {
+  const w = new World(16, 8, 16); w.set(5, 3, 5, B('stone')); w.set(6, 4, 5, B('stone'));
+  const { data, vertexCount } = buildChunkMesh(w, 0, 0); let min = 9, max = 0;
+  for (let i = 0; i < vertexCount; i++) { const s = data[i * VERTEX_FLOATS + 5]; min = Math.min(min, s); max = Math.max(max, s); }
+  assert.ok(min < 0.6 && max === 1);
+});
+test('whole 100x100 map meshes quickly and non-empty', () => {
+  const w = new World(); MapGenerator.generate(w); const t0 = Date.now(); let verts = 0;
+  for (let cz = 0; cz < 7; cz++) for (let cx = 0; cx < 7; cx++) verts += buildChunkMesh(w, cx, cz).vertexCount;
+  const ms = Date.now() - t0; console.log(`        ${verts} vertices in ${ms} ms`);
+  assert.ok(verts > 10000 && ms < 4000);
+});
+
+console.log('Game server rules');
+function serverWorld() {
+  const w = flatWorld(); const s = new GameServer(w); const p = new Player('p1'); p.teleport(5.5, 2, 5.5); s.addPlayer(p); return { w, s, p };
+}
+test('break removes a block and emits an event; bedrock is unbreakable', () => {
+  const { w, s } = serverWorld(); const events = []; s.subscribe((e) => events.push(e.type));
+  assert.ok(s.handle('p1', { type: 'break', x: 5, y: 1, z: 5 }).ok); assert.strictEqual(w.get(5, 1, 5), AIR);
+  assert.strictEqual(s.handle('p1', { type: 'break', x: 5, y: 0, z: 5 }).reason, 'unbreakable');
+  assert.deepStrictEqual(events, ['blockBroken']);
+});
+test('place works on air, rejects occupied / out of bounds / unknown / unplaceable', () => {
+  const { w, s } = serverWorld();
+  assert.ok(s.handle('p1', { type: 'place', x: 7, y: 2, z: 5, block: 'wood' }).ok); assert.strictEqual(w.get(7, 2, 5), B('wood'));
+  assert.strictEqual(s.handle('p1', { type: 'place', x: 7, y: 2, z: 5, block: 'stone' }).reason, 'occupied');
+  assert.strictEqual(s.handle('p1', { type: 'place', x: -1, y: 2, z: 5, block: 'stone' }).reason, 'out-of-bounds');
+  assert.strictEqual(s.handle('p1', { type: 'place', x: 7, y: 3, z: 5, block: 'bedrock' }).reason, 'bad-block');
+  assert.strictEqual(s.handle('p1', { type: 'place', x: 7, y: 3, z: 5, block: 'lava9' }).reason, 'bad-block');
+});
+test('cannot place a block inside a player, or beyond reach', () => {
+  const { s } = serverWorld();
+  assert.strictEqual(s.handle('p1', { type: 'place', x: 5, y: 2, z: 5, block: 'stone' }).reason, 'player-in-way');
+  assert.strictEqual(s.handle('p1', { type: 'place', x: 5, y: 3, z: 5, block: 'stone' }).reason, 'player-in-way');
+  assert.strictEqual(s.handle('p1', { type: 'place', x: 25, y: 2, z: 5, block: 'stone' }).reason, 'too-far');
+  const other = new Player('p2'); other.teleport(8.5, 2, 5.5); s.addPlayer(other);
+  assert.strictEqual(s.handle('p1', { type: 'place', x: 8, y: 2, z: 5, block: 'stone' }).reason, 'player-in-way');
+});
+test('requests from unknown players are refused', () => {
+  const { s } = serverWorld();
+  assert.strictEqual(s.handle('ghost', { type: 'break', x: 1, y: 1, z: 1 }).reason, 'unknown-player');
+});
+
+console.log(`\n${passed} tests passed${process.exitCode ? ' (with failures above)' : ''}`);
