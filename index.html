@@ -1,116 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>ChronoCraft: Gravity Rift</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Minecraft Physics Wars</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-  <div id="game-container"></div>
+  <canvas id="gl"></canvas>
 
-  <!-- HUD Overlay -->
-  <div id="hud">
+  <!-- In-game HUD -->
+  <div id="hud" class="hidden">
+    <div id="modeTag">SANDBOX &middot; v0.1</div>
+    <div id="debug"></div>
     <div id="crosshair"></div>
-
-    <!-- Status Bars -->
-    <div id="status-bars">
-      <div class="status-row">
-        <div id="health-bar" class="stat-container"></div>
-        <div id="hunger-bar" class="stat-container"></div>
-      </div>
-    </div>
-
-    <!-- XP Bar -->
-    <div id="xp-container">
-      <div id="xp-bar-bg">
-        <div id="xp-bar-fill"></div>
-      </div>
-      <div id="xp-level-text">0</div>
-    </div>
-
-    <!-- Hotbar -->
     <div id="hotbar"></div>
-
-    <!-- Twist Indicators -->
-    <div id="twist-status">
-      <div class="twist-badge" id="gravity-badge">
-        <span class="key-hint">[G]</span> GRAVITY: <span id="grav-mode">NORMAL</span>
-      </div>
-      <div class="twist-badge" id="rewind-badge">
-        <span class="key-hint">[HOLD R]</span> CHRONO: <span id="rewind-time">10.0s</span>
-      </div>
-    </div>
-
-    <!-- Rewind Visual Effect -->
-    <div id="rewind-overlay">
-      <div class="rewind-scanline"></div>
-      <div class="rewind-text">⏮ REWINDING TIMELINE...</div>
-    </div>
-
-    <div id="hurt-overlay"></div>
   </div>
 
-  <!-- Start / Pause Screen -->
-  <div id="pause-screen">
-    <div class="menu-box">
-      <h1 class="logo-title">CHRONOCRAFT</h1>
-      <h3 class="logo-sub">NATURAL EXPLORATION & GRAVITY RIFT</h3>
-      
-      <div class="menu-buttons">
-        <button id="btn-play" class="mc-btn">ENTER SURVIVAL WORLD</button>
-      </div>
-
-      <div class="instructions-panel">
-        <h4>SURVIVAL CONTROLS</h4>
-        <div class="keys-grid">
-          <div><span class="k">WASD</span> Walk</div>
-          <div><span class="k">SPACE</span> Jump / Auto-Step</div>
-          <div><span class="k">L-SHIFT</span> Sneak</div>
-          <div><span class="k">L-CTRL</span> Sprint</div>
-          <div><span class="k">L-CLICK</span> Punch / Mine</div>
-          <div><span class="k">R-CLICK</span> Place Item</div>
-          <div><span class="k">1 - 9</span> Hotbar Slots</div>
-          <div><span class="k">E</span> Crafting / Inventory</div>
-          <div><span class="k gold-txt">G</span> Slow Gravity Inversion</div>
-          <div><span class="k gold-txt">HOLD R</span> Rewind Timeline</div>
-        </div>
-      </div>
+  <!-- Inventory (E) -->
+  <div id="inventory" class="hidden">
+    <div class="panel">
+      <h2>INVENTORY</h2>
+      <p class="hint">Click a block to put it in the selected hotbar slot. Press <b>E</b> to close.</p>
+      <div id="invGrid"></div>
+      <button id="invClose" class="btn small">CLOSE</button>
     </div>
   </div>
 
-  <!-- Inventory & Crafting GUI -->
-  <div id="inventory-gui" class="hidden">
-    <div class="gui-window">
-      <div class="gui-header">
-        <span>Survival Crafting</span>
-        <button id="close-inv-btn">&times;</button>
-      </div>
-      
-      <div class="gui-body">
-        <div class="crafting-section">
-          <h4>Recipes</h4>
-          <div class="recipes-grid">
-            <button class="recipe-btn" data-craft="planks">4 Planks (1 Log)</button>
-            <button class="recipe-btn" data-craft="sticks">4 Sticks (2 Planks)</button>
-            <button class="recipe-btn" data-craft="crafting_table">1 Crafting Table (4 Planks)</button>
-            <button class="recipe-btn" data-craft="wooden_pickaxe">1 Wood Pickaxe (3 Planks + 2 Sticks)</button>
-            <button class="recipe-btn" data-craft="stone_pickaxe">1 Stone Pickaxe (3 Cobble + 2 Sticks)</button>
-            <button class="recipe-btn" data-craft="torches">4 Torches (1 Coal + 1 Stick)</button>
-          </div>
-        </div>
+  <!-- Title / pause menu -->
+  <div id="overlay">
+    <div class="menu">
+      <h1 id="title"><span>MINECRAFT</span><span>PHYSICS</span><span>WARS</span></h1>
+      <p id="subtitle">The world itself is your weapon.</p>
 
-        <div class="backpack-section">
-          <h4>Backpack (27 Slots)</h4>
-          <div id="backpack-grid"></div>
-        </div>
+      <div id="panelMain" class="panelview">
+        <button id="btnPlay" class="btn">PLAY</button>
+        <button id="btnHow" class="btn">HOW TO PLAY</button>
+        <button id="btnSettings" class="btn">SETTINGS</button>
+        <button id="btnStats" class="btn">STATS</button>
+      </div>
 
-        <div class="hotbar-section">
-          <h4>Hotbar</h4>
-          <div id="inv-hotbar-grid"></div>
+      <div id="panelHow" class="panelview hidden">
+        <div class="panel">
+          <h2>HOW TO PLAY</h2>
+          <table class="keys">
+            <tr><td>W A S D</td><td>Move</td></tr>
+            <tr><td>Mouse</td><td>Look around</td></tr>
+            <tr><td>Space</td><td>Jump</td></tr>
+            <tr><td>Shift</td><td>Crouch (slower)</td></tr>
+            <tr><td>Left click (hold)</td><td>Break block</td></tr>
+            <tr><td>Right click</td><td>Place block</td></tr>
+            <tr><td>1 &ndash; 9 / Wheel</td><td>Select hotbar slot</td></tr>
+            <tr><td>E</td><td>Inventory</td></tr>
+            <tr><td>R</td><td>Respawn at base</td></tr>
+            <tr><td>M</td><td>Mute / unmute</td></tr>
+            <tr><td>F3</td><td>Debug info</td></tr>
+            <tr><td>Esc</td><td>Pause</td></tr>
+          </table>
+          <p class="hint">Version 0.1 is the sandbox foundation: walk, jump, build and dig. TNT, structural collapse, water, lava and the match phases come in later versions.</p>
+          <button class="btn small back">BACK</button>
         </div>
       </div>
+
+      <div id="panelSettings" class="panelview hidden">
+        <div class="panel">
+          <h2>SETTINGS</h2>
+          <label>Mouse sensitivity <output id="outSens"></output>
+            <input id="setSens" type="range" min="0.3" max="2.5" step="0.05"></label>
+          <label>Field of view <output id="outFov"></output>
+            <input id="setFov" type="range" min="60" max="110" step="1"></label>
+          <label>Volume <output id="outVol"></output>
+            <input id="setVol" type="range" min="0" max="1" step="0.05"></label>
+          <button class="btn small back">BACK</button>
+        </div>
+      </div>
+
+      <div id="panelStats" class="panelview hidden">
+        <div class="panel">
+          <h2>STATS</h2>
+          <table class="keys" id="statsTable"></table>
+          <button class="btn small back">BACK</button>
+        </div>
+      </div>
+
+      <p id="errorBox" class="hidden"></p>
+      <p id="footer">Click PLAY to capture the mouse &middot; Esc to release it</p>
     </div>
   </div>
 
