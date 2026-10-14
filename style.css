@@ -256,3 +256,68 @@ table.grid td b { color: var(--accent); }
 
 /* hide aiming UI during a full-screen killcam */
 body.killcam #crosshair, body.killcam #hotbar { display: none !important; }
+
+/* ---------- menu extras: single / multiplayer, lobby roster, maps, locker ---------- */
+.btn.primary { background: #4f7a2f; color: #fff; font-size: 21px; padding: 17px 18px; }
+.btn.primary:hover { background: #69a03d; }
+#profileBar { width: min(320px, 90%); font-size: 12px; color: var(--muted); letter-spacing: 1px; }
+#profileBar .lv { display: flex; justify-content: space-between; margin-bottom: 3px; color: var(--text); font-weight: 800; letter-spacing: 2px; }
+.xpbar { height: 8px; background: #0d0f16; border: 2px solid #000; }
+.xpbar i { display: block; height: 100%; background: linear-gradient(90deg, #7be05a, #ffd23f); }
+.mpcols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 760px) { .mpcols { grid-template-columns: 1fr; } }
+.mpbox { padding: 6px 12px 14px; background: var(--slate-lo); border: 3px solid var(--slate); text-align: center; }
+.mpbox .btn { width: 90%; margin-top: 8px; }
+.mpbox input[type="text"] { width: 90%; margin: 8px 0 0; padding: 12px; text-align: center; font: 900 24px "Trebuchet MS", sans-serif; letter-spacing: 8px; text-transform: uppercase; }
+.netmsg { min-height: 20px; margin: 10px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+.netmsg.bad { color: var(--bad); } .netmsg.good { color: var(--good); }
+#inviteBox { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: center; margin-bottom: 10px; padding: 8px; background: var(--slate-lo); border: 3px dashed var(--accent); }
+#inviteBox .lbl { font-size: 11px; letter-spacing: 3px; color: var(--muted); }
+#inviteCode { font: 900 30px "Courier New", monospace; letter-spacing: 8px; color: var(--accent); }
+#netStatus { font-size: 12px; color: var(--muted); }
+#mapCards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+@media (max-width: 760px) { #mapCards { grid-template-columns: 1fr 1fr; } }
+.mapcard { padding: 8px 10px; background: var(--slate-lo); border: 3px solid var(--slate); cursor: pointer; text-align: left; }
+.mapcard:hover { border-color: #fff8; }
+.mapcard.on { border-color: var(--accent); background: #3b3326; }
+.mapcard.locked { cursor: default; opacity: 0.85; }
+.mapcard .swatch { height: 34px; margin-bottom: 6px; border: 2px solid #000; background: linear-gradient(135deg, var(--c), #0006); image-rendering: pixelated; }
+.mapcard h4 { margin: 0; font-size: 13px; letter-spacing: 2px; color: var(--accent); }
+.mapcard p { margin: 3px 0 0; font-size: 11px; color: var(--muted); line-height: 1.3; }
+#rosterList { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+@media (max-width: 760px) { #rosterList { grid-template-columns: 1fr; } }
+.rrow { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--slate-lo); border-left: 6px solid var(--c, #888); font-size: 13px; }
+.rrow.empty { opacity: 0.45; border-left-color: #555; font-style: italic; }
+.rrow .nm { font-weight: 800; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rrow .nm small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.rrow .cls { font-size: 11px; letter-spacing: 1px; color: var(--accent); text-transform: uppercase; }
+.rrow .st { font-size: 11px; font-weight: 800; letter-spacing: 1px; padding: 1px 7px; background: #0006; }
+.rrow .st.ok { color: var(--good); } .rrow .st.wait { color: var(--muted); } .rrow .st.bot { color: #9ab; }
+#lockerBar { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+#lockerBar .xpbar { width: 180px; display: inline-block; vertical-align: middle; }
+#lockerGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; max-height: 46vh; overflow-y: auto; padding-right: 4px; }
+.lk { padding: 8px 10px; background: var(--slate-lo); border: 3px solid var(--slate); font-size: 12px; text-align: left; }
+.lk h4 { margin: 0 0 4px; font-size: 13px; letter-spacing: 1px; color: var(--text); }
+.lk.on { border-color: var(--good); }
+.lk.locked { opacity: 0.6; }
+.lk .prev { height: 26px; margin-bottom: 6px; border: 2px solid #000; background: linear-gradient(90deg, var(--c1, #666), var(--c2, #999), var(--c3, #666)); }
+.lk .btn { margin: 4px 0 0; width: 100%; padding: 5px; font-size: 11px; letter-spacing: 1px; border-width: 3px; outline-width: 2px; }
+.lk .req { color: var(--muted); font-size: 11px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.sw { width: 26px; height: 26px; border: 3px solid #000; cursor: pointer; }
+.sw.on { outline: 3px solid var(--accent); }
+.emslots { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 2px; }
+.emslot { padding: 5px 10px; background: #0006; border: 2px solid var(--slate); font-size: 12px; font-weight: 800; cursor: pointer; }
+.emslot.on { border-color: var(--accent); color: var(--accent); }
+#titleList { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.ttl { padding: 6px 10px; background: var(--slate-lo); border-left: 5px solid #555; font-size: 12px; }
+.ttl.ok { border-left-color: var(--good); } .ttl small { display: block; color: var(--muted); }
+#statsLevel { margin-bottom: 8px; font-weight: 800; letter-spacing: 2px; } #statsLevel .xpbar { margin-top: 4px; }
+#results .summary { max-width: 360px; margin: 10px auto 12px; padding: 12px 18px; text-align: center; border: 3px double var(--accent); background: #0007; font-family: "Courier New", monospace; }
+#results .summary h3 { margin: 0 0 8px; letter-spacing: 6px; font-size: 22px; color: var(--accent); }
+#results .summary .line { display: flex; justify-content: space-between; font-size: 14px; padding: 1px 4px; }
+#results .summary .reward { margin-top: 8px; font-weight: 900; font-size: 16px; color: var(--good); }
+#results .summary .lvup { margin-top: 4px; color: var(--accent); font-weight: 800; }
+.np .say { display: block; margin: 0 auto 3px; padding: 2px 8px; max-width: 160px; font: 800 12px "Trebuchet MS", sans-serif; color: #111; background: #fff; border: 2px solid #000; border-radius: 6px; }
+.np .ttlTag { font-size: 9px; letter-spacing: 1px; color: #ffe48a; display: block; }
+.kf.chat { color: #ffe48a; }
