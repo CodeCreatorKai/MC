@@ -66,7 +66,7 @@ const TILE_NAMES = ['grass_top', 'grass_side', 'dirt', 'stone', 'wood', 'glass',
   'tnt_side', 'tnt_top', 'water', 'lava', 'leaves', 'iron_ore', 'iron_block', 'obsidian', 'fire',
   'wire_off', 'wire_on', 'plate_off', 'plate_on', 'lever_off', 'lever_on', 'button', 'tripwire',
   'piston_side', 'piston_front', 'piston_back', 'piston_head', 'door', 'timer', 'sensor', 'alarm',
-  'vault', 'log_side', 'log_top', 'vault_top', 'icon_pickaxe', 'icon_sword', 'icon_axe', 'icon_bow', 'icon_staff', 'icon_lighter'];
+  'vault', 'log_side', 'log_top', 'vault_top', 'icon_pickaxe', 'icon_sword', 'icon_axe', 'icon_bow', 'icon_staff', 'icon_lighter', 'brick', 'shingle', 'lamp', 'flower_red', 'flower_yellow', 'gold_ore'];
 const TILE = {};
 TILE_NAMES.forEach((n, i) => { TILE[n.toUpperCase()] = i; });
 
@@ -149,6 +149,13 @@ const BlockRegistry = (() => {
   define({ type: 'timer', hardness: 1.5, blastResistance: 3, weight: 2, sound: 'stone', color: [0.4, 0.6, 0.8], mech: 'consumer', tiles: all(TILE.TIMER), drop: ['mech', 2, 0.8] });
   define({ type: 'sensor', hardness: 1.5, blastResistance: 3, weight: 2, sound: 'stone', color: [0.3, 0.8, 0.7], mech: 'source', tiles: all(TILE.SENSOR), drop: ['mech', 2, 0.8] });
   define({ type: 'alarm', hardness: 1.5, blastResistance: 3, weight: 2, sound: 'stone', color: [0.9, 0.3, 0.3], mech: 'consumer', tiles: all(TILE.ALARM), drop: ['mech', 1, 0.8] });
+  // --- decorative / extra resource blocks ---
+  define({ type: 'brick', hardness: 4, blastResistance: 7, weight: 4.5, sound: 'stone', color: [0.62, 0.3, 0.25], tiles: all(TILE.BRICK), drop: ['stone', 1] });
+  define({ type: 'shingle', hardness: 2, blastResistance: 3, weight: 2.5, sound: 'wood', color: [0.55, 0.25, 0.2], flammable: true, burnChance: 0.09, tiles: all(TILE.SHINGLE), drop: ['wood', 1] });
+  define({ type: 'lamp', hardness: 0.6, blastResistance: 1, weight: 1.5, sound: 'glass', color: [1, 0.9, 0.5], transparent: true, cullSame: true, tiles: all(TILE.LAMP), drop: ['glass', 1, 0.5] });
+  define({ type: 'flower_red', shape: 'box', solid: false, transparent: true, hardness: 0.05, blastResistance: 0.05, weight: 0.1, needsFloor: true, placeable: false, color: [0.9, 0.2, 0.25], tiles: all(TILE.FLOWER_RED), boxes: () => [[0.2, 0, 0.2, 0.8, 0.7, 0.8]] });
+  define({ type: 'flower_yellow', shape: 'box', solid: false, transparent: true, hardness: 0.05, blastResistance: 0.05, weight: 0.1, needsFloor: true, placeable: false, color: [0.95, 0.8, 0.2], tiles: all(TILE.FLOWER_YELLOW), boxes: () => [[0.2, 0, 0.2, 0.8, 0.7, 0.8]] });
+  define({ type: 'gold_ore', hardness: 5, blastResistance: 6, weight: 5, sound: 'stone', color: [0.8, 0.7, 0.3], placeable: false, tiles: all(TILE.GOLD_ORE), drop: ['iron', 2] });
   define({ type: 'vault', hardness: Infinity, blastResistance: Infinity, weight: 20, sound: 'stone', color: [1, 0.8, 0.2], breakable: false, placeable: false, pushable: false, tiles: { top: TILE.VAULT_TOP, side: TILE.VAULT, bottom: TILE.VAULT } });
 
   return {
@@ -447,6 +454,20 @@ function generateAtlas() {
   paint(TILE.LOG_TOP, 47, (x, y, r) => { const d = Math.hypot(x - 7.5, y - 7.5); return (Math.floor(d) % 3 === 0) ? [140, 104, 62] : noisy(r, 176, 138, 86, 12); });
   paint(TILE.VAULT_TOP, 48, (x, y, r) => { const d = Math.hypot(x - 7.5, y - 7.5); return d < 3 ? [255, 90, 60] : edge(x, y) ? [120, 90, 20] : noisy(r, 250, 214, 90, 12); });
 
+  paint(TILE.BRICK, 60, (x, y, r) => { const row = y >> 2, off = (row % 2) * 4; return (y % 4 === 3 || (x + off) % 8 === 7) ? [190, 176, 160] : noisy(r, 168, 78, 62, 22); });
+  paint(TILE.SHINGLE, 61, (x, y, r) => { const row = y >> 2; return (y % 4 === 3) ? [88, 38, 32] : noisy(r, 148 - row * 4 + ((x >> 2) % 2) * 10, 66, 52, 14); });
+  paint(TILE.LAMP, 62, (x, y, r) => (edge(x, y) ? [150, 110, 40] : (x === 7 || x === 8 || y === 7 || y === 8) ? [190, 140, 50] : noisy(r, 255, 232, 130, 14)));
+  const flower = (tile, petal) => paint(tile, 63, (x, y, r) => {
+    const d = Math.hypot(x - 7.5, y - 5.5);
+    if (d < 1.6) return [250, 230, 90];
+    if (d < 4.2) return petal;
+    if ((x === 7 || x === 8) && y >= 9) return [60, 140, 50];
+    if ((x === 5 && y === 12) || (x === 10 && y === 13)) return [60, 140, 50];
+    return undefined;
+  });
+  flower(TILE.FLOWER_RED, [226, 48, 60]); flower(TILE.FLOWER_YELLOW, [255, 214, 60]);
+  paint(TILE.GOLD_ORE, 64, (x, y, r) => (r() < 0.14 ? [250, 212, 70] : r() < 0.09 ? [96, 96, 102] : noisy(r, 126, 126, 132, 22)));
+
   // --- tool icons (hotbar): tiny pixel drawings on a transparent tile ---
   const icon = (tile, rows, palette) => paint(tile, 7, (x, y) => { const ch = rows[y] && rows[y][x]; return ch && ch !== '.' ? palette[ch] : undefined; });
   const WOODC = [140, 100, 56], STEEL = [220, 224, 236], DARK = [90, 94, 110];
@@ -732,7 +753,8 @@ class Player extends Body {
     super();
     this.id = id; this.name = name;
     this.index = 0; this.color = CONFIG.COLORS[0];
-    this.isBot = false;
+    this.isBot = false; this.isRemote = false;
+    this.inQueue = null; this.ackSeq = 0;
     this.classId = 'builder'; this.landId = 'forest';
     this.team = 0;                                  // alliance id (== own index when solo)
     this.mods = DEFAULT_MODS();
@@ -749,6 +771,7 @@ class Player extends Body {
     this.stats = { kills: 0, assists: 0, deaths: 0, damageDealt: 0, blocksDestroyed: 0, structuresDestroyed: 0, tntKills: 0, objectives: 0, score: 0, surviveSeconds: 0 };
     this.spawn = { x: 0, y: 0, z: 0 };
     this.bounty = 0; this.bountyTime = 0;
+    this.look = null;                               // public cosmetics (skin, trail, kill effect, banner, title, emotes)
     this.respawnTimer = 0;
     this.invulnerable = 0;
   }
@@ -788,11 +811,12 @@ class Player extends Body {
 }
 
 class Mob extends Body {
-  constructor(id, x, y, z) {
+  constructor(id, x, y, z, type = 'zombie') {
     super();
-    this.id = id; this.type = 'zombie';
-    this.halfWidth = 0.3; this.height = 1.8;
-    this.health = 20; this.maxHealth = 20; this.alive = true;
+    this.id = id; this.type = type;
+    this.halfWidth = 0.3; this.height = type === 'creeper' ? 1.7 : 1.8;
+    this.health = type === 'creeper' ? 16 : 20; this.maxHealth = this.health; this.alive = true;
+    this.fuse = 0;                                  // creeper: seconds until it blows up (0 = not lit)
     this.teleport(x, y, z);
     this.attackCd = 0; this.walkPhase = 0; this.swing = 0; this.life = 0; this.stuck = 0;
     this.color = '#4c8a3a';
@@ -812,7 +836,7 @@ class Mob extends Body {
       if (this.onGround && Math.hypot(this.vel.x, this.vel.z) < 0.4 && d > 1.2) { this.stuck += dt; if (this.stuck > 0.4) jump = true; } else this.stuck = 0;
     }
     const px = this.pos.x, pz = this.pos.z;
-    this.simulate(dt, wx, wz, 3.4, jump, 8.2, world, env);
+    this.simulate(dt, wx, wz, this.type === 'creeper' ? (this.fuse > 0 ? 0.6 : 3.1) : 3.4, jump, 8.2, world, env);
     if (this.onGround) this.walkPhase += Math.hypot(this.pos.x - px, this.pos.z - pz) * 1.6;
   }
 }
@@ -1444,7 +1468,16 @@ function resourceCap(key, mods) { return RESOURCES[key].cap + (key === 'tnt' ? m
 
 /* ============================ 10. MAP GENERATOR ============================ */
 const BOT_NAMES = ['RYZU', 'KAI', 'MOSS', 'BLITZ', 'NOVA', 'TORCH'];
-const PLOT_BASE_RADIUS = 12;     // base-integrity zone around each spawn pad
+const PLOT_BASE_RADIUS = 12;
+const sy = (world) => world.sizeY;     // base-integrity zone around each spawn pad
+
+/** Playable maps. All three keep the plot ring and the centre vault, so every class/land/bot logic still applies. */
+const MAPS = {
+  plains:  { name: 'Plains',  icon: '#5fae45', blurb: 'Open terrain with boulders and lone trees. Good for learning the ropes.' },
+  canyon:  { name: 'Canyon',  icon: '#b9805a', blurb: 'Huge cliffs and a deep gorge. Knock enemies off ledges and bring the mesas down on them.' },
+  village: { name: 'Village', icon: '#c9a15a', blurb: 'Houses, a church tower and narrow gravel streets: lots of structures to blow apart.' },
+};
+const MAP_ORDER = ['plains', 'canyon', 'village'];
 
 const MapGenerator = {
   PAD_HEIGHT: 14,
@@ -1468,6 +1501,7 @@ const MapGenerator = {
     if (typeof opts === 'string') opts = {};
     world.clear();
     const seed = opts.seed != null ? opts.seed : 1337;
+    const mapId = MAPS[opts.mapId] ? opts.mapId : 'plains';
     const rng = mulberry32(seed);
     const { sizeX: sx, sizeY: sy, sizeZ: sz } = world;
     const spawns = this.computeSpawns(world);
@@ -1510,9 +1544,20 @@ const MapGenerator = {
     for (let z = 0; z < sz; z++) {
       for (let x = 0; x < sx; x++) {
         const i = x + z * sx;
-        let h = 13 + (fbm(x / 28, z / 28, seed) - 0.5) * 12;
-        let tp = h <= 11 ? ID.sand : (fbm(x / 9 + 50, z / 9 + 50, seed + 7) > 0.68 ? ID.gravel : ID.grass);
-        let fl = h <= 11 ? ID.sand : ID.dirt;
+        let h, tp, fl;
+        if (mapId === 'canyon') {
+          const nc = fbm(x / 30 + 10, z / 30 + 10, seed + 21), t = smoothstep(0.43, 0.57, nc);
+          h = lerp(7, 24, t) + (fbm(x / 6, z / 6, seed + 5) - 0.5) * 3;
+          tp = h >= 18 ? (fbm(x / 5, z / 5, seed + 9) > 0.6 ? ID.gravel : ID.stone) : h >= 11 ? ID.grass : ID.sand;
+          fl = h >= 15 ? ID.stone : h >= 11 ? ID.dirt : ID.sand;
+        } else if (mapId === 'village') {
+          h = 13 + (fbm(x / 30, z / 30, seed) - 0.5) * 3;
+          tp = ID.grass; fl = ID.dirt;
+        } else {
+          h = 13 + (fbm(x / 28, z / 28, seed) - 0.5) * 12;
+          tp = h <= 11 ? ID.sand : (fbm(x / 9 + 50, z / 9 + 50, seed + 7) > 0.68 ? ID.gravel : ID.grass);
+          fl = h <= 11 ? ID.sand : ID.dirt;
+        }
         for (const s of spawns) {
           const dx = x - s.x, dz = z - s.z, dist = Math.hypot(dx, dz);
           if (dist >= PR) continue;
@@ -1676,9 +1721,114 @@ const MapGenerator = {
       if (world.get(x, world.getHeight(x, z), z) === ID.grass) this.tree(world, rng, x, z);
     }
 
+    if (mapId === 'village') this.village(world, rng, spawns, cx, cz, PR);
+    if (mapId === 'canyon') this.canyonExtras(world, rng, spawns, cx, cz, PR);
+    this.decorate(world, rng, mapId, spawns, cx, cz, PR);
     for (const s of spawns) s.y = world.getSolidHeight(Math.floor(s.x), Math.floor(s.z)) + 1;
     for (const p of plots) { const s = spawns[p.index]; p.spawn = { x: s.x, y: s.y, z: s.z }; }
-    return { spawns, plots, center: { x: cx + 0.5, z: cz + 0.5 }, vault, name: 'plains' };
+    return { spawns, plots, center: { x: cx + 0.5, z: cz + 0.5 }, vault, name: mapId, mapId };
+  },
+
+  /** Village: a grid of houses with gravel streets between them, plus a church tower. */
+  village(world, rng, spawns, cx, cz, PR) {
+    const sx = world.sizeX, sz = world.sizeZ, CELL = 11, put = (x, y, z, t) => world.set(x, y, z, ID[t], true, 0, 0);
+    const free = (x, z, m) => x >= 6 && z >= 6 && x < sx - 6 && z < sz - 6 && Math.hypot(x - cx, z - cz) > 19 && spawns.every((s) => Math.hypot(x - s.x, z - s.z) > PR + m);
+    // gravel streets (3 wide) between building cells
+    for (let z = 4; z < sz - 4; z++) for (let x = 4; x < sx - 4; x++) {
+      if (!free(x, z, 1)) continue;
+      const lx = (x - 6) % CELL, lz = (z - 6) % CELL;
+      if (lx >= 8 || lz >= 8) { const gy = world.getSolidHeight(x, z); if (gy > 2 && world.get(x, gy, z) === ID.grass) world.set(x, gy, z, ID.gravel, true, 0, 0); }
+    }
+    const kinds = ['brick', 'wood', 'stone'];
+    let churchDone = false;
+    for (let gx = 6; gx + CELL <= sx - 6; gx += CELL) for (let gz = 6; gz + CELL <= sz - 6; gz += CELL) {
+      const w = 5 + Math.floor(rng() * 3), d = 5 + Math.floor(rng() * 3), x0 = gx + 1, z0 = gz + 1;
+      if (!free(x0 + w / 2, z0 + d / 2, 1) || rng() < 0.08) continue;
+      const hgt = 3 + (rng() < 0.3 ? 1 : 0), mat = kinds[Math.floor(rng() * kinds.length)];
+      let g = 0, n = 0;
+      for (let x = x0; x < x0 + w; x++) for (let z = z0; z < z0 + d; z++) { g += world.getSolidHeight(x, z); n++; }
+      g = Math.round(g / n);
+      const church = !churchDone && rng() < 0.35 && Math.hypot(x0 - cx, z0 - cz) > 26;
+      if (church) churchDone = true;
+      for (let x = x0 - 1; x <= x0 + w; x++) for (let z = z0 - 1; z <= z0 + d; z++) {      // flatten the lot
+        for (let y = g + 1; y < Math.min(sy(world), g + hgt + 6); y++) world.set(x, y, z, AIR, true);
+        for (let y = world.getSolidHeight(x, z) + 1; y <= g; y++) world.set(x, y, z, ID.dirt, true, 0, 0);
+      }
+      const side = Math.floor(rng() * 4);
+      for (let x = x0; x < x0 + w; x++) for (let z = z0; z < z0 + d; z++) {
+        const edge = x === x0 || x === x0 + w - 1 || z === z0 || z === z0 + d - 1, corner = (x === x0 || x === x0 + w - 1) && (z === z0 || z === z0 + d - 1);
+        put(x, g, z, 'wood');
+        if (edge) {
+          for (let k = 1; k <= hgt; k++) {
+            let t = corner ? 'log' : mat;
+            if (!corner && k === 2 && ((x - x0 + z - z0) % 3 === 1)) t = 'glass';
+            put(x, g + k, z, t === 'log' ? 'log' : t);
+          }
+        }
+        put(x, g + hgt + 1, z, 'shingle');                                                  // flat roof
+        if (x > x0 && x < x0 + w - 1 && z > z0 && z < z0 + d - 1) put(x, g + hgt + 2, z, 'shingle');
+      }
+      // door on the chosen side (2 high), facing the street
+      const mx = Math.floor(x0 + w / 2), mz = Math.floor(z0 + d / 2);
+      const dx = side === 0 ? x0 : side === 1 ? x0 + w - 1 : mx, dz = side === 2 ? z0 : side === 3 ? z0 + d - 1 : mz;
+      world.set(dx, g + 1, dz, AIR, true); world.set(dx, g + 2, dz, AIR, true);
+      // furnishing: a lamp, sometimes a TNT crate or an iron block, a flower box outside
+      put(mx, g + hgt, mz, 'lamp');
+      if (rng() < 0.22) { put(x0 + 1, g + 1, z0 + 1, 'tnt'); put(x0 + 2, g + 1, z0 + 1, 'tnt'); }
+      else if (rng() < 0.2) put(x0 + 1, g + 1, z0 + d - 2, 'iron_block');
+      if (church) {                                                                       // bell tower on the roof
+        for (let k = hgt + 2; k <= hgt + 7; k++) { put(mx, g + k, mz, 'brick'); }
+        for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) put(mx + ax, g + hgt + 7, mz + az, 'stone');
+        put(mx, g + hgt + 8, mz, 'lamp');
+      }
+    }
+    // well and lamp posts in the street crossings
+    for (let gx = 6; gx + CELL <= sx - 6; gx += CELL) for (let gz = 6; gz + CELL <= sz - 6; gz += CELL) {
+      const x = gx + 9, z = gz + 9;
+      if (!free(x, z, 2) || rng() < 0.4) continue;
+      const g = world.getSolidHeight(x, z);
+      for (let k = 1; k <= 3; k++) put(x, g + k, z, 'log');
+      put(x, g + 4, z, 'lamp');
+    }
+  },
+
+  /** Canyon: a few stone arches and bridges across the gorge, gold in the cliff faces. */
+  canyonExtras(world, rng, spawns, cx, cz, PR) {
+    const sx = world.sizeX, sz = world.sizeZ;
+    for (let n = 0; n < 5; n++) {                                                         // wooden bridges between two high points
+      const x0 = 10 + Math.floor(rng() * (sx - 20)), z0 = 10 + Math.floor(rng() * (sz - 20)), alongX = rng() < 0.5;
+      if (spawns.some((s) => Math.hypot(x0 - s.x, z0 - s.z) < PR) || Math.hypot(x0 - cx, z0 - cz) < 18) continue;
+      let ya = world.getSolidHeight(x0, z0);
+      if (ya < 17) continue;
+      for (let i = 0; i < 26; i++) {
+        const x = alongX ? x0 + i : x0, z = alongX ? z0 : z0 + i;
+        if (!world.inBounds(x, 1, z)) break;
+        const gy = world.getSolidHeight(x, z);
+        if (i > 3 && gy >= ya - 1) break;                                                // reached the other side
+        for (let w = 0; w < 2; w++) { const bx = alongX ? x : x + w, bz = alongX ? z + w : z; if (world.get(bx, ya, bz) === AIR) world.set(bx, ya, bz, ID.wood, true, 0, 0); }
+      }
+    }
+    for (let n = 0; n < 70; n++) {                                                        // gold veins in the rock
+      const x = 4 + Math.floor(rng() * (sx - 8)), z = 4 + Math.floor(rng() * (sz - 8));
+      const h = world.getSolidHeight(x, z), y = h - 2 - Math.floor(rng() * 5);
+      if (y > 2 && world.get(x, y, z) === ID.stone && !spawns.some((s) => Math.hypot(x - s.x, z - s.z) < 9)) world.set(x, y, z, ID.gold_ore, true);
+    }
+  },
+
+  /** Flowers on grass and a few gold ores: decorative blocks, owner 0. */
+  decorate(world, rng, mapId, spawns, cx, cz, PR) {
+    const sx = world.sizeX, sz = world.sizeZ, chance = mapId === 'canyon' ? 0.012 : 0.03;
+    for (let z = 3; z < sz - 3; z++) for (let x = 3; x < sx - 3; x++) {
+      if (rng() > chance) continue;
+      const gy = world.getSolidHeight(x, z);
+      if (gy < 2 || world.get(x, gy, z) !== ID.grass || world.get(x, gy + 1, z) !== AIR) continue;
+      if (spawns.some((s) => Math.hypot(x - s.x, z - s.z) < 5) || Math.hypot(x - cx, z - cz) < 6) continue;
+      world.set(x, gy + 1, z, rng() < 0.5 ? ID.flower_red : ID.flower_yellow, true, 0, 0);
+    }
+    if (mapId !== 'canyon') for (let n = 0; n < 24; n++) {
+      const x = 4 + Math.floor(rng() * (sx - 8)), z = 4 + Math.floor(rng() * (sz - 8)), y = world.getSolidHeight(x, z) - 3 - Math.floor(rng() * 3);
+      if (y > 2 && world.get(x, y, z) === ID.stone && !spawns.some((s) => Math.hypot(x - s.x, z - s.z) < 9)) world.set(x, y, z, ID.gold_ore, true);
+    }
   },
 
   tree(world, rng, x, z) {
@@ -1731,6 +1881,113 @@ const MapGenerator = {
     }
   },
 };
+/* ========================== 10b. PROGRESSION & COSMETICS ========================== */
+/**
+ * XP and coins unlock COSMETICS ONLY (skins, trails, kill effects, emotes, banners, titles).
+ * Nothing in here changes damage, speed, resources or any other gameplay number: no pay-to-win.
+ */
+const LEVEL_XP = 180;                                           // XP per level, growing with level
+const levelFor = (xp) => { let lvl = 1, need = LEVEL_XP; while (xp >= need && lvl < 99) { xp -= need; lvl++; need = Math.round(LEVEL_XP * (1 + lvl * 0.35)); } return { level: lvl, into: xp, need }; };
+
+const COSMETICS = {
+  skin: {
+    default: { name: 'Team Colours', cost: 0, level: 1, blurb: 'Your team colour shirt.' },
+    knight:  { name: 'Knight',  cost: 250, level: 2, skin: [0.84, 0.82, 0.88], shirt: [0.68, 0.71, 0.78], legs: [0.36, 0.38, 0.44] },
+    ember:   { name: 'Ember',   cost: 300, level: 3, skin: [0.95, 0.62, 0.42], shirt: [0.86, 0.26, 0.12], legs: [0.3, 0.1, 0.08] },
+    frost:   { name: 'Frost',   cost: 300, level: 4, skin: [0.82, 0.93, 1.0],  shirt: [0.45, 0.72, 0.95], legs: [0.2, 0.32, 0.55] },
+    shadow:  { name: 'Shadow',  cost: 400, level: 6, skin: [0.3, 0.3, 0.36],   shirt: [0.14, 0.12, 0.2],  legs: [0.08, 0.07, 0.12] },
+    golden:  { name: 'Golden',  cost: 900, level: 10, skin: [1.0, 0.88, 0.45], shirt: [0.96, 0.78, 0.2],  legs: [0.62, 0.45, 0.1] },
+    leaf:    { name: 'Woodland', cost: 350, level: 5, skin: [0.78, 0.66, 0.46], shirt: [0.28, 0.56, 0.24], legs: [0.34, 0.26, 0.14] },
+  },
+  trail: {
+    none:    { name: 'No Trail', cost: 0, level: 1 },
+    sparks:  { name: 'Sparks',   cost: 200, level: 2, color: [1, 0.8, 0.25], glow: true, rise: 0.4, size: 0.1 },
+    smoke:   { name: 'Smoke',    cost: 200, level: 3, color: [0.4, 0.4, 0.42], glow: false, rise: 0.8, size: 0.2 },
+    snow:    { name: 'Snowfall', cost: 350, level: 5, color: [0.92, 0.97, 1], glow: true, rise: -0.2, size: 0.1 },
+    leaves:  { name: 'Leaf Litter', cost: 350, level: 6, color: [0.3, 0.7, 0.25], glow: false, rise: 0.2, size: 0.12 },
+    rainbow: { name: 'Rainbow',  cost: 800, level: 9, color: null, glow: true, rise: 0.3, size: 0.12 },
+  },
+  kill: {
+    none:     { name: 'Standard', cost: 0, level: 1 },
+    confetti: { name: 'Confetti', cost: 250, level: 2 },
+    lightning:{ name: 'Lightning', cost: 450, level: 5 },
+    ghost:    { name: 'Ghost Rise', cost: 350, level: 4 },
+    pixels:   { name: 'Pixel Pop', cost: 300, level: 3 },
+  },
+  banner: {
+    solid:   { name: 'Solid',   cost: 0, level: 1, a: null, b: null, pattern: 'solid' },
+    stripes: { name: 'Stripes', cost: 100, level: 1, a: [1, 1, 1], b: null, pattern: 'stripes' },
+    cross:   { name: 'Cross',   cost: 150, level: 2, a: [1, 0.9, 0.3], b: null, pattern: 'cross' },
+    diag:    { name: 'Diagonal', cost: 150, level: 3, a: [0.1, 0.1, 0.12], b: null, pattern: 'diag' },
+    chevron: { name: 'Chevron', cost: 200, level: 4, a: [0.95, 0.95, 0.95], b: [0.9, 0.2, 0.2], pattern: 'chevron' },
+    skull:   { name: 'Skull',   cost: 400, level: 7, a: [0.95, 0.95, 0.95], b: [0.1, 0.1, 0.1], pattern: 'skull' },
+  },
+  emote: {
+    gg:     { name: 'GG!',            text: 'GG!',            cost: 0, level: 1 },
+    oops:   { name: 'Oops!',          text: 'Oops!',          cost: 0, level: 1 },
+    boom:   { name: 'BOOM!',          text: 'BOOM!',          cost: 0, level: 1 },
+    help:   { name: 'Help!',          text: 'Help!',          cost: 0, level: 1 },
+    nice:   { name: 'Nice shot!',     text: 'Nice shot!',     cost: 100, level: 2 },
+    fire:   { name: 'Fire in the hole!', text: 'Fire in the hole!', cost: 150, level: 3 },
+    wave:   { name: 'o/',             text: 'o/',             cost: 100, level: 2 },
+    rip:    { name: 'RIP',            text: 'RIP',            cost: 120, level: 4 },
+    think:  { name: 'Hmm...',         text: 'Hmm...',         cost: 120, level: 3 },
+    taunt:  { name: 'Come get me!',   text: 'Come get me!',   cost: 200, level: 5 },
+  },
+};
+const COSMETIC_SLOTS = ['skin', 'trail', 'kill', 'banner'];
+const DEFAULT_EMOTES = ['gg', 'oops', 'boom', 'help'];
+const BANNER_COLORS = [[1, 0.35, 0.2], [0.25, 0.65, 1], [0.45, 0.88, 0.35], [1, 0.82, 0.25], [0.78, 0.5, 1], [1, 0.55, 0.7], [0.95, 0.95, 0.95], [0.15, 0.15, 0.18]];
+
+/** Titles unlock from play, never from coins. `ok(career)` decides. */
+const TITLES = {
+  rookie:   { name: 'Rookie',            desc: 'Play your first match.', ok: () => true },
+  veteran:  { name: 'Veteran',           desc: 'Play 10 matches.', ok: (c) => c.matches >= 10 },
+  winner:   { name: 'Champion',          desc: 'Win a match.', ok: (c) => c.wins >= 1 },
+  dominator:{ name: 'Dominator',         desc: 'Win 5 matches.', ok: (c) => c.wins >= 5 },
+  hunter:   { name: 'Hunter',            desc: 'Get 25 kills.', ok: (c) => c.kills >= 25 },
+  demo:     { name: 'Demolition Expert', desc: 'Get 10 TNT eliminations.', ok: (c) => (c.tntKills || 0) >= 10 },
+  wrecker:  { name: 'Wrecking Ball',     desc: 'Destroy 25 structures.', ok: (c) => (c.structures || 0) >= 25 },
+  digger:   { name: 'Terraformer',       desc: 'Destroy 5,000 blocks.', ok: (c) => c.blocks >= 5000 },
+  rich:     { name: 'Tycoon',            desc: 'Earn 5,000 coins in total.', ok: (c) => (c.totalCoins || 0) >= 5000 },
+  lvl10:    { name: 'Block Lord',        desc: 'Reach level 10.', ok: (c) => levelFor(c.xp).level >= 10 },
+};
+const TITLE_ORDER = Object.keys(TITLES);
+
+const DEFAULT_PROFILE = () => ({ owned: { skin: ['default'], trail: ['none'], kill: ['none'], banner: ['solid'], emote: DEFAULT_EMOTES.slice() }, equipped: { skin: 'default', trail: 'none', kill: 'none', banner: 'solid', title: 'rookie', emotes: DEFAULT_EMOTES.slice(), bannerColor: 0 } });
+
+/** Validates (and repairs) a profile loaded from storage or received over the network. */
+function sanitizeProfile(pr) {
+  const d = DEFAULT_PROFILE();
+  if (!pr || typeof pr !== 'object') return d;
+  for (const slot of [...COSMETIC_SLOTS, 'emote']) {
+    const have = pr.owned && Array.isArray(pr.owned[slot]) ? pr.owned[slot].filter((id) => COSMETICS[slot][id]) : [];
+    d.owned[slot] = Array.from(new Set([...d.owned[slot], ...have]));
+  }
+  const eq = pr.equipped || {};
+  for (const slot of COSMETIC_SLOTS) if (COSMETICS[slot][eq[slot]] && d.owned[slot].includes(eq[slot])) d.equipped[slot] = eq[slot];
+  if (TITLES[eq.title]) d.equipped.title = eq.title;
+  if (Array.isArray(eq.emotes)) d.equipped.emotes = [0, 1, 2, 3].map((i) => (COSMETICS.emote[eq.emotes[i]] && d.owned.emote.includes(eq.emotes[i]) ? eq.emotes[i] : DEFAULT_EMOTES[i]));
+  d.equipped.bannerColor = clamp(eq.bannerColor | 0, 0, BANNER_COLORS.length - 1);
+  return d;
+}
+/** The small public part of a profile that other players see. */
+function publicLook(profile) {
+  const e = profile.equipped;
+  return { skin: e.skin, trail: e.trail, kill: e.kill, banner: e.banner, bannerColor: e.bannerColor, title: e.title, emotes: e.emotes.slice() };
+}
+function sanitizeLook(l) {
+  const d = DEFAULT_PROFILE().equipped;
+  if (!l || typeof l !== 'object') return publicLook({ equipped: d });
+  const out = { skin: COSMETICS.skin[l.skin] ? l.skin : d.skin, trail: COSMETICS.trail[l.trail] ? l.trail : d.trail, kill: COSMETICS.kill[l.kill] ? l.kill : d.kill, banner: COSMETICS.banner[l.banner] ? l.banner : d.banner, bannerColor: clamp(l.bannerColor | 0, 0, BANNER_COLORS.length - 1), title: TITLES[l.title] ? l.title : d.title };
+  out.emotes = [0, 1, 2, 3].map((i) => (l.emotes && COSMETICS.emote[l.emotes[i]] ? l.emotes[i] : DEFAULT_EMOTES[i]));
+  return out;
+}
+/** Random cosmetics for bots, so the lobby looks lively and every match looks different. */
+function randomLook(rng = Math.random) {
+  const pick = (slot) => { const ids = Object.keys(COSMETICS[slot]); return ids[Math.floor(rng() * ids.length)]; };
+  return sanitizeLook({ skin: rng() < 0.45 ? 'default' : pick('skin'), trail: rng() < 0.6 ? 'none' : pick('trail'), kill: pick('kill'), banner: pick('banner'), bannerColor: Math.floor(rng() * BANNER_COLORS.length), title: TITLE_ORDER[Math.floor(rng() * 4)], emotes: DEFAULT_EMOTES });
+}
 
 /* =========================== 11. GAME SERVER ============================ */
 /**
@@ -1819,11 +2076,11 @@ const EVENT_DEFS = {
     },
   },
   mobAttack: {
-    name: 'MOB ATTACK', duration: 26,
+    name: 'CREEPER & ZOMBIE ATTACK', duration: 26,
     start(s, ev) { ev.data.waves = 2; ev.data.next = 0; },
     tick(s, ev, dt) {
       ev.data.next -= dt;
-      if (ev.data.waves > 0 && ev.data.next <= 0) { ev.data.waves--; ev.data.next = 9; for (let i = 0; i < 4; i++) s.spawnMobAtEdge(); }
+      if (ev.data.waves > 0 && ev.data.next <= 0) { ev.data.waves--; ev.data.next = 9; for (let i = 0; i < 4; i++) s.spawnMobAtEdge(i < 2 ? 'creeper' : 'zombie'); }
     },
     end(s) { for (const m of s.mobs) { m.alive = false; s.emit({ type: 'mobDespawn', mob: m }); } },
   },
@@ -1847,6 +2104,13 @@ const EVENT_DEFS = {
   },
 };
 const EVENT_LIST = Object.keys(EVENT_DEFS);
+
+/** Deterministic land assignment shared by the server, the lobby and joining clients. */
+function assignLandList(seed) {
+  const rng = mulberry32(seed * 2654435761 >>> 0), a = LAND_ORDER.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
 
 class GameServer {
   constructor(world) {
@@ -1890,13 +2154,15 @@ class GameServer {
   addPlayer(player) {
     player.index = this.players.length;
     player.color = CONFIG.COLORS[player.index % CONFIG.COLORS.length];
+    if (!player.look) player.look = sanitizeLook(null);
     this.players[player.index] = player;
     this.playerMap.set(player.id, player);
     return player;
   }
   playerBySlot(i) { return this.players[i] || null; }
   playerById(id) { return this.playerMap.get(id) || null; }
-  get human() { return this.players.find((p) => !p.isBot) || null; }
+  /** The local player: the first human who is not a remote connection (the host, or the only player). */
+  get human() { return this.players.find((p) => !p.isBot && !p.isRemote) || this.players.find((p) => !p.isBot) || null; }
   areAllies(a, b) { return !!a && !!b && a !== b && a.team === b.team; }
 
   /**
@@ -1905,25 +2171,42 @@ class GameServer {
    */
   startMatch(cfg = {}) {
     this.resetState();
-    this.world.listeners.length && 0;
-    const mode = cfg.mode || 'war', botCount = clamp(cfg.botCount == null ? 3 : cfg.botCount, 0, 5), n = 1 + botCount;
+    const mode = cfg.mode || 'war';
+    // The roster is the full list of competitors (humans and bots). A plain {name, classId, botCount} config builds one.
+    let roster = cfg.roster;
+    if (!roster) {
+      const botCount = clamp(cfg.botCount == null ? 3 : cfg.botCount, 0, 5);
+      roster = [{ id: 'p0', name: cfg.name || 'PLAYER', classId: cfg.classId || 'builder', isBot: false, look: cfg.look }];
+      for (let i = 0; i < botCount; i++) roster.push({ isBot: true, classId: cfg.botClasses && cfg.botClasses[i], name: null });
+    }
+    roster = roster.slice(0, 6);
+    const n = roster.length;
     this.mode = mode; this.unlimited = mode === 'sandbox'; this.allianceMode = mode === 'alliance';
-    const rng = mulberry32((cfg.seed != null ? cfg.seed : 1) * 7919 + 13);
-    const lands = cfg.lands || this.assignLands(cfg.seed != null ? cfg.seed : 1);
+    const seed = cfg.seed != null ? cfg.seed : 1;
+    const rng = mulberry32(seed * 7919 + 13);
+    const lands = cfg.lands || this.assignLands(seed);
+    this.lands = lands;
     this.suspendTracking = true;                                   // do not run per-block systems while generating
-    this.map = MapGenerator.generate(this.world, { seed: cfg.seed != null ? cfg.seed : 1337, lands, owners: [0, 1, 2, 3, 4, 5].map((i) => (i < n ? i : -1)) });
+    const mapId = cfg.mapId === 'random' ? MAP_ORDER[Math.floor(rng() * MAP_ORDER.length)] : (MAPS[cfg.mapId] ? cfg.mapId : 'plains');
+    this.mapId = mapId;
+    this.map = MapGenerator.generate(this.world, { seed: cfg.seed != null ? cfg.seed : 1337, mapId, lands, owners: [0, 1, 2, 3, 4, 5].map((i) => (i < n ? i : -1)) });
     this.suspendTracking = false;
     this.plots = this.map.plots;
     this.fluids.pending.clear(); this.fire.fires.clear(); this.redstone.mechs.clear(); this.gravity.pending.clear();
     this.scanWorldForSystems();
 
-    const botNames = BOT_NAMES.slice().sort(() => rng() - 0.5);
-    const classPool = CLASS_ORDER.filter((c) => c !== cfg.classId).sort(() => rng() - 0.5);
+    const botNames = BOT_NAMES.slice().sort(() => rng() - 0.5).filter((nm) => !roster.some((r) => r.name === nm));
+    // bot classes: shuffled without repeats for as long as possible, so every match is a different mix
+    let classPool = [];
+    const nextClass = () => { if (!classPool.length) classPool = CLASS_ORDER.slice().sort(() => rng() - 0.5); return classPool.pop(); };
+    let botIdx = 0;
     for (let i = 0; i < n; i++) {
-      const isBot = i > 0, p = new Player(isBot ? 'b' + i : 'p0', isBot ? botNames[i - 1] : (cfg.name || 'PLAYER'));
+      const r = roster[i], isBot = !!r.isBot;
+      const p = new Player(r.id || (isBot ? 'b' + i : 'p' + i), r.name || botNames[botIdx++ % botNames.length] || 'BOT' + i);
       this.addPlayer(p);
-      p.isBot = isBot;
-      p.classId = isBot ? (cfg.botClasses && cfg.botClasses[i - 1]) || classPool[(i - 1) % classPool.length] : (cfg.classId || 'builder');
+      p.isBot = isBot; p.isRemote = !isBot && i > 0; p.inQueue = p.isRemote ? [] : null;
+      p.classId = CLASSES[r.classId] ? r.classId : (isBot ? nextClass() : 'builder');
+      p.look = isBot ? sanitizeLook(r.look || randomLook(rng)) : sanitizeLook(r.look);
       p.landId = lands[i];
       p.team = this.nextTeam++;
       this.applyClass(p);
@@ -1933,7 +2216,7 @@ class GameServer {
       this.respawn(p, true);
       p.yaw = Math.atan2(-(this.map.center.x - p.spawn.x), -(this.map.center.z - p.spawn.z));
       p.pitch = -0.1;
-      if (isBot) p.bot = new Bot(this, p);
+      if (isBot) p.bot = new Bot(this, p, rng);
     }
     if (this.allianceMode && n >= 3) {                              // random starting alliances: 1 pair (3-4 players) or 2 pairs (5-6)
       const order = this.players.map((p) => p.index).sort(() => rng() - 0.5), pairs = n >= 5 ? 2 : 1;
@@ -1951,11 +2234,7 @@ class GameServer {
     return this.map;
   }
   /** Deterministic land assignment: a shuffle of the six land types (so every plot differs). */
-  assignLands(seed) {
-    const rng = mulberry32(seed * 2654435761 >>> 0), a = LAND_ORDER.slice();
-    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-    return a;
-  }
+  assignLands(seed) { return assignLandList(seed); }
   applyClass(p) {
     p.mods = DEFAULT_MODS();
     Object.assign(p.mods, CLASSES[p.classId].mods);
@@ -2030,8 +2309,18 @@ class GameServer {
       case 'respond': return this.respondAlliance(p, msg);
       case 'leaveAlliance': return this.leaveAlliance(p);
       case 'bounty': return this.placeBounty(p, msg);
+      case 'emote': return this.emote(p, msg);
       default: return { ok: false, reason: 'unknown-action' };
     }
+  }
+  /** Equipped emotes appear as a speech bubble and a feed line. Rate limited. */
+  emote(p, { slot }) {
+    if (this.clock - (p.lastEmote == null ? -9 : p.lastEmote) < 1.5) return { ok: false, reason: 'cooldown' };
+    const id = p.look.emotes[clamp(slot | 0, 0, 3)], def = COSMETICS.emote[id];
+    if (!def) return { ok: false, reason: 'unknown' };
+    p.lastEmote = this.clock;
+    this.emit({ type: 'emote', player: p, text: def.text });
+    return { ok: true };
   }
   withinReach(p, x, y, z, extra = 1.0) {
     const e = p.eyePosition();
@@ -2040,6 +2329,7 @@ class GameServer {
 
   breakBlock(p, { x, y, z }) {
     const w = this.world;
+    if (p.isRemote) { if (this.clock - (p.lastBreak == null ? -9 : p.lastBreak) < 0.06) return { ok: false, reason: 'cooldown' }; p.lastBreak = this.clock; }
     if (!w.inBounds(x, y, z)) return { ok: false, reason: 'out-of-bounds' };
     const id = w.get(x, y, z);
     if (id === AIR) return { ok: false, reason: 'empty' };
@@ -2212,9 +2502,18 @@ class GameServer {
       }
       for (const q of this.players) q.assisted = false;
     }
+    let loot = null;
+    if (killer && killer !== target && !this.unlimited) {                // spoils of war: take a share of the victim's supplies
+      loot = {};
+      for (const k of RESOURCE_ORDER) {
+        const take = Math.floor((target.resources[k] || 0) * 0.35);
+        if (take > 0) { const got = this.addResource(killer, k, take); if (got > 0) { loot[k] = got; target.resources[k] -= take; } }
+      }
+      if (!Object.keys(loot).length) loot = null;
+    }
     target.bounty = 0; target.bountyTime = 0; target.lastHits.length = 0;
     target.respawnTimer = this.mode === 'sandbox' ? CONFIG.MATCH.SANDBOX_RESPAWN : 0;
-    this.emit({ type: 'death', victim: target, killer, kind: src.kind, detail: src.detail || null, bounty, tnt: viaTnt });
+    this.emit({ type: 'death', victim: target, killer, kind: src.kind, detail: src.detail || null, bounty, tnt: viaTnt, loot });
     this.winCheckClock = 0.4;
   }
 
@@ -2407,10 +2706,10 @@ class GameServer {
     for (let z = 0; z < w.sizeZ; z++) for (let x = 0; x < w.sizeX; x++) if (w.get(x, y, z) === AIR) w.set(x, y, z, id, false, meta);
     this.emit({ type: 'layerFilled', y, id });
   }
-  spawnMobAtEdge() {
+  spawnMobAtEdge(type = 'zombie') {
     const w = this.world, side = Math.floor(Math.random() * 4), t = 4 + Math.random() * (w.sizeX - 8);
     const x = side === 0 ? 2 : side === 1 ? w.sizeX - 3 : t, z = side === 2 ? 2 : side === 3 ? w.sizeZ - 3 : t;
-    const m = new Mob('m' + this.nextId(), x + 0.5, w.getSolidHeight(Math.floor(x), Math.floor(z)) + 1, z + 0.5);
+    const m = new Mob('m' + this.nextId(), x + 0.5, w.getSolidHeight(Math.floor(x), Math.floor(z)) + 1, z + 0.5, type);
     this.mobs.push(m);
     this.emit({ type: 'mobSpawn', mob: m });
   }
@@ -2462,6 +2761,7 @@ class GameServer {
     for (const p of this.players) {
       if (!p.alive) { this.updateDead(p, dt); continue; }
       if (p.bot && live) p.bot.update(dt);
+      else if (p.isRemote) this.consumeInput(p, dt);
       this.tickPlayer(p, dt, env, live);
     }
     this.updateMobs(dt, env);
@@ -2483,6 +2783,7 @@ class GameServer {
 
   updatePhase(dt) {
     const M = CONFIG.MATCH;
+    if (this.hold && this.phase === 'countdown') { this.phaseTime = 0; return; }          // hosting: wait until every player has loaded the map
     if (this.phase === 'countdown' && this.phaseTime >= M.COUNTDOWN) this.setPhase('build');
     else if (this.phase === 'build' && this.phaseTime >= M.BUILD) { this.setPhase('war'); for (let i = 0; i < 6; i++) { this.baseRef[i] = Math.max(this.baseCount[i], 1); } }
     else if (this.phase === 'war' && this.phaseTime >= M.WAR - M.CHAOS) { this.setPhase('chaos'); this.eventGap = 2; }
@@ -2502,6 +2803,16 @@ class GameServer {
     return this.phase === 'build' ? cur + M.WAR : this.phase === 'war' ? cur + M.CHAOS : cur;
   }
 
+  /** Remote players send one input per client step; the server applies them in order (and tells the client which it has used). */
+  consumeInput(p, dt) {
+    const q = p.inQueue, c = p.controls;
+    if (q && q.length) {
+      if (q.length > 10) q.splice(0, q.length - 4);                    // client ran ahead: drop the oldest
+      const i = q.shift(), b = i.bits;
+      c.forward = !!(b & 1); c.back = !!(b & 2); c.left = !!(b & 4); c.right = !!(b & 8); c.jump = !!(b & 16); c.crouch = !!(b & 32);
+      p.yaw = i.yaw; p.pitch = clamp(i.pitch, -1.57, 1.57); p.ackSeq = i.seq; p.idleInput = 0;
+    } else if ((p.idleInput = (p.idleInput || 0) + dt) > 0.3) { c.forward = c.back = c.left = c.right = c.jump = c.crouch = false; }
+  }
   updateDead(p, dt) {
     if (this.mode === 'sandbox' && p.respawnTimer > 0) { p.respawnTimer -= dt; if (p.respawnTimer <= 0) this.respawn(p); }
   }
@@ -2542,6 +2853,17 @@ class GameServer {
       let target = null, best = 1e9;
       for (const p of this.players) if (p.alive) { const d = Math.hypot(p.pos.x - m.pos.x, p.pos.z - m.pos.z); if (d < best) { best = d; target = p; } }
       m.update(dt, target, this.world, env);
+      if (m.type === 'creeper') {                                     // hiss, swell, boom
+        if (m.fuse > 0) {
+          m.fuse -= dt;
+          if (best > 6) m.fuse = 0;                                   // the target got away: fuse goes out
+          else if (m.fuse <= 0) { m.alive = false; this.explode(m.pos.x, m.pos.y + 0.8, m.pos.z, { radius: 3.6, power: 1.15, owner: null, cause: 'creeper' }); this.emit({ type: 'mobDeath', mob: m }); continue; }
+        } else if (target && best < 2.8 && Math.abs(target.pos.y - m.pos.y) < 2.5) { m.fuse = 1.4; this.emit({ type: 'creeperHiss', mob: m }); }
+        if (m.burnTime > 0) { m.burnTime -= dt; this.damage(m, 3 * dt, { kind: 'fire' }); }
+        if (m.inLava) this.damage(m, 30 * dt, { kind: 'lava' });
+        if (m.life > 90 || m.pos.y < -5) m.alive = false;
+        continue;
+      }
       if (target && best < 1.5 && Math.abs(target.pos.y - m.pos.y) < 1.8 && m.attackCd <= 0) {
         m.attackCd = 0.9; m.swing = 1;
         const dx = target.pos.x - m.pos.x, dz = target.pos.z - m.pos.z, l = Math.hypot(dx, dz) || 1;
@@ -2751,15 +3073,709 @@ class GameServer {
     const L = (b, k) => lerp(b.prev[k], b.pos[k], alpha);
     return {
       time: this.clock,
-      players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty })),
+      players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, moving: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround })),
       tnts: this.tnts.map((t) => ({ x: L(t, 'x'), y: L(t, 'y'), z: L(t, 'z'), fuse: t.fuse })),
       groups: this.groups.map((g) => ({ g, off: g.off })),
       arrows: this.arrows.filter((a) => a.alive).map((a) => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z, yaw: a.yaw, pitch: a.pitch })),
-      mobs: this.mobs.filter((m) => m.alive).map((m) => ({ x: L(m, 'x'), y: L(m, 'y'), z: L(m, 'z'), yaw: m.yaw, walk: m.walkPhase, swing: m.swing })),
+      mobs: this.mobs.filter((m) => m.alive).map((m) => ({ id: m.id, type: m.type, fuse: m.fuse, x: L(m, 'x'), y: L(m, 'y'), z: L(m, 'z'), yaw: m.yaw, walk: m.walkPhase, swing: m.swing })),
       meteors: this.meteors.map((m) => ({ x: m.pos.x, y: m.pos.y, z: m.pos.z })),
+      banners: this.plots.filter((pl) => pl.owner >= 0 && this.players[pl.owner]).map((pl) => { const q = this.players[pl.owner]; return { x: pl.x + 3.5, y: pl.baseY + 1, z: pl.z + 3.5, color: q.color, banner: q.look.banner, bc: q.look.bannerColor }; }),
     };
   }
 }
+/* ============================ 11b. MULTIPLAYER ============================ */
+/**
+ * Host-authoritative multiplayer.
+ *
+ *   HOST   runs the real GameServer (world, physics, rules). Remote humans are ordinary Players whose controls are fed by
+ *          the inputs they send; their actions go through GameServer.handle() exactly like local ones.
+ *   CLIENT generates the same map from the seed, then only applies what the host says: block changes, entity snapshots
+ *          and events (NetServerView). It predicts its own movement and the host corrects it.
+ *
+ * Two interchangeable transports carry the messages: 'online' (WebRTC through PeerJS, loaded on demand from a CDN, a game
+ * code is the room name) and 'local' (BroadcastChannel: another tab on the same computer, works offline).
+ */
+const NET = { VERSION: 1, TICK_STEPS: 3, MAX_PLAYERS: 6, TIMEOUT: 9000, CODE_CHARS: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', PEER_PREFIX: 'mpw-' };
+const newGameCode = () => { let c = ''; for (let i = 0; i < 5; i++) c += NET.CODE_CHARS[Math.floor(Math.random() * NET.CODE_CHARS.length)]; return c; };
+const cleanCode = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+
+/* ---------- compact world transfer (only used when the generated maps differ, which should never happen) ---------- */
+function rleEncode(arr) {
+  const out = []; let i = 0;
+  while (i < arr.length) { const v = arr[i]; let j = i + 1; while (j < arr.length && arr[j] === v) j++; out.push(v, j - i); i = j; }
+  return out;
+}
+function rleDecode(rle, target) {
+  let k = 0; for (let i = 0; i < rle.length; i += 2) { const v = rle[i], n = rle[i + 1]; target.fill(v, k, k + n); k += n; }
+}
+function hashWorld(world) {
+  let h = 2166136261 >>> 0;
+  const b = world.blocks, m = world.meta, o = world.owner;
+  for (let i = 0; i < b.length; i += 7) { h = Math.imul(h ^ b[i], 16777619) >>> 0; h = Math.imul(h ^ m[i] ^ (o[i] << 8), 16777619) >>> 0; }
+  return h;
+}
+
+/* ============================== transports ============================== */
+class Channel {
+  constructor() { this.onmessage = () => {}; this.onclose = () => {}; this.alive = true; }
+  send() {}
+  close() { this._closed(); }
+  _closed() { if (!this.alive) return; this.alive = false; try { this.onclose(); } catch (e) { /* ignore */ } }
+}
+
+/** One endpoint of a BroadcastChannel conversation. Messages are addressed {to, from, d}. */
+class BCChannel extends Channel {
+  constructor(bc, me, peer, ownsBc = false) { super(); this.bc = bc; this.me = me; this.peer = peer; this.ownsBc = ownsBc; }
+  _closed() { const was = this.alive; super._closed(); if (was && this.ownsBc) try { this.bc.close(); } catch (e) { /* ignore */ } }
+  send(msg) { if (this.alive) try { this.bc.postMessage({ to: this.peer, from: this.me, d: msg }); } catch (e) { /* closed */ } }
+  _recv(m) { if (this.alive) this.onmessage(m.d); }
+  close() { if (this.alive) { try { this.bc.postMessage({ to: this.peer, from: this.me, d: { t: 'bye' } }); } catch (e) { /* ignore */ } } this._closed(); }
+}
+const LocalProvider = {
+  name: 'local',
+  available() { return typeof BroadcastChannel !== 'undefined'; },
+  host(code, onchannel) {
+    const bc = new BroadcastChannel('mpw:' + code), chans = new Map();
+    bc.onmessage = (ev) => {
+      const m = ev.data;
+      if (!m || m.to !== 'host') return;
+      if (m.d === undefined && m.t === 'hi') {
+        const old = chans.get(m.cid); if (old) old._closed();
+        const ch = new BCChannel(bc, 'host', m.cid); chans.set(m.cid, ch);
+        bc.postMessage({ to: m.cid, t: 'ok' });
+        onchannel(ch);
+      } else { const ch = chans.get(m.from); if (ch) ch._recv(m); }
+    };
+    return Promise.resolve({ name: 'local', close() { for (const c of chans.values()) c._closed(); chans.clear(); bc.close(); } });
+  },
+  connect(code, timeout = 1500) {
+    return new Promise((resolve, reject) => {
+      const bc = new BroadcastChannel('mpw:' + code), cid = 'c' + Math.random().toString(36).slice(2, 10), ch = new BCChannel(bc, cid, 'host', true);
+      let done = false;
+      const timer = setTimeout(() => { if (!done) { done = true; bc.close(); reject(new Error('no host on this device')); } }, timeout);
+      bc.onmessage = (ev) => {
+        const m = ev.data;
+        if (!m || m.to !== cid) return;
+        if (!done && m.t === 'ok') { done = true; clearTimeout(timer); resolve(ch); }
+        else if (done && m.d) ch._recv(m);
+      };
+      bc.postMessage({ to: 'host', t: 'hi', cid });
+    });
+  },
+};
+
+/** WebRTC through PeerJS. The library is fetched only when someone hosts or joins online. */
+const PEERJS_URLS = ['https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js', 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'];
+class PeerChannel extends Channel {
+  constructor(conn, peer) {
+    super(); this.conn = conn; this.peer = peer || null;
+    conn.on('data', (d) => { if (this.alive) this.onmessage(d); });
+    conn.on('close', () => this._closed());
+    conn.on('error', () => this._closed());
+  }
+  send(msg) { if (this.alive) try { this.conn.send(msg); } catch (e) { /* ignore */ } }
+  close() { try { this.conn.close(); } catch (e) { /* ignore */ } if (this.peer) try { this.peer.destroy(); } catch (e) { /* ignore */ } this._closed(); }
+}
+let peerLoading = null;
+function loadPeerJS() {
+  if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
+  if (window.Peer) return Promise.resolve(window.Peer);
+  if (peerLoading) return peerLoading;
+  peerLoading = new Promise((resolve, reject) => {
+    let i = 0;
+    const next = () => {
+      if (i >= PEERJS_URLS.length) { peerLoading = null; reject(new Error('Could not load the online multiplayer library (offline or blocked).')); return; }
+      const s = document.createElement('script');
+      s.src = PEERJS_URLS[i++]; s.async = true; s.referrerPolicy = 'no-referrer';
+      s.onload = () => (window.Peer ? resolve(window.Peer) : next());
+      s.onerror = () => { s.remove(); next(); };
+      document.head.appendChild(s);
+    };
+    next();
+  });
+  return peerLoading;
+}
+const PeerProvider = {
+  name: 'online',
+  available() { return typeof window !== 'undefined'; },
+  async host(code, onchannel) {
+    const Peer = await loadPeerJS();
+    return new Promise((resolve, reject) => {
+      const peer = new Peer(NET.PEER_PREFIX + code, { debug: 0 });
+      let opened = false; const timer = setTimeout(() => { if (!opened) { try { peer.destroy(); } catch (e) { /* ignore */ } reject(new Error('timeout')); } }, 12000);
+      peer.on('open', () => { opened = true; clearTimeout(timer); resolve({ name: 'online', close() { try { peer.destroy(); } catch (e) { /* ignore */ } } }); });
+      peer.on('error', (e) => { if (!opened) { clearTimeout(timer); reject(e); } });
+      peer.on('connection', (conn) => { conn.on('open', () => onchannel(new PeerChannel(conn))); });
+    });
+  },
+  async connect(code, timeout = 14000) {
+    const Peer = await loadPeerJS();
+    return new Promise((resolve, reject) => {
+      const peer = new Peer({ debug: 0 });
+      let done = false;
+      const fail = (e) => { if (done) return; done = true; clearTimeout(timer); try { peer.destroy(); } catch (x) { /* ignore */ } reject(e instanceof Error ? e : new Error(e && e.type ? e.type : 'failed')); };
+      const timer = setTimeout(() => fail(new Error('timeout')), timeout);
+      peer.on('error', fail);
+      peer.on('open', () => {
+        const conn = peer.connect(NET.PEER_PREFIX + code, { reliable: true });
+        conn.on('open', () => { if (done) return; done = true; clearTimeout(timer); resolve(new PeerChannel(conn, peer)); });
+        conn.on('error', fail);
+      });
+    });
+  },
+};
+/** Registered providers (tests add an in-memory one). */
+const NET_PROVIDERS = [LocalProvider, PeerProvider];
+
+/** Host: listen on every available provider. Resolves with { code, providers:[names that work], close() }. */
+async function netHost(onchannel, providers = NET_PROVIDERS) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const code = newGameCode(), handles = [], errors = {};
+    const results = await Promise.all(providers.filter((p) => p.available()).map((p) => p.host(code, onchannel).then((h) => { handles.push(h); return h.name; }, (e) => { errors[p.name] = e; return null; })));
+    const names = results.filter(Boolean);
+    const taken = Object.values(errors).some((e) => e && (e.type === 'unavailable-id' || /taken|unavailable/i.test(String(e.message || e))));
+    if (names.length && !taken) return { code, providers: names, errors, close() { for (const h of handles) h.close(); } };
+    for (const h of handles) h.close();
+    if (!taken) throw new Error('Could not start a game: ' + Object.values(errors).map((e) => e && (e.message || e.type)).join('; '));
+  }
+  throw new Error('Could not find a free game code, try again.');
+}
+/** Client: try every provider at once, the first one to connect wins. */
+function netConnect(code, providers = NET_PROVIDERS) {
+  return new Promise((resolve, reject) => {
+    const list = providers.filter((p) => p.available());
+    let pending = list.length, won = false; const errs = [];
+    if (!pending) { reject(new Error('Multiplayer is not available in this browser.')); return; }
+    for (const p of list) p.connect(code).then((ch) => {
+      if (won) { ch.close(); return; }
+      won = true; resolve(ch);
+    }, (e) => {
+      errs.push(e);
+      if (--pending === 0 && !won) {
+        const peerErr = errs.find((x) => x && x.type === 'peer-unavailable');
+        reject(new Error(peerErr ? 'No game with that code was found.' : errs.some((x) => /library|offline/i.test(String(x && x.message))) ? 'Could not reach the online service. If the host is on this computer, open the game in another tab; otherwise check your connection.' : 'Could not connect. Check the code and that the host is still in the lobby.'));
+      }
+    });
+  });
+}
+
+/* ============================ event serialisation ============================ */
+const isBlockDef = (v) => typeof v.type === 'string' && typeof v.id === 'number' && v.tiles !== undefined;
+function netPack(v, depth = 0) {
+  if (v == null || typeof v !== 'object') return v;
+  if (v instanceof Player) return { $p: v.index };
+  if (v instanceof Mob) return { $m: v.id, type: v.type, x: v.pos.x, y: v.pos.y, z: v.pos.z, fuse: v.fuse };
+  if (v instanceof PrimedTnt) return { $t: v.id, x: v.pos.x, y: v.pos.y, z: v.pos.z, fuse: v.fuse };
+  if (v instanceof Arrow) return { $a: 1, x: v.pos.x, y: v.pos.y, z: v.pos.z };
+  if (v instanceof FallingGroup) return { $g: v.id };
+  if (isBlockDef(v)) return { $b: v.id };
+  if (Array.isArray(v)) return v.map((x) => netPack(x, depth + 1));
+  if (depth > 5) return null;
+  const o = {};
+  for (const k in v) if (typeof v[k] !== 'function') o[k] = netPack(v[k], depth + 1);
+  return o;
+}
+function netUnpack(v, view) {
+  if (v == null || typeof v !== 'object') return v;
+  if (Array.isArray(v)) return v.map((x) => netUnpack(x, view));
+  if (v.$p !== undefined) return view.players[v.$p] || null;
+  if (v.$b !== undefined) return BLOCKS[v.$b];
+  if (v.$m !== undefined) { let m = view.mobById.get(v.$m); if (!m) { m = new Mob(v.$m, v.x, v.y, v.z, v.type); } return m; }
+  if (v.$t !== undefined) return { id: v.$t, pos: { x: v.x, y: v.y, z: v.z }, fuse: v.fuse };
+  if (v.$a !== undefined) return { pos: { x: v.x, y: v.y, z: v.z } };
+  if (v.$g !== undefined) return view.groupById.get(v.$g) || { id: v.$g, cells: [], bounds: { minX: 0, maxX: 1, minY: 0, maxY: 1, minZ: 0, maxZ: 1 }, off: 0 };
+  const o = {};
+  for (const k in v) o[k] = netUnpack(v[k], view);
+  return o;
+}
+const LOW_PRIORITY_EVENTS = new Set(['debris', 'blockBroken', 'blockPlaced', 'quakeTick', 'layerFilled']);
+
+/* ============================== HOST SESSION ============================== */
+/** Lobby + match relay on the host. `game` supplies the local GameServer and the host's own profile. */
+class HostSession {
+  constructor(server, hooks = {}) {
+    this.server = server; this.hooks = hooks;
+    this.peers = new Map();                  // channel -> peer
+    this.state = 'lobby';                    // lobby | playing | closed
+    this.cfg = { mode: 'war', mapId: 'plains', bots: 3, seed: 1 };
+    this.hostInfo = { name: 'HOST', classId: 'builder', look: sanitizeLook(null) };
+    this.ai = [];                            // preview of the AI opponents (same list shown to everyone)
+    this.code = null; this.providers = [];
+    this.step = 0; this.tickNo = 0; this.blockQ = []; this.evQ = []; this.nextId = 1;
+    this.lastBroadcast = 0; this.holdSince = 0;
+    this.blockListener = (x, y, z, o, n) => { if (this.state === 'playing') this.blockQ.push(x, y, z, n, server.world.getMeta(x, y, z), server.world.getOwner(x, y, z)); };
+    this.eventListener = (e) => { if (this.state === 'playing') this.captureEvent(e); };
+    this.reroll();
+  }
+  async open(providers) {
+    const r = await netHost((ch) => this.onChannel(ch), providers || NET_PROVIDERS);
+    this.code = r.code; this.providers = r.providers; this.closer = r;
+    this.server.world.listeners.push(this.blockListener);
+    this.server.subscribe(this.eventListener);
+    this.sweeper = setInterval(() => this.sweep(), 1000);
+    return r;
+  }
+  close(why) {
+    if (this.state === 'closed') return;
+    for (const peer of this.peers.keys()) { try { peer.send({ t: 'closed', why: why || 'The host closed the game.' }); } catch (e) { /* ignore */ } }
+    this.state = 'closed';
+    clearInterval(this.sweeper);
+    const i = this.server.world.listeners.indexOf(this.blockListener); if (i >= 0) this.server.world.listeners.splice(i, 1);
+    const j = this.server.listeners.indexOf(this.eventListener); if (j >= 0) this.server.listeners.splice(j, 1);
+    for (const ch of Array.from(this.peers.keys())) { try { ch.close(); } catch (e) { /* ignore */ } }
+    this.peers.clear();
+    if (this.closer) this.closer.close();
+  }
+
+  /* ---------- lobby ---------- */
+  humans() { return [{ id: 'p0', ...this.hostInfo, ready: true, host: true }, ...Array.from(this.peers.values()).filter((p) => p.joined).map((p) => ({ id: p.id, name: p.name, classId: p.classId, look: p.look, ready: p.ready, host: false }))]; }
+  maxBots() { return Math.max(0, NET.MAX_PLAYERS - this.humans().length); }
+  minBots() { return this.humans().length < 2 ? 1 : 0; }
+  reroll() {
+    this.cfg.seed = 1 + Math.floor(Math.random() * 9998);
+    this.ai = []; const used = new Set(), pool = BOT_NAMES.slice().sort(() => Math.random() - 0.5);
+    let classes = CLASS_ORDER.slice().sort(() => Math.random() - 0.5);
+    for (let i = 0; i < 5; i++) { if (!classes.length) classes = CLASS_ORDER.slice().sort(() => Math.random() - 0.5); this.ai.push({ id: 'ai' + i, name: pool[i % pool.length], classId: classes.pop(), look: randomLook(), isBot: true, ready: true }); used.add(i); }
+  }
+  roster() {
+    const humans = this.humans(), botsWanted = clamp(this.cfg.bots, this.minBots(), this.maxBots());
+    return [...humans, ...this.ai.slice(0, botsWanted)];
+  }
+  lobbyMessage() {
+    const roster = this.roster();
+    return { t: 'lobby', cfg: { ...this.cfg, bots: clamp(this.cfg.bots, this.minBots(), this.maxBots()) }, code: this.code, roster: roster.map((r) => ({ id: r.id, name: r.name, classId: r.classId, look: r.look, ready: !!r.ready, host: !!r.host, isBot: !!r.isBot })), min: this.minBots(), max: this.maxBots(), providers: this.providers };
+  }
+  broadcastLobby() {
+    this.hooks.onLobby && this.hooks.onLobby(this.lobbyMessage());
+    const m = this.lobbyMessage();
+    for (const peer of this.peers.values()) if (peer.joined) peer.ch.send({ ...m, you: peer.id });
+  }
+  setConfig(patch) {
+    if (patch.mode && ['war', 'alliance', 'sandbox'].includes(patch.mode)) this.cfg.mode = patch.mode;
+    if (patch.mapId && (MAPS[patch.mapId] || patch.mapId === 'random')) this.cfg.mapId = patch.mapId;
+    if (patch.bots != null) this.cfg.bots = clamp(patch.bots | 0, 0, 5);
+    if (patch.reroll) this.reroll();
+    this.broadcastLobby();
+  }
+  /** After a match: everybody goes back to the lobby (a new seed and a fresh AI line-up). */
+  returnToLobby() {
+    if (this.state === 'closed') return;
+    this.state = 'lobby'; this.endSent = false; this.step = 0; this.server.hold = false;
+    for (const peer of this.peers.values()) { peer.ready = false; peer.loaded = false; }
+    this.reroll(); this.broadcastLobby();
+  }
+  setHostInfo(info) { Object.assign(this.hostInfo, info); this.broadcastLobby(); }
+  allReady() { return Array.from(this.peers.values()).every((p) => !p.joined || p.ready); }
+  canStart() { const n = this.roster().length; return this.state === 'lobby' && this.allReady() && (this.cfg.mode === 'sandbox' ? n >= 1 : n >= 2); }
+
+  onChannel(ch) {
+    const peer = { ch, id: null, name: 'PLAYER', classId: 'builder', look: sanitizeLook(null), ready: false, joined: false, loaded: false, lastSeen: Date.now() };
+    this.peers.set(ch, peer);
+    ch.onmessage = (m) => this.onMessage(peer, m);
+    ch.onclose = () => this.drop(peer);
+  }
+  onMessage(peer, m) {
+    if (!m || typeof m !== 'object' || this.state === 'closed') return;
+    peer.lastSeen = Date.now();
+    try {
+      switch (m.t) {
+        case 'join': {
+          if (m.v !== NET.VERSION) { peer.ch.send({ t: 'rejected', why: 'Game versions differ. Reload the page and try again.' }); return peer.ch.close(); }
+          if (this.state !== 'lobby') { peer.ch.send({ t: 'rejected', why: 'That match has already started.' }); return peer.ch.close(); }
+          if (this.humans().length >= NET.MAX_PLAYERS) { peer.ch.send({ t: 'rejected', why: 'That game is full (6 players).' }); return peer.ch.close(); }
+          peer.id = 'p' + (this.nextId++); peer.joined = true;
+          this.profile(peer, m);
+          peer.ch.send({ t: 'welcome', id: peer.id });
+          this.cfg.bots = Math.min(this.cfg.bots, this.maxBots());
+          this.hooks.onJoin && this.hooks.onJoin(peer);
+          this.broadcastLobby();
+          break;
+        }
+        case 'prof': if (peer.joined && this.state === 'lobby') { this.profile(peer, m); this.broadcastLobby(); } break;
+        case 'ready': if (peer.joined && this.state === 'lobby') { peer.ready = !!m.r; this.broadcastLobby(); } break;
+        case 'loaded': this.onLoaded(peer, m); break;
+        case 'in': this.onInputs(peer, m); break;
+        case 'act': this.onAction(peer, m); break;
+        case 'ping': peer.ch.send({ t: 'pong', c: m.c }); break;
+        case 'bye': peer.ch.close(); break;
+        default: break;
+      }
+    } catch (err) { if (typeof console !== 'undefined') console.error('net:', err); }
+  }
+  profile(peer, m) {
+    if (typeof m.name === 'string') peer.name = m.name.replace(/[^\w \-]/g, '').slice(0, 12) || 'PLAYER';
+    if (CLASSES[m.classId]) peer.classId = m.classId;
+    if (m.look) peer.look = sanitizeLook(m.look);
+    const dup = Array.from(this.peers.values()).filter((p) => p !== peer && p.joined && p.name === peer.name).length + (this.hostInfo.name === peer.name ? 1 : 0);
+    if (dup) peer.name = (peer.name.slice(0, 10) + (dup + 1));
+  }
+  sweep() {
+    const now = Date.now();
+    for (const peer of Array.from(this.peers.values())) if (now - peer.lastSeen > NET.TIMEOUT) peer.ch.close();
+    if (this.state === 'lobby') this.broadcastLobby();                       // doubles as keep-alive for clients
+    if (this.state === 'playing' && this.server.hold) {
+      const loadedAll = Array.from(this.peers.values()).every((p) => !p.joined || p.loaded);
+      if (loadedAll || Date.now() - this.holdSince > 20000) { this.server.hold = false; }
+    }
+  }
+
+  /* ---------- match ---------- */
+  /** Starts the match on the host. Returns the config clients need to rebuild the same world. */
+  startMatch(extra = {}) {
+    if (!this.canStart()) return null;
+    const roster = this.roster().map((r) => ({ id: r.isBot ? undefined : r.id, name: r.name, classId: r.classId, isBot: !!r.isBot, look: r.look }));
+    const cfg = { mode: this.cfg.mode, seed: this.cfg.seed, mapId: this.cfg.mapId, roster, ...extra };
+    this.blockQ.length = 0; this.evQ.length = 0;
+    this.server.startMatch(cfg);
+    this.state = 'playing';
+    // the generated roster has final names/ids/classes for the bots as well
+    const final = this.server.players.map((p) => ({ id: p.id, name: p.name, classId: p.classId, isBot: p.isBot, look: p.look }));
+    this.startMsg = { t: 'start', cfg: { mode: cfg.mode, seed: cfg.seed, mapId: this.server.mapId, lands: this.server.lands, roster: final }, hash: hashWorld(this.server.world) };
+    for (const p of this.server.players) if (!p.isBot && p.id !== 'p0') { p.isRemote = true; p.inQueue = []; }
+    this.server.hold = this.peers.size > 0; this.holdSince = Date.now();
+    this.blockQ.length = 0; this.evQ.length = 0;
+    for (const peer of this.peers.values()) if (peer.joined) { peer.loaded = false; peer.ch.send({ ...this.startMsg, you: this.server.players.findIndex((p) => p.id === peer.id) }); }
+    return this.startMsg;
+  }
+  onLoaded(peer, m) {
+    if (this.state !== 'playing' || !peer.joined) return;
+    if (m.hash !== this.startMsg.hash) {                                     // generator disagreement: send the world itself
+      const w = this.server.world;
+      peer.ch.send({ t: 'world', blocks: rleEncode(w.blocks), meta: rleEncode(w.meta), owner: rleEncode(w.owner) });
+    }
+    peer.loaded = true;
+    if (Array.from(this.peers.values()).every((p) => !p.joined || p.loaded)) this.server.hold = false;
+  }
+  onInputs(peer, m) {
+    const p = this.server.playerById(peer.id);
+    if (!p || !p.isRemote || !Array.isArray(m.s)) return;
+    for (const i of m.s.slice(0, 20)) {
+      if (!Array.isArray(i) || i.length < 4) continue;
+      const [seq, bits, yaw, pitch] = i;
+      if (!Number.isFinite(seq) || !Number.isFinite(yaw) || !Number.isFinite(pitch)) continue;
+      p.inQueue.push({ seq, bits: bits | 0, yaw, pitch });
+    }
+    if (p.inQueue.length > 40) p.inQueue.splice(0, p.inQueue.length - 20);
+  }
+  onAction(peer, m) {
+    const p = this.server.playerById(peer.id);
+    if (!p || !p.isRemote || !m.m || typeof m.m !== 'object' || this.state !== 'playing') return;
+    const msg = m.m;
+    if (!['break', 'place', 'use', 'attack', 'shoot', 'ignite', 'propose', 'respond', 'leaveAlliance', 'bounty', 'emote'].includes(msg.type)) return;
+    for (const k of ['x', 'y', 'z']) if (k in msg && !Number.isInteger(msg[k])) return;
+    if (msg.type === 'place' && !ITEMS[msg.item]) return;
+    if (msg.type === 'shoot') msg.charge = clamp(+msg.charge || 0, 0, 1);
+    const r = this.server.handle(p.id, msg);
+    if (r && !r.ok && r.reason !== 'cooldown') peer.ch.send({ t: 'res', r: r.reason, a: msg.type, item: msg.item });
+  }
+  drop(peer) {
+    if (!this.peers.has(peer.ch)) return;
+    this.peers.delete(peer.ch);
+    if (this.state === 'lobby') { this.broadcastLobby(); this.hooks.onLeave && this.hooks.onLeave(peer); return; }
+    const p = this.server.playerById(peer.id);
+    if (p && this.state === 'playing') {                                       // the AI takes over the abandoned character
+      p.isRemote = false; p.isBot = true; p.inQueue = null; p.bot = new Bot(this.server, p);
+      this.server.emit({ type: 'playerLeft', player: p });
+    }
+    this.hooks.onLeave && this.hooks.onLeave(peer);
+  }
+
+  /* ---------- per-tick streaming ---------- */
+  captureEvent(e) {
+    if (e.type === 'matchEnd' || e.type === 'matchStart') return;
+    if (this.evQ.length > 500 && LOW_PRIORITY_EVENTS.has(e.type)) return;
+    const o = netPack(e);
+    if (e.type === 'groupFormed') {                                            // clients need the blocks of the new falling group
+      const cells = []; for (const c of e.group.cells) cells.push(c.x, c.y, c.z, c.id, c.meta || 0, c.owner || 0);
+      o.cells = cells; o.group = { $g: e.group.id };
+    }
+    this.evQ.push(o);
+  }
+  /** Called once per simulation step (after GameServer.update). */
+  afterStep() {
+    if (this.state !== 'playing') return;
+    const s = this.server;
+    if (s.phase === 'ended' && !this.endSent) { this.endSent = true; this.sendEnd(); }
+    if (++this.step % NET.TICK_STEPS) return;
+    const snap = this.makeSnap(), bl = this.blockQ.splice(0), ev = this.evQ.splice(0);
+    this.tickNo++;
+    for (const peer of this.peers.values()) {
+      if (!peer.joined || !peer.loaded) continue;
+      peer.ch.send({ t: 'tick', n: this.tickNo, s: snap, me: this.makeMe(peer), bl, ev });
+    }
+  }
+  sendEnd() {
+    const R = this.server.results;
+    const msg = { t: 'end', winners: R.winners.map((p) => p.index), reason: R.reason, rows: R.rows.map((r) => { const { player, ...rest } = r; return { ...rest, pi: player.index }; }) };
+    for (const peer of this.peers.values()) if (peer.joined) peer.ch.send(msg);
+  }
+  makeSnap() {
+    const s = this.server;
+    return {
+      c: s.clock, ph: s.phase, pt: s.phaseTime, dk: s.darkness, gs: s.gravityScale,
+      ev: s.event ? { type: s.event.type, name: s.event.name, state: s.event.state, duration: s.event.duration, t: s.event.t } : null,
+      v: { progress: s.vault.progress, team: s.vault.team, cooldown: s.vault.cooldown, capturing: s.vault.capturing, captured: s.vault.captured },
+      p: s.players.map((p) => ({
+        i: p.index, x: p.pos.x, y: p.pos.y, z: p.pos.z, yw: p.yaw, pt: p.pitch, hp: p.health, al: p.alive ? 1 : 0, cr: p.crouching ? 1 : 0, bu: p.burnTime > 0 ? 1 : 0,
+        wk: p.walkPhase, sw: p.swing, bo: p.bounty, tm: p.team, bot: p.isBot ? 1 : 0, mv: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround ? 1 : 0,
+        st: [p.stats.score, p.stats.kills, p.stats.assists, p.stats.deaths, p.stats.damageDealt, p.stats.blocksDestroyed, p.stats.structuresDestroyed, p.stats.tntKills, p.stats.objectives],
+      })),
+      tn: s.tnts.filter((t) => t.alive).map((t) => [t.id, t.pos.x, t.pos.y, t.pos.z, t.fuse]),
+      ar: s.arrows.filter((a) => a.alive).map((a) => [a.pos.x, a.pos.y, a.pos.z, a.yaw, a.pitch]),
+      mb: s.mobs.filter((m) => m.alive).map((m) => [m.id, m.type, m.pos.x, m.pos.y, m.pos.z, m.yaw, m.walkPhase, m.swing, m.fuse]),
+      mt: s.meteors.map((m) => [m.pos.x, m.pos.y, m.pos.z]),
+      pm: s.pendingMeteors.filter((q) => !q.done).map((q) => [q.x, q.y, q.z, q.t]),
+      gr: s.groups.filter((g) => g.alive !== false).map((g) => [g.id, g.off]),
+      ig: s.players.map((p) => s.integrity(p.index)), bd: s.baseDestroyed.slice(0, 6).map((b) => (b ? 1 : 0)),
+      pr: s.proposals.map((q) => [q.from.index, q.to.index]),
+    };
+  }
+  makeMe(peer) {
+    const p = this.server.playerById(peer.id);
+    if (!p) return null;
+    return { x: p.pos.x, y: p.pos.y, z: p.pos.z, vx: p.vel.x, vy: p.vel.y, vz: p.vel.z, og: p.onGround ? 1 : 0, ack: p.ackSeq | 0, res: p.resources, cd: [p.cooldowns.attack, p.cooldowns.place, p.cooldowns.shoot], inv: p.invulnerable };
+  }
+}
+
+/* ============================== CLIENT SESSION ============================== */
+/** The joining side of a lobby/match. Callbacks are filled in by the game controller. */
+class ClientSession {
+  constructor(ch) {
+    this.ch = ch; this.id = null; this.closed = false; this.lastRecv = Date.now();
+    this.on = { lobby() {}, start() {}, tick() {}, end() {}, closed() {}, rejected() {}, world() {}, res() {} };
+    ch.onmessage = (m) => this.recv(m);
+    ch.onclose = () => this.finish('Connection lost.');
+    this.pinger = setInterval(() => { if (this.closed) return; this.ch.send({ t: 'ping', c: Date.now() }); if (Date.now() - this.lastRecv > NET.TIMEOUT) { this.finish('Lost contact with the host.'); this.ch.close(); } }, 1500);
+  }
+  send(m) { if (!this.closed) this.ch.send(m); }
+  join(profile) { this.send({ t: 'join', v: NET.VERSION, name: profile.name, classId: profile.classId, look: profile.look }); }
+  recv(m) {
+    if (!m || typeof m !== 'object') return;
+    this.lastRecv = Date.now();
+    switch (m.t) {
+      case 'welcome': this.id = m.id; break;
+      case 'lobby': this.on.lobby(m); break;
+      case 'start': this.on.start(m); break;
+      case 'tick': this.on.tick(m); break;
+      case 'world': this.on.world(m); break;
+      case 'end': this.on.end(m); break;
+      case 'res': this.on.res(m); break;
+      case 'rejected': this.closed = true; this.done = true; clearInterval(this.pinger); this.on.rejected(m.why); break;
+      case 'closed': this.finish(m.why || 'The host closed the game.'); break;
+      case 'bye': this.finish('The host left.'); break;
+      case 'pong': this.rtt = Date.now() - m.c; break;
+      default: break;
+    }
+  }
+  finish(why) { if (this.done) return; this.closed = true; this.done = true; clearInterval(this.pinger); this.on.closed(why); }
+  leave() { if (!this.closed) { try { this.ch.send({ t: 'bye' }); } catch (e) { /* ignore */ } } this.closed = true; this.done = true; clearInterval(this.pinger); try { this.ch.close(); } catch (e) { /* ignore */ } }
+}
+
+/* ============================== CLIENT-SIDE SERVER VIEW ============================== */
+const INPUT_BITS = { forward: 1, back: 2, left: 4, right: 8, jump: 16, crouch: 32 };
+/**
+ * Looks like a GameServer to the rest of the client (UI, renderer, replay), but only mirrors what the host sends.
+ * The local player is predicted with the same physics and corrected by the host (input sequence numbers).
+ */
+class NetServerView {
+  constructor(world, session) {
+    this.world = world; this.session = session; this.listeners = [];
+    this.players = []; this.playerMap = new Map(); this.mobs = []; this.mobById = new Map(); this.tnts = []; this.arrows = []; this.meteors = []; this.pendingMeteors = [];
+    this.groups = []; this.groupById = new Map(); this.droppedGroups = [];
+    this.fluids = { pending: { size: 0 } }; this.fire = { fires: new Set() }; this.redstone = { mechs: new Set() };
+    this.phase = 'countdown'; this.phaseTime = 0; this.clock = 0; this.darkness = 0; this.gravityScale = 1; this.mode = 'war'; this.allianceMode = false; this.unlimited = false;
+    this.event = null; this.vault = { progress: 0, team: -1, cooldown: 0, capturing: false, captured: 0 };
+    this.proposals = []; this.baseDestroyed = [false, false, false, false, false, false]; this.integ = [100, 100, 100, 100, 100, 100];
+    this.map = null; this.plots = []; this.results = null; this.replayAvailable = false;
+    this.seq = 0; this.pending = []; this.outInputs = []; this.me = null; this.lastTickNo = 0;
+    this.snapAt = 0; this.snapInterval = 0.05; this.stepCount = 0;
+    this.worldListener = (x, y, z, o, n) => {
+      const d = BLOCKS[n];
+      const k = keyOf(x, y, z);
+      if (n === ID.fire) this.fire.fires.add(k); else if (o === ID.fire) this.fire.fires.delete(k);
+      if (d.mech) this.redstone.mechs.add(k); else if (BLOCKS[o].mech) this.redstone.mechs.delete(k);
+    };
+    world.listeners.push(this.worldListener);
+  }
+  dispose() { const i = this.world.listeners.indexOf(this.worldListener); if (i >= 0) this.world.listeners.splice(i, 1); }
+  subscribe(fn) { this.listeners.push(fn); }
+  emit(e) { for (const fn of this.listeners) fn(e); }
+  get human() { return this.me; }
+  areAllies(a, b) { return !!a && !!b && a !== b && a.team === b.team; }
+  alivePlayers() { return this.players.filter((p) => p.alive); }
+  bodies() { const r = []; for (const p of this.players) if (p.alive) r.push(p); for (const m of this.mobs) if (m.alive) r.push(m); return r; }
+  scoreboard() { return this.players.slice().sort((a, b) => b.stats.score - a.stats.score); }
+  integrity(slot) { return this.integ[slot] == null ? 100 : this.integ[slot]; }
+  timeLeft(total = false) {
+    const M = CONFIG.MATCH, left = { countdown: M.COUNTDOWN, build: M.BUILD, war: M.WAR - M.CHAOS, chaos: M.CHAOS }[this.phase];
+    if (left == null) return 0;
+    const cur = Math.max(0, left - this.phaseTime);
+    if (!total) return cur;
+    return this.phase === 'build' ? cur + M.WAR : this.phase === 'war' ? cur + M.CHAOS : cur;
+  }
+  assignLands(seed) { return assignLandList(seed); }
+
+  /** Builds the same map the host built, plus a Player object per competitor. */
+  start(msg) {
+    const cfg = msg.cfg, n = cfg.roster.length;
+    this.mode = cfg.mode; this.unlimited = cfg.mode === 'sandbox'; this.allianceMode = cfg.mode === 'alliance';
+    this.mapId = cfg.mapId; this.lands = cfg.lands;
+    this.world.clear();
+    this.map = MapGenerator.generate(this.world, { seed: cfg.seed != null ? cfg.seed : 1337, mapId: cfg.mapId, lands: cfg.lands, owners: [0, 1, 2, 3, 4, 5].map((i) => (i < n ? i : -1)) });
+    this.plots = this.map.plots;
+    this.fire.fires.clear(); this.redstone.mechs.clear();
+    const w = this.world;
+    for (let y = 0; y < w.sizeY; y++) for (let z = 0; z < w.sizeZ; z++) for (let x = 0; x < w.sizeX; x++) {
+      const id = w.blocks[w.index(x, y, z)]; if (id === AIR) continue;
+      if (BLOCKS[id].mech) this.redstone.mechs.add(keyOf(x, y, z)); if (id === ID.fire) this.fire.fires.add(keyOf(x, y, z));
+    }
+    this.players = []; this.playerMap.clear(); this.mobs = []; this.mobById.clear(); this.tnts = []; this.arrows = []; this.meteors = []; this.pendingMeteors = []; this.groups = []; this.groupById.clear();
+    cfg.roster.forEach((r, i) => {
+      const p = new Player(r.id || ('b' + i), r.name);
+      p.index = i; p.color = CONFIG.COLORS[i % CONFIG.COLORS.length]; p.isBot = !!r.isBot; p.classId = r.classId; p.look = sanitizeLook(r.look); p.landId = cfg.lands[i];
+      p.mods = DEFAULT_MODS(); Object.assign(p.mods, CLASSES[p.classId].mods);
+      const plot = this.plots[i]; p.spawn = { x: plot.spawn.x, y: plot.spawn.y, z: plot.spawn.z };
+      p.teleport(p.spawn.x, p.spawn.y, p.spawn.z); p.team = 1000 + i;
+      p.resources = startResources(p.classId, p.landId, this.unlimited);
+      this.players.push(p); this.playerMap.set(p.id, p);
+    });
+    this.me = this.players[msg.you]; this.me.isRemote = false;
+    this.me.yaw = Math.atan2(-(this.map.center.x - this.me.spawn.x), -(this.map.center.z - this.me.spawn.z)); this.me.pitch = -0.1;
+    this.phase = 'countdown'; this.phaseTime = 0; this.clock = 0; this.event = null; this.darkness = 0; this.gravityScale = 1;
+    this.results = null; this.baseDestroyed = [false, false, false, false, false, false]; this.integ = [100, 100, 100, 100, 100, 100];
+    this.vault = { progress: 0, team: -1, cooldown: 0, capturing: false, captured: 0 };
+    this.seq = 0; this.pending.length = 0; this.outInputs.length = 0; this.proposals = []; this.snapAt = performance_now(); this.hasSnap = false;
+    return hashWorld(this.world);
+  }
+  /** Replaces the world with the host's copy (used only if the two generators ever disagree). */
+  loadWorld(msg) { rleDecode(msg.blocks, this.world.blocks); rleDecode(msg.meta, this.world.meta); rleDecode(msg.owner, this.world.owner); }
+
+  /** One packet from the host: block changes, then events, then the entity snapshot. */
+  applyTick(m) {
+    if (!this.me) return;
+    const w = this.world, bl = m.bl;
+    for (let i = 0; i < bl.length; i += 6) w.set(bl[i], bl[i + 1], bl[i + 2], bl[i + 3], false, bl[i + 4], bl[i + 5]);
+    this.applySnap(m.s, m.me);
+    for (const e of m.ev) {
+      if (e.type === 'groupFormed' && e.cells) this.addGroup(e.group.$g, e.cells);
+      const ev = netUnpack(e, this);
+      if (e.type === 'groupFormed') ev.group = this.groupById.get(e.group.$g) || ev.group;
+      this.emit(ev);
+    }
+  }
+  addGroup(id, flat) {
+    const cells = [];
+    for (let i = 0; i < flat.length; i += 6) cells.push({ x: flat[i], y: flat[i + 1], z: flat[i + 2], id: flat[i + 3], meta: flat[i + 4], owner: flat[i + 5] });
+    let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, minZ = 1e9, maxZ = -1e9;
+    for (const c of cells) { minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x); minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y); minZ = Math.min(minZ, c.z); maxZ = Math.max(maxZ, c.z); }
+    const g = { id, cells, off: 0, bounds: { minX, maxX: maxX + 1, minY, maxY: maxY + 1, minZ, maxZ: maxZ + 1 } };
+    this.groupById.set(id, g);
+    return g;
+  }
+  applySnap(s, mine) {
+    const now = performance_now();
+    this.snapInterval = clamp((now - this.snapAt) / 1000, 0.02, 0.2); this.snapAt = now; this.hasSnap = true;
+    this.clock = s.c; this.phase = s.ph; this.phaseTime = s.pt; this.darkness = s.dk; this.gravityScale = s.gs;
+    this.event = s.ev; this.vault = s.v;
+    this.integ = s.ig; this.baseDestroyed = s.bd.map((b) => !!b);
+    for (const q of s.p) {
+      const p = this.players[q.i]; if (!p) continue;
+      const mineP = p === this.me;
+      if (!mineP) { p.prev.x = p.pos.x; p.prev.y = p.pos.y; p.prev.z = p.pos.z; p.pos.x = q.x; p.pos.y = q.y; p.pos.z = q.z; p.yaw = q.yw; p.pitch = q.pt; }
+      if (p.alive && !q.al) p.alive = false; else if (!p.alive && q.al) { p.alive = true; if (mineP) { p.teleport(q.x, q.y, q.z); this.pending.length = 0; } }
+      p.health = q.hp; p.crouching = !!q.cr; p.burnTime = q.bu ? 1 : 0; p.walkPhase = q.wk; p.swing = q.sw; p.bounty = q.bo; p.team = q.tm; p.isBot = !!q.bot;
+      p.moving = !!q.mv;
+      const st = p.stats; [st.score, st.kills, st.assists, st.deaths, st.damageDealt, st.blocksDestroyed, st.structuresDestroyed, st.tntKills, st.objectives] = q.st;
+    }
+    // other bodies
+    const seenT = new Set();
+    this.tnts = s.tn.map((t) => { const old = this.tnts.find((x) => x.id === t[0]); const o = old || { id: t[0], pos: { x: t[1], y: t[2], z: t[3] }, prev: { x: t[1], y: t[2], z: t[3] }, vel: { x: 0, y: 0, z: 0 }, alive: true }; o.prev.x = o.pos.x; o.prev.y = o.pos.y; o.prev.z = o.pos.z; o.pos.x = t[1]; o.pos.y = t[2]; o.pos.z = t[3]; o.fuse = t[4]; seenT.add(o.id); return o; });
+    this.arrows = s.ar.map((a) => ({ pos: { x: a[0], y: a[1], z: a[2] }, yaw: a[3], pitch: a[4], alive: true }));
+    this.meteors = s.mt.map((m) => ({ pos: { x: m[0], y: m[1], z: m[2] } }));
+    this.pendingMeteors = s.pm.map((q) => ({ x: q[0], y: q[1], z: q[2], t: q[3] }));
+    const mobs = [];
+    for (const r of s.mb) {
+      let m = this.mobById.get(r[0]);
+      if (!m) { m = new Mob(r[0], r[2], r[3], r[4], r[1]); this.mobById.set(r[0], m); }
+      m.prev.x = m.pos.x; m.prev.y = m.pos.y; m.prev.z = m.pos.z; m.pos.x = r[2]; m.pos.y = r[3]; m.pos.z = r[4]; m.yaw = r[5]; m.walkPhase = r[6]; m.swing = r[7]; m.fuse = r[8]; m.alive = true;
+      mobs.push(m);
+    }
+    for (const [id, m] of this.mobById) if (!mobs.includes(m)) { m.alive = false; this.mobById.delete(id); }
+    this.mobs = mobs;
+    this.groups = s.gr.map((g) => { const grp = this.groupById.get(g[0]); if (grp) { grp.off = g[1]; grp.seen = true; } return grp; }).filter(Boolean);
+    const live = new Set(s.gr.map((g) => g[0]));
+    for (const [id, g] of this.groupById) { g.age = (g.age || 0) + 1; if (!live.has(id) && (g.seen || g.age > 6)) { this.groupById.delete(id); this.droppedGroups.push(g); } }
+    this.proposals = s.pr.map(([a, b]) => ({ from: this.players[a], to: this.players[b], time: this.clock }));
+    // ---- own player: authoritative state, then replay the inputs the host has not seen yet ----
+    if (mine && this.me) this.reconcile(mine);
+  }
+  reconcile(a) {
+    const me = this.me;
+    me.resources = a.res; me.invulnerable = a.inv;
+    me.cooldowns.attack = Math.max(me.cooldowns.attack, a.cd[0]); me.cooldowns.place = Math.max(me.cooldowns.place, a.cd[1]); me.cooldowns.shoot = Math.max(me.cooldowns.shoot, a.cd[2]);
+    while (this.pending.length && this.pending[0].seq <= a.ack) this.pending.shift();
+    if (!me.alive) { me.pos.x = a.x; me.pos.y = a.y; me.pos.z = a.z; me.prev.x = a.x; me.prev.y = a.y; me.prev.z = a.z; return; }
+    const px = me.pos.x, py = me.pos.y, pz = me.pos.z;
+    me.pos.x = a.x; me.pos.y = a.y; me.pos.z = a.z; me.vel.x = a.vx; me.vel.y = a.vy; me.vel.z = a.vz; me.onGround = !!a.og;
+    const env = { gravityScale: this.gravityScale }, yaw = me.yaw, pitch = me.pitch;
+    for (const i of this.pending) { me.yaw = i.yaw; me.update(CONFIG.STEP, i.c, this.world, env); }
+    me.yaw = yaw; me.pitch = pitch;
+    const err = Math.hypot(me.pos.x - px, me.pos.y - py, me.pos.z - pz);
+    if (err < 0.02) { me.pos.x = px; me.pos.y = py; me.pos.z = pz; }                      // already agreed: keep the smooth path
+    else if (err > 4) { me.prev.x = me.pos.x; me.prev.y = me.pos.y; me.prev.z = me.pos.z; }  // big correction (teleport, explosion): snap
+  }
+
+  /** Fixed-step update from the game loop. Predicts the local player and queues its input for the host. */
+  update(dt) {
+    if (!this.me) return;
+    this.stepCount++; this.clock += dt; this.phaseTime += dt;
+    const me = this.me;
+    if (me.alive && this.phase !== 'ended') {
+      const c = me.controls; let bits = 0;
+      for (const k in INPUT_BITS) if (c[k]) bits |= INPUT_BITS[k];
+      const copy = { forward: !!c.forward, back: !!c.back, left: !!c.left, right: !!c.right, jump: !!c.jump, crouch: !!c.crouch };
+      this.seq++;
+      this.pending.push({ seq: this.seq, c: copy, yaw: me.yaw });
+      if (this.pending.length > 240) this.pending.shift();
+      this.outInputs.push([this.seq, bits, me.yaw, me.pitch]);
+      me.update(dt, copy, this.world, { gravityScale: this.gravityScale });
+      me.invulnerable = Math.max(0, me.invulnerable - dt);
+    } else for (const k in me.cooldowns) me.cooldowns[k] = Math.max(0, me.cooldowns[k] - dt);
+    if (this.outInputs.length >= NET.TICK_STEPS) this.session.send({ t: 'in', s: this.outInputs.splice(0) });
+  }
+  /** Client requests: the host decides. Returns optimistically; refusals come back as 'rejected' events. */
+  handle(playerId, msg) {
+    if (!this.me || this.me.id !== playerId) return { ok: false, reason: 'unknown-player' };
+    if (!this.me.alive) return { ok: false, reason: 'dead' };
+    if (msg.type === 'attack') this.me.cooldowns.attack = Math.max(this.me.cooldowns.attack, 0.3);
+    else if (msg.type === 'place') this.me.cooldowns.place = Math.max(this.me.cooldowns.place, 0.15 * this.me.mods.placeCooldown);
+    else if (msg.type === 'shoot') this.me.cooldowns.shoot = Math.max(this.me.cooldowns.shoot, 0.4);
+    this.session.send({ t: 'act', m: msg });
+    return { ok: true, pending: true };
+  }
+  /** Interpolated entity positions for rendering (same shape as GameServer.snapshot). */
+  snapshot(alpha = 1) {
+    const f = this.hasSnap ? clamp((performance_now() - this.snapAt) / 1000 / Math.max(this.snapInterval, 0.04), 0, 1) : 1;
+    const A = (b, k) => lerp(b.prev[k], b.pos[k], f), me = this.me;
+    const L = (b, k) => (b === me ? lerp(b.prev[k], b.pos[k], alpha) : A(b, k));
+    return {
+      time: this.clock,
+      players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, moving: p === me ? Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround : !!p.moving })),
+      tnts: this.tnts.map((t) => ({ x: A(t, 'x'), y: A(t, 'y'), z: A(t, 'z'), fuse: t.fuse })),
+      groups: this.groups.map((g) => ({ g, off: g.off })),
+      arrows: this.arrows.map((a) => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z, yaw: a.yaw, pitch: a.pitch })),
+      mobs: this.mobs.filter((m) => m.alive).map((m) => ({ id: m.id, type: m.type, fuse: m.fuse, x: A(m, 'x'), y: A(m, 'y'), z: A(m, 'z'), yaw: m.yaw, walk: m.walkPhase, swing: m.swing })),
+      meteors: this.meteors.map((m) => ({ x: m.pos.x, y: m.pos.y, z: m.pos.z })),
+      banners: this.plots.filter((pl) => pl.owner >= 0 && this.players[pl.owner]).map((pl) => { const q = this.players[pl.owner]; return { x: pl.x + 3.5, y: pl.baseY + 1, z: pl.z + 3.5, color: q.color, banner: q.look.banner, bc: q.look.bannerColor }; }),
+    };
+  }
+  /** Final results from the host, rebuilt with local Player objects. */
+  setResults(m) {
+    this.results = { winners: m.winners.map((i) => this.players[i]), reason: m.reason, rows: m.rows.map((r) => { const { pi, ...rest } = r; return { player: this.players[pi], ...rest }; }) };
+    this.phase = 'ended';
+  }
+}
+const performance_now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 /* ============================== 12. BOTS ================================ */
 /**
@@ -2769,12 +3785,40 @@ class GameServer {
 const TAU = Math.PI * 2;
 const angleDiff = (a, b) => { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
 
+/**
+ * Every AI opponent rolls a personality (archetype) that is biased by its class but never fixed by it, jitters every number,
+ * and re-rolls its tactical "mood" every half minute or so. Two bots of the same class rarely behave the same twice.
+ */
+const ARCHETYPES = {
+  rusher:      { label: 'Rusher',      aggr: 0.9,  greed: 0.25, range: 0.2, tnt: 0.7, home: 0.1, approach: ['ground', 'ground', 'sky'], build: ['ring', 'keep'],  melee: ['sword', 'sword', 'axe'] },
+  turtle:      { label: 'Turtle',      aggr: 0.3,  greed: 0.35, range: 0.5, tnt: 0.3, home: 0.9, approach: ['ground', 'tunnel'],        build: ['keep', 'moat', 'ring'], melee: ['sword', 'axe'] },
+  trapper:     { label: 'Trapper',     aggr: 0.45, greed: 0.3,  range: 0.5, tnt: 0.8, home: 0.7, approach: ['tunnel', 'ground'],        build: ['trapfield', 'ring'],    melee: ['staff', 'sword'] },
+  bomber:      { label: 'Bomber',      aggr: 0.7,  greed: 0.2,  range: 0.4, tnt: 1.0, home: 0.3, approach: ['ground', 'sky', 'tunnel'], build: ['ring', 'trapfield'],    melee: ['axe', 'sword'] },
+  sniper:      { label: 'Sniper',      aggr: 0.55, greed: 0.3,  range: 1.0, tnt: 0.3, home: 0.5, approach: ['sky', 'ground'],           build: ['keep', 'ring'],         melee: ['sword', 'staff'] },
+  digger:      { label: 'Digger',      aggr: 0.6,  greed: 0.35, range: 0.3, tnt: 0.6, home: 0.4, approach: ['tunnel', 'tunnel', 'ground'], build: ['moat', 'ring'],       melee: ['axe', 'sword'] },
+  opportunist: { label: 'Opportunist', aggr: 0.6,  greed: 0.6,  range: 0.5, tnt: 0.5, home: 0.3, approach: ['ground', 'sky', 'tunnel'], build: ['ring', 'keep', 'moat'], melee: ['sword', 'axe', 'staff'] },
+  vaulter:     { label: 'Vault runner', aggr: 0.45, greed: 1.0, range: 0.4, tnt: 0.4, home: 0.3, approach: ['ground', 'sky'],          build: ['ring', 'keep'],         melee: ['sword', 'staff'] },
+};
+const CLASS_BIAS = {
+  builder: ['turtle', 'trapper', 'turtle', 'digger', 'opportunist'], fighter: ['rusher', 'rusher', 'opportunist', 'sniper', 'bomber'],
+  engineer: ['trapper', 'digger', 'trapper', 'bomber', 'turtle'], demolitionist: ['bomber', 'bomber', 'rusher', 'trapper', 'digger'],
+  scout: ['sniper', 'vaulter', 'opportunist', 'rusher', 'sniper'], survivalist: ['turtle', 'opportunist', 'vaulter', 'digger', 'sniper'],
+};
+const pickOf = (a, r = Math.random) => a[Math.floor(r() * a.length)];
+
 class Bot {
-  constructor(server, player) {
+  constructor(server, player, rng) {
     this.s = server; this.p = player;
     const r = Math.random;
-    this.aggression = 0.45 + r() * 0.5;        // how eagerly it leaves home to fight
-    this.greed = r();                          // interest in the vault
+    // 70% class-flavoured archetype, 30% completely random: bots of one class still surprise you
+    const keys = Object.keys(ARCHETYPES);
+    this.archetype = r() < 0.7 ? pickOf(CLASS_BIAS[player.classId] || keys, r) : pickOf(keys, r);
+    const A = ARCHETYPES[this.archetype], jit = (v, a) => clamp(v + (r() - 0.5) * a, 0.02, 1);
+    this.traits = { aggr: jit(A.aggr, 0.5), greed: jit(A.greed, 0.5), range: jit(A.range, 0.5), tnt: jit(A.tnt, 0.5), home: jit(A.home, 0.5), nerve: 0.15 + r() * 0.3, sloppy: r() * 0.35, react: 0.15 + r() * 0.45 };
+    this.buildStyle = pickOf(A.build, r); this.approach = pickOf(A.approach, r); this.meleeTool = pickOf(A.melee, r);
+    this.mood = 0; this.moodClock = 8 + r() * 14; this.emoteClock = 10 + r() * 20; this.lastKills = 0; this.hitRun = 0; this.warClock = 0;
+    this.aggression = this.traits.aggr;        // how eagerly it leaves home to fight
+    this.greed = this.traits.greed;            // interest in the vault
     this.loyalty = r();                        // betrayal chance when only allies remain
     this.thinkClock = r() * 0.3;
     this.mine = null;                          // {x,y,z,t,need}
@@ -2920,24 +3964,43 @@ class Bot {
 
   /* ---------- building ---------- */
   planBuild() {
-    const s = this.s, w = s.world, p = this.p, plot = s.plotOf(p), half = 4, q = [];
+    const s = this.s, w = s.world, p = this.p, plot = s.plotOf(p), q = [], style = this.buildStyle;
+    const half = style === 'keep' ? 3 : style === 'moat' ? 4 : 3 + Math.floor(Math.random() * 3);
     const cx = Math.floor(plot.x), cz = Math.floor(plot.z);
     const dxm = s.map.center.x - plot.x, dzm = s.map.center.z - plot.z;
-    const axisX = Math.abs(dxm) > Math.abs(dzm), sign = (axisX ? dxm : dzm) > 0 ? 1 : -1;
+    const axisX = Math.abs(dxm) > Math.abs(dzm);
+    let sign = (axisX ? dxm : dzm) > 0 ? 1 : -1;
+    if (Math.random() < 0.25) sign = -sign;                                         // sometimes the gate faces away from the centre
     const gap = axisX ? [cx + sign * half, cz] : [cx, cz + sign * half];
     this.gap = gap; this.out = axisX ? [sign, 0] : [0, sign];
     const ring = [];
     for (let x = -half; x <= half; x++) for (let z = -half; z <= half; z++) if (Math.max(Math.abs(x), Math.abs(z)) === half) ring.push([cx + x, cz + z]);
     ring.sort((a, b) => Math.atan2(a[1] - cz, a[0] - cx) - Math.atan2(b[1] - cz, b[0] - cx));
-    for (let layer = 0; layer < 3; layer++) for (const [x, z] of ring) {
+    if (Math.random() < 0.5) ring.reverse();
+    const layers = style === 'keep' ? 5 : 3 + Math.floor(Math.random() * 2);
+    if (style === 'moat') {                                                          // a trench outside the wall first
+      const m = half + 2;
+      for (let x = -m; x <= m; x++) for (let z = -m; z <= m; z++) if (Math.max(Math.abs(x), Math.abs(z)) === m && !(cx + x === gap[0] + this.out[0] * 2 && cz + z === gap[1] + this.out[1] * 2) && Math.random() < 0.85) q.push({ kind: 'dig', x: cx + x, z: cz + z });
+    }
+    const trap = (dist) => {                                                         // pressure plate with TNT on both sides
+      const px = gap[0] + this.out[0] * dist, pz = gap[1] + this.out[1] * dist, sx = this.out[1], sz = this.out[0];
+      q.push({ kind: 'plate', x: px, z: pz }, { kind: 'tnt', x: px + sx, z: pz + sz }, { kind: 'tnt', x: px - sx, z: pz - sz });
+    };
+    for (let layer = 0; layer < Math.min(layers, 3); layer++) for (const [x, z] of ring) {
       if (x === gap[0] && z === gap[1] && layer < 2) continue;
       q.push({ kind: 'wall', x, z, layer, y0: this.groundY(x, z) });
     }
-    // gate trap: a pressure plate outside the gap with a TNT block on each side of it
-    const px = gap[0] + this.out[0] * 3, pz = gap[1] + this.out[1] * 3, sx = this.out[1], sz = this.out[0];
-    q.push({ kind: 'plate', x: px, z: pz }, { kind: 'tnt', x: px + sx, z: pz + sz }, { kind: 'tnt', x: px - sx, z: pz - sz });
-    for (let layer = 3; layer < 5; layer++) for (const [x, z] of ring) q.push({ kind: 'wall', x, z, layer, y0: this.groundY(x, z) });
+    trap(3);
+    if (style === 'trapfield') { trap(5); if (Math.random() < 0.6) trap(7); }
+    for (let layer = 3; layer < layers + 1; layer++) for (const [x, z] of ring) q.push({ kind: 'wall', x, z, layer, y0: this.groundY(x, z) });
     this.queue = q; this.queueIndex = 0;
+  }
+  /** Extra defences queued during the war (trap fields and patches for holes in the wall). */
+  planExtra() {
+    const s = this.s, p = this.p, plot = s.plotOf(p), q = [];
+    const a = Math.random() * TAU, d = 5 + Math.random() * 6, px = Math.floor(plot.x + Math.cos(a) * d), pz = Math.floor(plot.z + Math.sin(a) * d), sx = Math.floor(Math.random() * 3) - 1 || 1;
+    q.push({ kind: 'plate', x: px, z: pz }, { kind: 'tnt', x: px + sx, z: pz }, { kind: 'tnt', x: px - sx, z: pz });
+    this.queue = q; this.queueIndex = 0; this.extra = true;
   }
   pickMaterial() {
     const p = this.p, s = this.s;
@@ -2960,6 +4023,17 @@ class Bot {
     if (this.jobRef !== job) { this.jobRef = job; this.jobT = 0; }
     this.jobT += dt;
     if (this.jobT > 6) { this.queueIndex++; return; }                     // unreachable or blocked: move on
+    if (job.kind === 'dig') {                                              // trench cell: mine the ground block
+      const gy = this.groundY(job.x, job.z) - 1, def = BLOCKS[w.get(job.x, gy, job.z)];
+      if (!def || !def.breakable || !w.isSolid(job.x, gy, job.z) || !s.canModify(p, job.x, gy, job.z)) { this.queueIndex++; return; }
+      const e0 = p.eyePosition();
+      if (Math.hypot(job.x + 0.5 - e0.x, gy + 0.5 - e0.y, job.z + 0.5 - e0.z) > 4.4) { this.walkTo(job.x + 0.5, job.z + 0.5, dt, 3, false); return; }
+      this.face(job.x + 0.5, gy + 0.5, job.z + 0.5, true);
+      if (!this.mine || this.mine.x !== job.x || this.mine.z !== job.z) this.mine = { x: job.x, y: gy, z: job.z, t: 0, need: mineTime(def, 'pickaxe', p.mods) };
+      this.mine.t += dt;
+      if (this.mine.t >= this.mine.need) { s.handle(p.id, { type: 'break', x: job.x, y: gy, z: job.z }); this.mine = null; this.queueIndex++; }
+      return;
+    }
     let y, item;
     if (job.kind === 'wall') { y = job.y0 + job.layer; item = this.pickMaterial(); }
     else { y = this.groundY(job.x, job.z); item = job.kind; }
@@ -3042,22 +4116,48 @@ class Bot {
       return;
     }
     const foes = this.enemies();
-    this.thinkClock -= dt;
+    this.thinkClock -= dt; this.warClock += dt;
     if (this.thinkClock <= 0) {
-      this.thinkClock = 0.3 + Math.random() * 0.2;
+      const T = this.traits;
+      this.thinkClock = 0.25 + Math.random() * 0.25 + T.react * 0.35;       // slower thinkers react later
       this.target = this.pickTarget(foes);
       const t = this.target, d = t ? this.dist(t) : 99;
-      const hurt = p.health < p.maxHealth * 0.3;
+      const aggr = clamp(T.aggr + this.mood * 0.3 + (s.phase === 'chaos' ? 0.25 : 0) + Math.min(0.5, this.warClock / 120), 0, 1);
+      const hurt = p.health < p.maxHealth * (T.nerve + (p.classId === 'survivalist' ? 0.12 : 0));
       const vaultReady = s.vault.cooldown <= 0 && s.phase !== 'build';
       const toVault = Math.hypot(s.map.vault.x - p.pos.x, s.map.vault.z - p.pos.z);
+      const wantRange = T.range > 0.45;
+      const prev = this.mode;
       if (hurt && t && d < 16) this.mode = 'retreat';
+      else if (this.hitRun > 0 && t) this.mode = 'retreat';
       else if (t && d < 3.4 && this.hasLOS(t)) this.mode = 'melee';
-      else if (t && d < 26 && d > 6 && this.hasLOS(t) && this.aggression > 0.3) this.mode = 'shoot';
-      else if (vaultReady && this.greed > 0.45 && toVault < 60 && (!t || d > 12)) this.mode = 'vault';
-      else if ((p.resources.stone || 0) < 4 && (p.resources.wood || 0) < 4 && !s.unlimited) this.mode = 'gather';
-      else if (t && (this.aggression > 0.55 || d < 30 || s.phase === 'chaos')) this.mode = 'hunt';
+      else if (t && d < (wantRange ? 36 : 22) && d > (wantRange ? 8 : 6) && this.hasLOS(t) && aggr > 0.25 && (wantRange || Math.random() < 0.6)) this.mode = 'shoot';
+      else if (vaultReady && T.greed > 0.4 && toVault < 70 && (!t || d > 12 || T.greed > 0.85)) this.mode = 'vault';
+      else if (this.extra && this.queueIndex < this.queue.length) this.mode = 'fortify';
+      else if (!s.unlimited && (p.resources.stone || 0) < 4 && (p.resources.wood || 0) < 4) this.mode = 'gather';
+      else if (this.archetype === 'turtle' || this.archetype === 'trapper') {
+        // homebodies defend, lay traps, and only venture out once they feel strong (or when chaos comes)
+        if (Math.random() < 0.18 * T.tnt && !this.extra && (s.hasResource(p, 'tnt', 2) || s.unlimited)) { this.planExtra(); this.mode = 'fortify'; }
+        else if (t && (aggr > 0.62 || d < 14)) this.mode = 'hunt';
+        else this.mode = 'gather';
+      }
+      else if (t && T.tnt > 0.55 && Math.random() < 0.3 * T.tnt && s.hasResource(p, 'tnt', 2) && this.tntCooldown <= 0 && d > 14) this.mode = 'raid';
+      else if (t && (aggr > 0.45 || d < 30)) this.mode = 'hunt';
       else this.mode = 'gather';
+      if (this.mode !== prev) { this.modeT = 0; if (this.mode === 'hunt') { this.approach = pickOf(ARCHETYPES[this.archetype].approach); this.tunnelT = 0; } }
     }
+    this.modeT = (this.modeT || 0) + dt;
+    this.hitRun = Math.max(0, this.hitRun - dt);
+    this.moodClock -= dt;
+    if (this.moodClock <= 0) {                                              // re-roll the mood and sometimes the whole plan
+      this.moodClock = 18 + Math.random() * 30; this.mood = Math.random() * 2 - 1;
+      if (Math.random() < 0.35) { this.meleeTool = pickOf(['sword', 'axe', 'staff', ...ARCHETYPES[this.archetype].melee]); this.approach = pickOf(['ground', 'sky', 'tunnel', ...ARCHETYPES[this.archetype].approach]); }
+      this.strafe = Math.random() < 0.5 ? 1 : -1;
+    }
+    this.emoteClock -= dt;
+    const kills = p.stats ? p.stats.kills : 0;
+    if (kills > this.lastKills) { this.lastKills = kills; if (Math.random() < 0.55) s.handle(p.id, { type: 'emote', slot: pickOf([0, 2, 3]) }); }
+    else if (this.emoteClock <= 0) { this.emoteClock = 25 + Math.random() * 40; if (Math.random() < 0.4) s.handle(p.id, { type: 'emote', slot: Math.floor(Math.random() * 4) }); }
     const t = this.target;
     if (t && !t.alive) this.target = null;
     switch (this.mode) {
@@ -3073,14 +4173,20 @@ class Bot {
         this.strafeT -= dt; if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 0.5 + Math.random() * 0.8; }
         if (this.dist(t) > 2.4) c.forward = true; else if (this.dist(t) < 1.3) c.back = true;
         if (this.strafe > 0) c.right = true; else c.left = true;
-        const tool = p.mods.meleeDamage > 1.1 || Math.random() < 0.3 ? 'sword' : (Math.random() < 0.35 ? 'axe' : 'sword');
-        if (p.cooldowns.attack <= 0) s.handle(p.id, { type: 'attack', targetId: t.id, tool });
+        const tool = Math.random() < 0.15 ? pickOf(['sword', 'axe', 'staff']) : this.meleeTool;
+        if (p.cooldowns.attack <= 0) {
+          s.handle(p.id, { type: 'attack', targetId: t.id, tool });
+          if (p.classId === 'scout' && Math.random() < 0.35) this.hitRun = 0.8 + Math.random() * 0.8;      // scouts strike and slip away
+          else if (Math.random() < 0.08 * this.traits.sloppy) this.hitRun = 0.6;
+        }
         break;
       }
       case 'shoot': {
         if (!t) break;
         const flight = this.dist(t) / 28, lead = flight;
-        this.face(t.pos.x + t.vel.x * lead, t.pos.y + 1.2 + this.dist(t) * 0.035, t.pos.z + t.vel.z * lead, true);
+        const err = this.traits.sloppy * 0.9 * (1 + this.dist(t) / 25), ex = (Math.random() - 0.5) * err, ey = (Math.random() - 0.5) * err;
+        this.face(t.pos.x + t.vel.x * lead * (0.6 + Math.random() * 0.6) + ex, t.pos.y + 1.2 + this.dist(t) * 0.035 + ey, t.pos.z + t.vel.z * lead + ex, true);
+        if (this.dist(t) < 10 && this.traits.range > 0.45) c.back = true;                  // snipers keep their distance
         this.shootCharge += dt;
         this.strafeT -= dt; if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 0.6 + Math.random(); }
         if (this.strafe > 0) c.right = true; else c.left = true;
@@ -3091,6 +4197,23 @@ class Bot {
         const v = s.map.vault;
         if (v.y + 1 - p.pos.y > 2.2 && Math.hypot(v.x - p.pos.x, v.z - p.pos.z) < 8 && this.pillarUp(dt)) break;
         this.walkTo(v.x, v.z, dt, 1.2, true, v.y + 1);
+        break;
+      }
+      case 'fortify': {                                                    // lay traps / patch the base while the war rages
+        if (!(this.extra && this.queueIndex < this.queue.length) || this.modeT > 40) { this.extra = false; this.thinkClock = 0; break; }
+        this.buildUpdate(dt);
+        break;
+      }
+      case 'raid': {                                                       // bomber: carry TNT to the enemy base and light it
+        if (!t) break;
+        const plot = s.plots[t.index], d = Math.hypot(plot.x - p.pos.x, plot.z - p.pos.z);
+        if (this.modeT > 40 || !s.hasResource(p, 'tnt', 1)) { this.thinkClock = 0; this.mode = 'hunt'; break; }
+        if (d > 7) { this.walkTo(plot.x, plot.z, dt, 6, true, plot.baseY + 1); break; }
+        const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw), px = Math.floor(p.pos.x + fx * 1.3), pz = Math.floor(p.pos.z + fz * 1.3), py = Math.floor(p.pos.y);
+        this.face(plot.x, p.pos.y + 1, plot.z, true);
+        if (s.world.get(px, py, pz) === AIR && s.handle(p.id, { type: 'place', x: px, y: py, z: pz, item: 'tnt' }).ok) {
+          s.handle(p.id, { type: 'ignite', x: px, y: py, z: pz }); this.startFlee(px + 0.5, pz + 0.5, 4.5); this.tntCooldown = 10 + Math.random() * 12; this.thinkClock = 0; this.mode = 'hunt';
+        } else this.walkTo(plot.x, plot.z, dt, 3, true);
         break;
       }
       case 'hunt': {
@@ -3107,6 +4230,12 @@ class Bot {
         const plot = s.plots[t.index], vis = this.hasLOS(t);
         const gx = vis || d < 14 ? t.pos.x : plot.x, gz = vis || d < 14 ? t.pos.z : plot.z, gy = vis || d < 14 ? t.pos.y : plot.spawn.y;
         const dy = gy - p.pos.y;
+        if (this.approach === 'sky' && d > 5 && d < 24 && this.modeT < 20 && p.pos.y < t.pos.y + 4.5 && (this.skyBase == null || p.pos.y < this.skyBase + 6) && this.pillarUp(dt)) { if (this.skyBase == null) this.skyBase = p.pos.y; break; }
+        if (this.approach === 'tunnel' && d > 10 && !vis && (this.tunnelT = (this.tunnelT || 0) + dt) < 25) {      // go under their defences
+          const surf = s.world.getSolidHeight(Math.floor(p.pos.x), Math.floor(p.pos.z)) + 1;
+          if (p.pos.y > surf - 2.2 && p.onGround) { this.digDown(dt); break; }
+          this.walkTo(gx, gz, dt, 1.8, true, p.pos.y); break;
+        }
         if (dy > 2.2 && d < 8 && this.pillarUp(dt)) break;                      // enemy is above us: build upward
         if (dy < -3 && d < 4) { this.digDown(dt); break; }                        // enemy is below: dig down
         this.walkTo(gx, gz, dt, 1.8, true, gy);
@@ -3145,6 +4274,7 @@ class Bot {
     if (s.phase === 'build') this.buildUpdate(dt);
     else if (s.phase === 'war' || s.phase === 'chaos' || s.phase === 'sandbox') this.warUpdate(dt);
     if (p.inLava || p.inWater) c.jump = true;
+    if (p.onGround && this.skyBase != null && this.mode !== 'hunt') this.skyBase = null;
   }
 }
 
@@ -3243,6 +4373,7 @@ class ChunkSet {
 }
 
 const HUMAN_SKIN = [0.87, 0.67, 0.5], ZOMBIE_SKIN = [0.3, 0.55, 0.28];
+const CREEPER_SKIN = [0.27, 0.66, 0.27];
 
 class Renderer {
   constructor(canvas, atlasCanvas) {
@@ -3361,7 +4492,37 @@ class Renderer {
     const m = Mat4.chain(base, Mat4.translation(px, py, pz), Mat4.rotationX(rx), Mat4.translation(0, cy, 0), Mat4.scaling(w, h, d));
     this.box(m, color, 1);
   }
-  humanoid(e, skin, shirt, legs, zombie, time) {
+  /** Player banner planted at the base: a pole, a team-coloured top bar and the equipped pattern. */
+  banner(b, time) {
+    const base = BANNER_COLORS[b.bc] || BANNER_COLORS[0], pat = COSMETICS.banner[b.banner] || COSMETICS.banner.solid, acc = pat.a || [1, 1, 1], acc2 = pat.b || [0.1, 0.1, 0.12], team = hexToRgb(b.color);
+    this.boxAt(b.x, b.y + 2.2, b.z, 0.14, 4.4, 0.14, [0.42, 0.3, 0.18, 1], 1);
+    this.boxAt(b.x, b.y + 4.5, b.z, 0.26, 0.26, 0.26, [0.95, 0.8, 0.25, 1], 1);
+    const wave = Math.sin(time * 2.4 + b.x) * 0.08, fx = b.x + 0.84 + wave, fy = b.y + 3.7, W = 1.4, H = 1.5;
+    const cell = (cx, cy, w, h, c, d = 0.075) => this.boxAt(fx - W / 2 + cx + w / 2 - 0.1 + wave * (cx / W), fy + H / 2 - cy - h / 2, b.z, w, h, d, [c[0], c[1], c[2], 1], 1);
+    cell(0, 0, W, H, base, 0.06);
+    switch (pat.pattern) {
+      case 'stripes': cell(0, H * 0.2, W, H * 0.16, acc); cell(0, H * 0.6, W, H * 0.16, acc); break;
+      case 'cross': cell(W * 0.4, 0, W * 0.2, H, acc); cell(0, H * 0.4, W, H * 0.2, acc); break;
+      case 'diag': for (let i = 0; i < 5; i++) cell(W * (0.1 + i * 0.16), H * (0.08 + i * 0.17), W * 0.22, H * 0.2, acc); break;
+      case 'chevron': for (let i = 0; i < 4; i++) { cell(W * (0.05 + i * 0.12), H * (0.1 + i * 0.12), W * 0.12, H * 0.14, acc); cell(W * (0.05 + i * 0.12), H * (0.76 - i * 0.12), W * 0.12, H * 0.14, b.bc % 2 ? acc2 : acc); } break;
+      case 'skull': cell(W * 0.25, H * 0.2, W * 0.5, H * 0.4, acc); cell(W * 0.32, H * 0.36, W * 0.12, H * 0.12, acc2); cell(W * 0.56, H * 0.36, W * 0.12, H * 0.12, acc2); cell(W * 0.38, H * 0.6, W * 0.24, H * 0.14, acc); break;
+      default: break;
+    }
+    cell(0, 0, W, H * 0.12, team, 0.09);
+  }
+  /** A walking green bomb. While its fuse burns it swells and flashes white. */
+  creeper(e, time) {
+    const lit = e.fuse > 0, flash = lit && Math.sin(e.fuse * 24) > 0 ? 0.55 : 0, sw = Math.sin((e.walk || 0) * 3.2) * 0.7, k = lit ? 1 + (1.4 - e.fuse) * 0.18 : 1;
+    const c = [CREEPER_SKIN[0] + flash, CREEPER_SKIN[1] + flash * 0.4, CREEPER_SKIN[2] + flash], dk = [0.1, 0.22, 0.1];
+    const base = Mat4.chain(Mat4.translation(e.x, e.y, e.z), Mat4.rotationY(e.yaw), Mat4.scaling(k, k, k));
+    for (const [lx, lz, s] of [[-0.16, -0.2, sw], [0.16, -0.2, -sw], [-0.16, 0.2, -sw], [0.16, 0.2, sw]]) this.part(base, lx, 0.5, lz, s, -0.25, 0.26, 0.5, 0.26, dk);
+    this.part(base, 0, 0.5, 0, 0, 0.45, 0.5, 0.9, 0.34, c);
+    this.part(base, 0, 1.4, 0, 0, 0.25, 0.46, 0.46, 0.46, c);
+    this.part(base, -0.1, 1.5, -0.235, 0, 0, 0.1, 0.1, 0.03, [0.02, 0.02, 0.02]);
+    this.part(base, 0.1, 1.5, -0.235, 0, 0, 0.1, 0.1, 0.03, [0.02, 0.02, 0.02]);
+    this.part(base, 0, 1.4, -0.235, 0, 0, 0.12, 0.16, 0.03, [0.02, 0.02, 0.02]);
+  }
+  humanoid(e, skin, shirt, legs, zombie, time, accent) {
     const swing = zombie ? 0 : e.swing || 0, ph = (e.walk || 0) * 3.2;
     const crouch = e.crouch ? 0.14 : 0, burn = e.burning ? 0.25 + 0.25 * Math.sin(time * 18) : 0;
     const tint = (c) => burn ? [Math.min(1, c[0] + burn), c[1] * (1 - burn * 0.4), c[2] * (1 - burn * 0.6)] : c;
@@ -3371,6 +4532,7 @@ class Renderer {
     this.part(base, -0.14, 0.7, 0, sw, -0.35, 0.27, 0.7, 0.27, tint(legs));
     this.part(base, 0.14, 0.7, 0, -sw, -0.35, 0.27, 0.7, 0.27, tint(legs));
     this.part(base, 0, 1.05 - crouch, 0, crouch * 2, 0, 0.58, 0.7, 0.3, tint(shirt));
+    if (accent) this.part(base, 0, 0.8 - crouch * 0.6, 0, crouch * 2, 0, 0.6, 0.12, 0.32, tint(accent));
     this.part(base, 0, 1.4 - crouch, 0, e.pitch ? clamp(e.pitch, -1.2, 1.2) : 0, 0.21, 0.42, 0.42, 0.42, tint(skin));
     const ra = zombie ? armSwing : -sw - swing * 1.9, la = zombie ? armSwing : sw;
     this.part(base, 0.4, 1.38 - crouch, 0, ra, -0.3, 0.22, 0.68, 0.22, tint(zombie ? skin : shirt));
@@ -3442,10 +4604,12 @@ class Renderer {
     if (snap) {
       for (const p of snap.players) {
         if (!p.alive || p.index === scene.selfIndex) continue;
-        const col = hexToRgb(p.color);
-        this.humanoid(p, HUMAN_SKIN, col, [0.2, 0.22, 0.4], false, time);
+        const col = hexToRgb(p.color), sk = p.look && p.look.skin !== 'default' ? COSMETICS.skin[p.look.skin] : null;
+        if (sk) this.humanoid(p, sk.skin, sk.shirt, sk.legs, false, time, col);
+        else this.humanoid(p, HUMAN_SKIN, col, [0.2, 0.22, 0.4], false, time);
       }
-      for (const m of snap.mobs) this.humanoid({ x: m.x, y: m.y, z: m.z, yaw: m.yaw, walk: m.walk, swing: m.swing, pitch: 0 }, ZOMBIE_SKIN, [0.2, 0.42, 0.5], [0.22, 0.25, 0.5], true, time);
+      for (const m of snap.mobs) { if (m.type === 'creeper') this.creeper(m, time); else this.humanoid({ x: m.x, y: m.y, z: m.z, yaw: m.yaw, walk: m.walk, swing: m.swing, pitch: 0 }, ZOMBIE_SKIN, [0.2, 0.42, 0.5], [0.22, 0.25, 0.5], true, time); }
+      if (snap.banners) for (const b of snap.banners) this.banner(b, time);
       for (const a of snap.arrows) {
         const m = Mat4.chain(Mat4.translation(a.x, a.y, a.z), Mat4.rotationY(a.yaw), Mat4.rotationX(a.pitch), Mat4.scaling(0.06, 0.06, 0.9));
         this.box(m, [0.55, 0.4, 0.25, 1], 1);
@@ -3706,7 +4870,7 @@ class UI {
   constructor() {
     const $ = (id) => document.getElementById(id);
     this.$ = $;
-    this.panels = { main: $('panelMain'), pause: $('panelPause'), lobby: $('panelLobby'), how: $('panelHow'), settings: $('panelSettings'), stats: $('panelStats') };
+    this.panels = { main: $('panelMain'), pause: $('panelPause'), multi: $('panelMulti'), lobby: $('panelLobby'), locker: $('panelLocker'), how: $('panelHow'), settings: $('panelSettings'), stats: $('panelStats') };
     this.slotEls = [];
     this.cache = {};
     this.bannerTimer = 0;
@@ -3716,7 +4880,7 @@ class UI {
   setText(id, text) { if (this.cache['t' + id] !== text) { this.cache['t' + id] = text; this.$(id).textContent = text; } }
   setWidth(id, pct) { const k = 'w' + id, v = Math.round(clamp(pct, 0, 100)); if (this.cache[k] !== v) { this.cache[k] = v; this.$(id).style.width = v + '%'; } }
 
-  showPanel(name) { for (const [k, el] of Object.entries(this.panels)) el.classList.toggle('hidden', k !== name); this.$('title').classList.toggle('compact', name === 'lobby' || name === 'how'); this.$('subtitle').classList.toggle('hidden', name === 'lobby' || name === 'how'); }
+  showPanel(name) { for (const [k, el] of Object.entries(this.panels)) el.classList.toggle('hidden', k !== name); const compact = name === 'lobby' || name === 'how' || name === 'locker' || name === 'multi'; this.$('title').classList.toggle('compact', compact); this.$('subtitle').classList.toggle('hidden', compact); }
   showOverlay(panel) { this.$('overlay').classList.remove('hidden'); this.showPanel(panel); }
   hideOverlay() { this.$('overlay').classList.add('hidden'); }
   showHud(v) { this.$('hud').classList.toggle('hidden', !v); }
@@ -3791,25 +4955,104 @@ class UI {
   setPanelOpen(id, open) { this.$(id).classList.toggle('hidden', !open); document.body.classList.toggle('panel-open', open || !this.$('inventory').classList.contains('hidden') || !this.$('diplomacy').classList.contains('hidden')); }
 
   /* ---------- lobby ---------- */
-  renderLobby(cfg, lands, onChange) {
+  /**
+   * v = { kind:'single'|'host'|'client', mode, mapId, bots, maxBots, name, classId, lands:[ids], roster:[{name,classId,isBot,ready,host,you,color,title}],
+   *       edit (may change settings), me (my slot index), code, canStart, myReady, hint }
+   * on = { change(patch), ready(), toggleReady }
+   */
+  renderLobby(v, on) {
     const modes = [['war', 'WAR', 'Free-for-all: last one standing'], ['alliance', 'ALLIANCE WAR', 'Pairs form at the start; alliances can be made or broken'], ['sandbox', 'SANDBOX', 'Unlimited resources, no timers, respawn']];
+    this.$('lobbyTitle').textContent = v.kind === 'single' ? 'SINGLE PLAYER' : v.kind === 'host' ? 'MULTIPLAYER - YOU ARE HOSTING' : 'MULTIPLAYER - JOINED GAME';
+    const inv = this.$('inviteBox'); inv.classList.toggle('hidden', v.kind === 'single');
+    if (v.kind !== 'single') this.$('inviteCode').textContent = v.code || '-----';
     const seg = this.$('segMode');
-    seg.innerHTML = modes.map(([id, label, tip]) => `<button class="segbtn ${cfg.mode === id ? 'on' : ''}" data-mode="${id}" title="${esc(tip)}">${label}</button>`).join('');
-    seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => onChange({ mode: b.dataset.mode })));
-    this.$('outBots').textContent = cfg.bots; this.$('setBots').value = cfg.bots; this.$('setName').value = cfg.name;
+    seg.innerHTML = modes.map(([id, label, tip]) => `<button class="segbtn ${v.mode === id ? 'on' : ''}" data-mode="${id}" title="${esc(tip)}" ${v.edit ? '' : 'disabled'}>${label}</button>`).join('');
+    if (v.edit) seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => on.change({ mode: b.dataset.mode })));
+    const bots = this.$('setBots'); bots.min = v.minBots; bots.max = v.maxBots; bots.value = v.bots; bots.disabled = !v.edit;
+    this.$('outBots').textContent = v.bots; this.$('setName').value = v.name;
+    this.$('mapCards').innerHTML = [...MAP_ORDER, 'random'].map((id) => {
+      const m = MAPS[id] || { name: 'Random', icon: '#8a7acb', blurb: 'A surprise map every match.' };
+      return `<div class="mapcard ${v.mapId === id ? 'on' : ''} ${v.edit ? '' : 'locked'}" data-map="${id}" style="--c:${m.icon}"><div class="swatch"></div><h4>${esc(m.name)}</h4><p>${esc(m.blurb)}</p></div>`;
+    }).join('');
+    if (v.edit) this.$('mapCards').querySelectorAll('.mapcard').forEach((el) => el.addEventListener('click', () => on.change({ mapId: el.dataset.map })));
+    // roster: always six slots so it is obvious how full the match is
+    const rows = [];
+    for (let i = 0; i < 6; i++) {
+      const r = v.roster[i];
+      if (!r) { rows.push(`<div class="rrow empty" style="--c:#555"><span class="nm">Empty slot</span></div>`); continue; }
+      const st = r.isBot ? '<span class="st bot">AI</span>' : r.ready ? '<span class="st ok">READY</span>' : '<span class="st wait">NOT READY</span>';
+      const ttl = r.title && TITLES[r.title] ? `<small>${esc(TITLES[r.title].name)}</small>` : '';
+      rows.push(`<div class="rrow" style="--c:${CONFIG.COLORS[i]}"><span class="nm">${esc(r.name)}${r.host ? ' <small>HOST</small>' : ''}${r.you ? ' <small>YOU</small>' : ''}${ttl}</span><span class="cls">${esc(CLASSES[r.classId].name)}</span><span class="cls" style="color:${LANDS[v.lands[i]].icon}">${esc(LANDS[v.lands[i]].name)}</span>${st}</div>`);
+    }
+    this.$('rosterList').innerHTML = rows.join('');
+    this.$('rosterCount').textContent = `(${v.roster.length}/6)`;
     this.$('classCards').innerHTML = CLASS_ORDER.map((id) => {
       const c = CLASSES[id];
-      return `<div class="card ${cfg.classId === id ? 'on' : ''}" data-class="${id}"><h4>${esc(c.name)}</h4><p>${esc(c.blurb)}</p><ul>${c.perks.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></div>`;
+      return `<div class="card ${v.classId === id ? 'on' : ''}" data-class="${id}"><h4>${esc(c.name)}</h4><p>${esc(c.blurb)}</p><ul>${c.perks.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></div>`;
     }).join('');
-    this.$('classCards').querySelectorAll('.card').forEach((el) => el.addEventListener('click', () => onChange({ classId: el.dataset.class })));
-    const L = LANDS[lands[0]], syn = SYNERGIES[cfg.classId + ':' + lands[0]];
+    this.$('classCards').querySelectorAll('.card').forEach((el) => el.addEventListener('click', () => on.change({ classId: el.dataset.class })));
+    const myLand = v.lands[v.me] || v.lands[0], L = LANDS[myLand], syn = SYNERGIES[v.classId + ':' + myLand];
     this.$('landInfo').innerHTML = `<div class="landcard" style="--c:${L.icon}"><h4>${esc(L.name)} <small>${esc(L.blurb)}</small></h4>
       <div class="pc"><ul class="pros">${L.pros.map((p) => `<li>${esc(p)}</li>`).join('')}</ul><ul class="cons">${L.cons.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></div>
       ${syn ? `<div class="syn">SYNERGY &middot; ${esc(syn)}</div>` : ''}</div>`;
-    const n = 1 + cfg.bots;
-    this.$('matchup').innerHTML = 'Lands this match: ' + lands.slice(0, n).map((l, i) => `<span class="tag" style="--c:${LANDS[l].icon}">${i === 0 ? 'YOU' : 'BOT ' + i}: ${esc(LANDS[l].name)}</span>`).join(' ');
+    this.$('matchup').innerHTML = 'Lands this match: ' + v.roster.map((r, i) => `<span class="tag" style="--c:${LANDS[v.lands[i]].icon}">${esc(r.you ? 'YOU' : r.name)}: ${esc(LANDS[v.lands[i]].name)}</span>`).join(' ');
+    const rr = this.$('btnReroll'); rr.classList.toggle('hidden', !v.edit);
+    const start = this.$('btnStart'); start.classList.toggle('hidden', !v.edit); start.disabled = !v.canStart;
+    const ready = this.$('btnReady'); ready.classList.toggle('hidden', v.kind === 'single' || v.kind === 'host'); ready.textContent = v.myReady ? 'NOT READY' : 'READY';
+    const hint = this.$('lobbyHint'); hint.textContent = v.hint || ''; hint.className = 'netmsg ' + (v.hintClass || '');
+    this.$('setName').disabled = false;
   }
 
+  /* ---------- profile / locker / stats ---------- */
+  renderProfileBar(career) {
+    const L = levelFor(career.xp);
+    this.$('profileBar').innerHTML = `<div class="lv"><span>LEVEL ${L.level}</span><span>${career.coins} coins</span></div><div class="xpbar"><i style="width:${Math.round(L.into / L.need * 100)}%"></i></div>`;
+  }
+  renderStats(career, rows) {
+    const L = levelFor(career.xp);
+    this.$('statsLevel').innerHTML = `LEVEL ${L.level} <small style="font-weight:400;color:var(--muted)">${L.into} / ${L.need} XP to next</small><div class="xpbar"><i style="width:${Math.round(L.into / L.need * 100)}%"></i></div>`;
+    this.$('statsTable').innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+    this.$('titleList').innerHTML = TITLE_ORDER.map((id) => { const t = TITLES[id], ok = t.ok(career); return `<div class="ttl ${ok ? 'ok' : ''}"><b>${esc(t.name)}</b>${ok ? ' &#10003;' : ''}<small>${esc(t.desc)}</small></div>`; }).join('');
+  }
+  /**
+   * Locker: tabs per cosmetic slot. state = { tab, profile, career }, on = { buy(slot,id), equip(slot,id), color(i), title(id), emote(slot,id) }.
+   */
+  renderLocker(state, on) {
+    const { tab, profile, career } = state, L = levelFor(career.xp), eq = profile.equipped;
+    const tabs = [['skin', 'SKINS'], ['trail', 'TRAILS'], ['kill', 'KILL EFFECTS'], ['emote', 'EMOTES'], ['banner', 'BANNERS'], ['title', 'TITLES']];
+    this.$('lockerBar').innerHTML = `<span><b>LEVEL ${L.level}</b> <span class="xpbar"><i style="width:${Math.round(L.into / L.need * 100)}%"></i></span></span><span><b>${career.coins}</b> coins</span>`;
+    const tabEl = this.$('lockerTabs');
+    tabEl.innerHTML = tabs.map(([id, label]) => `<button class="segbtn ${tab === id ? 'on' : ''}" data-tab="${id}">${label}</button>`).join('');
+    tabEl.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => on.tab(b.dataset.tab)));
+    const grid = this.$('lockerGrid'); let html = '';
+    const hex = (c) => `rgb(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)})`;
+    if (tab === 'title') {
+      html = TITLE_ORDER.map((id) => { const t = TITLES[id], ok = t.ok(career); return `<div class="lk ${eq.title === id ? 'on' : ''} ${ok ? '' : 'locked'}"><h4>${esc(t.name)}</h4><span class="req">${esc(t.desc)}</span>${ok ? `<button class="btn tiny" data-act="title" data-id="${id}">${eq.title === id ? 'EQUIPPED' : 'EQUIP'}</button>` : '<span class="req"><br>Locked</span>'}</div>`; }).join('');
+    } else {
+      const items = COSMETICS[tab];
+      if (tab === 'banner') {
+        html += `<div style="grid-column:1/-1"><span class="req">Banner colour</span><div class="swatches">${BANNER_COLORS.map((c, i) => `<i class="sw ${eq.bannerColor === i ? 'on' : ''}" data-act="color" data-id="${i}" style="background:${hex(c)}"></i>`).join('')}</div></div>`;
+      }
+      if (tab === 'emote') {
+        html += `<div style="grid-column:1/-1"><span class="req">Keys <b>Z X C V</b> use these four slots. Pick a slot, then click an emote you own.</span><div class="emslots">${eq.emotes.map((id, i) => `<span class="emslot ${state.emoteSlot === i ? 'on' : ''}" data-act="slot" data-id="${i}">${'ZXCV'[i]}: ${esc(COSMETICS.emote[id].name)}</span>`).join('')}</div></div>`;
+      }
+      html += Object.keys(items).map((id) => {
+        const it = items[id], owned = profile.owned[tab].includes(id), lvlOk = L.level >= it.level, canBuy = !owned && lvlOk && career.coins >= it.cost;
+        let btn;
+        if (tab === 'emote') btn = owned ? `<button class="btn tiny" data-act="emote" data-id="${id}">USE IN SLOT ${'ZXCV'[state.emoteSlot]}</button>` : lvlOk ? `<button class="btn tiny" data-act="buy" data-id="${id}" ${canBuy ? '' : 'disabled'}>BUY ${it.cost}</button>` : `<span class="req">Level ${it.level}</span>`;
+        else if (owned) btn = `<button class="btn tiny" data-act="equip" data-id="${id}">${eq[tab] === id ? 'EQUIPPED' : 'EQUIP'}</button>`;
+        else btn = lvlOk ? `<button class="btn tiny" data-act="buy" data-id="${id}" ${canBuy ? '' : 'disabled'}>BUY ${it.cost}</button>` : `<span class="req">Unlocks at level ${it.level}</span>`;
+        const prev = tab === 'skin' && it.shirt ? `style="--c1:${hex(it.shirt)};--c2:${hex(it.skin)};--c3:${hex(it.legs)}"` : tab === 'banner' ? `style="--c1:${hex(BANNER_COLORS[eq.bannerColor])};--c2:${hex(it.a || [1, 1, 1])};--c3:${hex(BANNER_COLORS[eq.bannerColor])}"` : tab === 'trail' && it.color ? `style="--c1:#222;--c2:${hex(it.color)};--c3:#222"` : '';
+        return `<div class="lk ${(tab === 'emote' ? false : eq[tab] === id) ? 'on' : ''} ${owned || lvlOk ? '' : 'locked'}"><div class="prev" ${prev}></div><h4>${esc(it.name)}</h4>${btn}</div>`;
+      }).join('');
+    }
+    grid.innerHTML = html;
+    grid.querySelectorAll('[data-act]').forEach((el) => el.addEventListener('click', () => {
+      const act = el.dataset.act, id = el.dataset.id;
+      if (act === 'buy') on.buy(tab, id); else if (act === 'equip') on.equip(tab, id); else if (act === 'color') on.color(+id);
+      else if (act === 'title') on.title(id); else if (act === 'slot') on.slot(+id); else if (act === 'emote') on.emote(state.emoteSlot, id);
+    }));
+  }
   /* ---------- HUD ---------- */
   buildHudLabels() { /* static markup lives in index.html */ }
   setStage(stage, objective, time) {
@@ -3882,7 +5125,7 @@ class UI {
       if (!n) { el.style.display = 'none'; continue; }
       el.style.display = 'block';
       el.style.transform = `translate(-50%,-100%) translate(${n.x.toFixed(0)}px,${n.y.toFixed(0)}px) scale(${n.scale.toFixed(2)})`;
-      const html = `<span class="nn" style="--c:${n.color}">${esc(n.name)}${n.ally ? ' <em>ALLY</em>' : ''}${n.bounty ? ' <em class="bty">$' + n.bounty + '</em>' : ''}</span><span class="nb"><i style="width:${n.hp}%"></i></span>`;
+      const html = `${n.say ? '<span class="say">' + esc(n.say) + '</span>' : ''}<span class="nn" style="--c:${n.color}">${esc(n.name)}${n.ally ? ' <em>ALLY</em>' : ''}${n.bounty ? ' <em class="bty">$' + n.bounty + '</em>' : ''}</span>${n.title ? '<span class="ttlTag">' + esc(n.title) + '</span>' : ''}<span class="nb"><i style="width:${n.hp}%"></i></span>`;
       if (el._h !== html) { el._h = html; el.innerHTML = html; }
     }
   }
@@ -3891,7 +5134,7 @@ class UI {
   renderScoreboard(server, me) {
     const rows = server.scoreboard().map((p, i) => {
       const ally = server.areAllies(p, me);
-      return `<tr class="${p === me ? 'me' : ''} ${p.alive ? '' : 'dead'}" style="--c:${p.color}"><td>${i + 1}</td><td><i class="dot"></i>${esc(p.name)}${ally ? ' <em>ALLY</em>' : ''}${p.bounty ? ' <em class="bty">$' + p.bounty + '</em>' : ''}</td><td>${CLASSES[p.classId].name}</td><td>${LANDS[p.landId].name}</td>
+      return `<tr class="${p === me ? 'me' : ''} ${p.alive ? '' : 'dead'}" style="--c:${p.color}"><td>${i + 1}</td><td><i class="dot"></i>${esc(p.name)}${p.look && TITLES[p.look.title] ? ' <small>' + esc(TITLES[p.look.title].name) + '</small>' : ''}${ally ? ' <em>ALLY</em>' : ''}${p.bounty ? ' <em class="bty">$' + p.bounty + '</em>' : ''}</td><td>${CLASSES[p.classId].name}</td><td>${LANDS[p.landId].name}</td>
         <td>${p.stats.kills}</td><td>${p.stats.assists}</td><td>${p.stats.deaths}</td><td>${server.integrity(p.index)}%</td><td><b>${Math.round(p.stats.score)}</b></td></tr>`;
     }).join('');
     this.setHTML('scoreboard', `<div class="panel wide"><h2>SCOREBOARD</h2><table class="grid"><tr><th>#</th><th>Player</th><th>Class</th><th>Land</th><th>K</th><th>A</th><th>D</th><th>Base</th><th>Score</th></tr>${rows}</table></div>`);
@@ -3923,9 +5166,13 @@ class UI {
     const who = R.winners.length ? R.winners.map((p) => p.name).join(' & ') : 'nobody';
     const reason = { 'last-standing': 'last team standing', time: 'best score when time ran out', draw: 'everyone fell' }[R.reason] || R.reason;
     const rows = R.rows.map((r, i) => `<tr class="${r.player === me ? 'me' : ''} ${r.won ? 'won' : ''}" style="--c:${r.player.color}"><td>${i + 1}</td><td><i class="dot"></i>${esc(r.player.name)}</td><td>${CLASSES[r.player.classId].name}</td><td>${r.kills}</td><td>${r.assists}</td><td>${r.deaths}</td><td>${r.structuresDestroyed}</td><td>${r.tntKills}</td><td>${r.blocksDestroyed}</td><td>${r.objectives}</td><td><b>${r.score}</b></td><td>+${r.xp}</td><td>+${r.coins}</td></tr>`).join('');
-    this.$('results').innerHTML = `<div class="panel wide ${won ? 'win' : 'lose'}"><h1>${title}</h1><p class="sub">${esc(who)} &mdash; ${esc(reason)}</p>
+    const ln = (k, v) => `<div class="line"><span>${k}</span><span>${v}</span></div>`;
+    const summary = myRow ? `<div class="summary"><h3>${won ? 'VICTORY!' : R.winners.length ? 'DEFEAT' : 'DRAW'}</h3><div style="font-size:18px;font-weight:900;margin-bottom:6px">${esc(me.name)}</div>
+      ${ln('Kills', myRow.kills)}${ln('Damage Dealt', Math.round(myRow.damageDealt))}${ln('Blocks Destroyed', myRow.blocksDestroyed)}${ln('Structures Destroyed', myRow.structuresDestroyed)}${ln('TNT Eliminations', myRow.tntKills)}
+      <div class="reward">+${myRow.xp} XP &nbsp; +${myRow.coins} Coins</div>${extra && extra.levelUp ? `<div class="lvup">LEVEL UP! You are now level ${extra.levelUp}</div>` : ''}${extra && extra.titles && extra.titles.length ? `<div class="lvup">New title: ${esc(extra.titles.join(', '))}</div>` : ''}</div>` : '';
+    this.$('results').innerHTML = `<div class="panel wide ${won ? 'win' : 'lose'}"><h1>${title}</h1><p class="sub">${esc(who)} &mdash; ${esc(reason)}</p>${summary}
       <table class="grid"><tr><th>#</th><th>Player</th><th>Class</th><th>Kills</th><th>Ast</th><th>Deaths</th><th>Structures</th><th>TNT kills</th><th>Blocks</th><th>Objectives</th><th>Score</th><th>XP</th><th>Coins</th></tr>${rows}</table>
-      <p class="sub">${extra || ''}</p>
+      <p class="sub">${extra && extra.text || ''}</p>
       <div class="row end"><button class="btn small" data-act="menu">MAIN MENU</button>${server.replayAvailable ? '<button class="btn small" data-act="replay">WATCH LAST HIGHLIGHT</button>' : ''}<button class="btn" data-act="again">PLAY AGAIN</button></div></div>`;
     this.$('results').classList.remove('hidden');
   }
@@ -4036,7 +5283,7 @@ class Replay {
 
 /* ============================== 17. GAME =============================== */
 const INTERACTIVE = new Set(['lever', 'button', 'door', 'timer']);
-const DEFAULT_HOTBAR = ['pickaxe', 'sword', 'bow', 'stone', 'wood', 'tnt', 'lighter', 'plate', 'wire'];
+const DEFAULT_HOTBAR = ['pickaxe', 'sword', 'bow', 'stone', 'wood', 'tnt', 'lighter', 'water', 'plate'];
 const KILL_VERB = { melee: 'slew', arrow: 'shot', explosion: 'blew up', crush: 'crushed', mob: 'was mauled by a zombie', lava: 'swam in lava', fire: 'burned', fall: 'hit the ground too hard', drown: 'drowned', flood: 'was swept away' };
 
 function rayAabb(o, d, b, maxT) {
@@ -4059,10 +5306,15 @@ class Game {
     this.input = new Input();
     this.particles = new ParticleSystem();
     this.settings = Storage.load('mpw.settings', { sens: 1, fov: 75, vol: 0.7 });
-    this.career = Storage.load('mpw.career', { matches: 0, wins: 0, kills: 0, deaths: 0, xp: 0, coins: 0, blocks: 0, best: 0, playSeconds: 0 });
-    this.lobby = Storage.load('mpw.lobby', { mode: 'war', bots: 3, classId: 'builder', name: 'PLAYER', seed: 1 });
+    this.career = Object.assign({ matches: 0, wins: 0, kills: 0, deaths: 0, xp: 0, coins: 0, blocks: 0, best: 0, playSeconds: 0, tntKills: 0, structures: 0, damage: 0, totalCoins: 0 }, Storage.load('mpw.career', {}));
+    this.profile = sanitizeProfile(Storage.load('mpw.profile', null));
+    this.lobby = Object.assign({ mode: 'war', bots: 3, classId: 'builder', name: 'PLAYER', seed: 1, mapId: 'plains' }, Storage.load('mpw.lobby', {}));
     if (!CLASSES[this.lobby.classId]) this.lobby.classId = 'builder';
+    if (!MAPS[this.lobby.mapId] && this.lobby.mapId !== 'random') this.lobby.mapId = 'plains';
     this.lobby.bots = clamp(this.lobby.bots | 0, 1, 5);
+    this.kind = 'single';              // single | host | client
+    this.host = null; this.client = null; this.clientLobby = null; this.ai = []; this.lockerTab = 'skin'; this.emoteSlot = 0;
+    this.bubbles = new Map(); this.trailClock = 0; this.netNotice = '';
     this.hotbar = Storage.load('mpw.hotbar', { slots: DEFAULT_HOTBAR }).slots;
     if (!Array.isArray(this.hotbar) || this.hotbar.length !== 9 || this.hotbar.some((h) => h && !ITEMS[h])) this.hotbar = DEFAULT_HOTBAR.slice();
     this.selected = 0;
@@ -4075,7 +5327,8 @@ class Game {
     this.killDeathTimes = []; this.resultsShown = false; this.statsSaved = false; this.scoreboardHeld = false;
 
     this.world = new World();
-    this.server = new GameServer(this.world);
+    this.localServer = new GameServer(this.world);          // runs single-player matches and hosted matches
+    this.server = this.localServer;                         // becomes a NetServerView while joined to someone else's game
     this.server.subscribe((e) => this.onServerEvent(e));
     this.recorder = new ReplayRecorder(this);
     this.atlas = generateAtlas();
@@ -4093,7 +5346,10 @@ class Game {
     this.input.keyHandlers.push((e) => this.onKey(e));
     this.input.keyUpHandlers.push((e) => this.onKeyUp(e));
     this.audio.setVolume(this.settings.vol);
+    this.ui.renderProfileBar(this.career);
     this.ui.showOverlay('main');
+    const jc = new URLSearchParams(location.search).get('join');
+    if (jc) { this.ui.showPanel('multi'); this.ui.$('joinCode').value = cleanCode(jc); this.setNet('Invite code ' + cleanCode(jc) + ' loaded. Press JOIN.'); }
     requestAnimationFrame((t) => { this.lastTime = t; this.frame(t); });
     window.addEventListener('beforeunload', () => this.saveCareer());
   }
@@ -4103,8 +5359,10 @@ class Game {
 
   /** A frozen sample map shown behind the main menu. */
   demoMatch() {
-    this.server.startMatch({ mode: 'sandbox', botCount: 5, seed: 1 + Math.floor(Math.random() * 999), classId: 'builder' });
-    this.server.phase = 'idle';
+    const ids = Object.keys(MAPS), ai = [];
+    for (let i = 0; i < 6; i++) ai.push({ name: BOT_NAMES[i % BOT_NAMES.length], classId: CLASS_ORDER[i % CLASS_ORDER.length], isBot: i > 0, look: randomLook() });
+    this.localServer.startMatch({ mode: 'sandbox', seed: 1 + Math.floor(Math.random() * 999), mapId: ids[Math.floor(Math.random() * ids.length)], roster: ai });
+    this.localServer.phase = 'idle';
     if (this.chunks) { this.chunks.chunks.forEach((c) => { c.dirty = true; }); this.chunks.buildAll(); }
   }
 
@@ -4113,7 +5371,13 @@ class Game {
     const ui = this.ui, $ = ui.$, click = (id, fn) => $(id).addEventListener('click', () => { this.audio.unlock(); this.audio.play('click'); fn(); });
     ui.buildHotbar(9, (i) => this.selectSlot(i));
     ui.buildInventory((item) => { this.hotbar[this.selected] = item; this.audio.play('click'); this.saveCareer(); });
-    click('btnPlay', () => { this.backPanel = 'main'; this.openLobby(); });
+    click('btnPlay', () => { this.backPanel = 'main'; this.openLobby('single'); });
+    click('btnMulti', () => { this.backPanel = 'main'; this.setNet(''); ui.showPanel('multi'); $('joinCode').focus(); });
+    click('btnHost', () => this.hostGame());
+    click('btnJoin', () => this.joinGame($('joinCode').value));
+    $('joinCode').addEventListener('input', () => { $('joinCode').value = cleanCode($('joinCode').value); });
+    $('joinCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') this.joinGame($('joinCode').value); });
+    click('btnLocker', () => { this.backPanel = 'main'; this.openLocker(); });
     click('btnHow', () => { this.backPanel = 'main'; ui.showPanel('how'); });
     click('btnHow2', () => { this.backPanel = 'pause'; ui.showPanel('how'); });
     click('btnSettings', () => { this.backPanel = 'main'; ui.showPanel('settings'); });
@@ -4121,13 +5385,17 @@ class Game {
     click('btnStats', () => { this.backPanel = 'main'; this.renderCareer(); ui.showPanel('stats'); });
     click('btnResume', () => this.startPlay());
     click('btnQuit', () => this.leaveMatch());
-    click('btnStart', () => this.startMatch());
-    click('btnReroll', () => { this.lobby.seed = (this.lobby.seed % 9999) + 1; this.refreshLobby(); });
-    document.querySelectorAll('.back').forEach((b) => b.addEventListener('click', () => { this.audio.play('click'); ui.showPanel(this.backPanel); this.saveCareer(); }));
+    click('btnStart', () => this.startFromLobby());
+    click('btnReady', () => { const r = this.lobbyView(); this.client && this.client.send({ t: 'ready', r: !r.myReady }); this.myReady = !r.myReady; this.refreshLobby(); });
+    click('btnReroll', () => this.onLobbyChange({ reroll: true }));
+    click('btnLobbyBack', () => { if (this.kind === 'single') { this.backToMain(); } else this.leaveSession(); });
+    click('btnCopyCode', () => this.copyText(this.inviteCode(), 'Game code copied'));
+    click('btnCopyLink', () => this.copyText(this.inviteLink(), 'Invite link copied'));
+    document.querySelectorAll('.back').forEach((b) => { if (b.id === 'btnLobbyBack') return; b.addEventListener('click', () => { this.audio.play('click'); this.backPanel === 'pause' ? ui.showPanel('pause') : this.backToMain(); this.saveCareer(); }); });
     click('invClose', () => this.setPanel(null));
     click('diploClose', () => this.setPanel(null));
-    $('setBots').addEventListener('input', () => { this.lobby.bots = parseInt($('setBots').value, 10); this.refreshLobby(); });
-    $('setName').addEventListener('input', () => { this.lobby.name = $('setName').value.replace(/[^\w \-]/g, '').slice(0, 12) || 'PLAYER'; });
+    $('setBots').addEventListener('input', () => this.onLobbyChange({ bots: parseInt($('setBots').value, 10) }));
+    $('setName').addEventListener('input', () => { const nm = $('setName').value.replace(/[^\w \-]/g, '').slice(0, 12) || 'PLAYER'; this.lobby.name = nm; this.onLobbyChange({ name: nm }); });
 
     const bindSlider = (id, outId, key, fmt, apply) => {
       const input = $(id), out = $(outId);
@@ -4150,7 +5418,7 @@ class Game {
     });
     $('results').addEventListener('click', (e) => {
       const b = e.target.closest('button'); if (!b) return;
-      if (b.dataset.act === 'again') { $('results').classList.add('hidden'); this.openLobby(); }
+      if (b.dataset.act === 'again') { $('results').classList.add('hidden'); this.afterResults(); }
       else if (b.dataset.act === 'menu') { $('results').classList.add('hidden'); this.toMenu(); }
       else if (b.dataset.act === 'replay' && this.lastHighlight) { $('results').classList.add('hidden'); this.playHighlight(true); }
     });
@@ -4169,37 +5437,108 @@ class Game {
     document.addEventListener('pointerlockerror', () => { if (this.state === 'paused' || this.state === 'menu') ui.showOverlay('pause'); });
     window.addEventListener('resize', () => this.renderer && this.renderer.resize());
   }
-  renderCareer() {
-    const c = this.career, rows = [['Matches', c.matches], ['Wins', c.wins], ['Kills', c.kills], ['Deaths', c.deaths], ['Blocks destroyed', c.blocks], ['Best score', c.best], ['XP', c.xp], ['Coins', c.coins], ['Time played', Math.floor(c.playSeconds / 60) + ' min']];
-    this.ui.$('statsTable').innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+  backToMain() { this.ui.showOverlay('main'); this.ui.renderProfileBar(this.career); this.state = 'menu'; }
+  setNet(text, cls = '') { const el = this.ui.$('netMsg'); el.textContent = text; el.className = 'netmsg ' + cls; }
+  copyText(text, ok) {
+    const done = () => this.ui.toast(ok, 'good', 1800), fallback = () => { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ } t.remove(); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
   }
-  openLobby() {
-    this.state = 'menu';
+  inviteCode() { return this.host ? this.host.code : this.client && this.clientLobby ? this.clientLobby.code : ''; }
+  inviteLink() { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('join', this.inviteCode()); return u.toString(); }
+
+  /* ---------------------------- profile, stats, locker ---------------------------- */
+  renderCareer() {
+    const c = this.career;
+    this.ui.renderStats(c, [['Matches', c.matches], ['Wins', c.wins], ['Kills', c.kills], ['Deaths', c.deaths], ['TNT eliminations', c.tntKills], ['Structures destroyed', c.structures], ['Damage dealt', Math.round(c.damage)], ['Blocks destroyed', c.blocks], ['Best score', c.best], ['XP', c.xp], ['Coins', c.coins], ['Time played', Math.floor(c.playSeconds / 60) + ' min']]);
+  }
+  openLocker() { this.ui.showPanel('locker'); this.refreshLocker(); }
+  refreshLocker() {
+    const pr = this.profile, c = this.career;
+    this.ui.renderLocker({ tab: this.lockerTab, profile: pr, career: c, emoteSlot: this.emoteSlot }, {
+      tab: (t) => { this.lockerTab = t; this.audio.play('click'); this.refreshLocker(); },
+      slot: (i) => { this.emoteSlot = i; this.refreshLocker(); },
+      buy: (slot, id) => { const it = COSMETICS[slot][id]; if (c.coins >= it.cost && levelFor(c.xp).level >= it.level && !pr.owned[slot].includes(id)) { c.coins -= it.cost; pr.owned[slot].push(id); if (slot !== 'emote') pr.equipped[slot] = id; this.audio.play('chime', null, 0.6); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
+      equip: (slot, id) => { pr.equipped[slot] = id; this.audio.play('click'); this.saveCareer(); this.pushLook(); this.refreshLocker(); },
+      color: (i) => { pr.equipped.bannerColor = i; this.saveCareer(); this.pushLook(); this.refreshLocker(); },
+      title: (id) => { pr.equipped.title = id; this.saveCareer(); this.pushLook(); this.refreshLocker(); },
+      emote: (slot, id) => { pr.equipped.emotes[slot] = id; this.saveCareer(); this.pushLook(); this.refreshLocker(); },
+    });
+  }
+  /** Tells a hosted/joined lobby about changed cosmetics. */
+  pushLook() { const look = publicLook(this.profile); if (this.host) this.host.setHostInfo({ look }); else if (this.client) this.client.send({ t: 'prof', look }); }
+  myLook() { return publicLook(this.profile); }
+
+  /* ---------------------------- lobby ---------------------------- */
+  /** AI opponents shown in the lobby: random classes (no repeats), random names and cosmetics. Re-rolled every time. */
+  rerollAI() {
+    const names = BOT_NAMES.slice().sort(() => Math.random() - 0.5);
+    let classes = CLASS_ORDER.slice().sort(() => Math.random() - 0.5);
+    this.ai = [];
+    for (let i = 0; i < 5; i++) { if (!classes.length) classes = CLASS_ORDER.slice().sort(() => Math.random() - 0.5); this.ai.push({ id: 'ai' + i, name: names[i % names.length], classId: classes.pop(), look: randomLook(), isBot: true, ready: true }); }
+    this.lobby.seed = 1 + Math.floor(Math.random() * 9998);
+  }
+  openLobby(kind = this.kind) {
+    this.kind = kind; this.state = 'menu';
+    if (kind === 'single' && (!this.ai.length || this.freshLobby !== false)) { this.rerollAI(); this.freshLobby = false; }
+    this.myReady = false;
     this.ui.showHud(false); this.ui.$('results').classList.add('hidden');
     this.ui.showOverlay('lobby'); this.refreshLobby();
   }
+  /** Everything the lobby screen needs, for all three kinds of session. */
+  lobbyView() {
+    const L = this.lobby, me = { name: L.name, classId: L.classId, look: this.myLook(), ready: true, you: true };
+    if (this.kind === 'host' && this.host) {
+      const m = this.host.lobbyMessage(), roster = m.roster.map((r) => ({ ...r, you: r.id === 'p0' }));
+      return { kind: 'host', mode: m.cfg.mode, mapId: m.cfg.mapId, bots: m.cfg.bots, minBots: m.min, maxBots: m.max, name: L.name, classId: L.classId, lands: assignLandList(m.cfg.seed), roster, edit: true, me: 0, code: this.host.code, canStart: this.host.canStart(), myReady: true,
+        hint: this.host.canStart() ? 'Everybody is ready: start when you like. Share the code or invite link to bring friends in.' : this.host.allReady() ? 'You need at least 2 players: add AI players or wait for a friend.' : 'Waiting for players to press READY...', hintClass: this.host.canStart() ? 'good' : '',
+        providers: m.providers };
+    }
+    if (this.kind === 'client' && this.clientLobby) {
+      const m = this.clientLobby, myIdx = Math.max(0, m.roster.findIndex((r) => r.id === this.client.id)), roster = m.roster.map((r, i) => ({ ...r, you: i === myIdx }));
+      return { kind: 'client', mode: m.cfg.mode, mapId: m.cfg.mapId, bots: m.cfg.bots, minBots: m.min, maxBots: m.max, name: L.name, classId: L.classId, lands: assignLandList(m.cfg.seed), roster, edit: false, me: myIdx, code: m.code, canStart: false, myReady: !!(roster[myIdx] && roster[myIdx].ready), hint: this.myReady ? 'Waiting for the host to start...' : 'Pick your class, then press READY.' };
+    }
+    const bots = clamp(L.bots, 1, 5), roster = [me, ...this.ai.slice(0, bots)];
+    return { kind: 'single', mode: L.mode, mapId: L.mapId, bots, minBots: 1, maxBots: 5, name: L.name, classId: L.classId, lands: assignLandList(L.seed), roster, edit: true, me: 0, code: '', canStart: true, myReady: true, hint: '' };
+  }
   refreshLobby() {
-    const lands = this.server.assignLands(this.lobby.seed);
-    this.ui.renderLobby(this.lobby, lands, (patch) => { Object.assign(this.lobby, patch); this.audio.unlock(); this.audio.play('click'); this.refreshLobby(); });
+    const v = this.lobbyView();
+    this.ui.renderLobby(v, { change: (patch) => { this.audio.unlock(); this.audio.play('click'); this.onLobbyChange(patch); } });
+    if (v.kind !== 'single') this.ui.$('netStatus').textContent = v.kind === 'host' ? (v.providers && v.providers.includes('online') ? 'online + this computer' : 'this computer only (online service unavailable)') : '';
+  }
+  onLobbyChange(patch) {
+    const L = this.lobby;
+    if (patch.classId) { L.classId = patch.classId; if (this.host) this.host.setHostInfo({ classId: patch.classId }); else if (this.client) this.client.send({ t: 'prof', classId: patch.classId }); }
+    if (patch.name) { L.name = patch.name; if (this.host) this.host.setHostInfo({ name: patch.name }); else if (this.client) this.client.send({ t: 'prof', name: patch.name }); }
+    if (this.kind === 'host' && this.host) { const hp = {}; for (const k of ['mode', 'mapId', 'bots', 'reroll']) if (k in patch) hp[k] = patch[k]; if (Object.keys(hp).length) this.host.setConfig(hp); }
+    else if (this.kind === 'single') {
+      if (patch.mode) L.mode = patch.mode;
+      if (patch.mapId) L.mapId = patch.mapId;
+      if (patch.bots != null) L.bots = clamp(patch.bots | 0, 1, 5);
+      if (patch.reroll) this.rerollAI();
+    }
+    this.saveCareer();
+    if (!patch.name) this.refreshLobby();
   }
   toMenu() {
     this.releaseLock();
     this.clearReplay();
+    this.leaveSession(true);
     this.state = 'menu'; this.ui.showHud(false); this.ui.setPanelOpen('inventory', false); this.ui.setPanelOpen('diplomacy', false);
-    this.demoMatch(); this.ui.showOverlay('main');
+    this.demoMatch(); this.ui.renderProfileBar(this.career); this.ui.showOverlay('main');
   }
   leaveMatch() { this.toMenu(); }
   releaseLock() { try { if (document.pointerLockElement) document.exitPointerLock(); } catch (e) { /* ignore */ } }
 
-  startMatch() {
+  /* ---------------------------- starting a match ---------------------------- */
+  /** Common client-side preparation around whatever actually starts the match (local server, hosted, or joined). */
+  launch(startFn) {
     this.audio.unlock();
-    const L = this.lobby;
     this.clearReplay();
     this.recorder.suspended = true;
-    this.server.startMatch({ mode: L.mode, botCount: L.bots, seed: L.seed, classId: L.classId, name: L.name });
+    startFn();
     this.recorder.reset();
     if (this.chunks) { this.chunks.chunks.forEach((c) => { c.dirty = true; }); this.chunks.buildAll(); }
-    this.particles.items.length = 0;
+    this.particles.items.length = 0; this.bubbles.clear();
     const p = this.player;
     this.selected = 0; this.mining = null; this.charge = 0; this.hurt = 0; this.shake = 0; this.dark = 0;
     this.spectateIndex = -1; this.lastHighlight = null; this.pendingHighlight = null; this.pendingKillcam = null; this.highlightCool = 15;
@@ -4209,8 +5548,100 @@ class Game {
     this.state = 'paused';
     this.saveCareer();
     this.startPlay();
-    const land = LANDS[p.landId], cls = CLASSES[p.classId];
-    this.ui.banner(land.name.toUpperCase() + ' · ' + cls.name.toUpperCase(), L.mode === 'sandbox' ? 'Sandbox: unlimited resources' : 'Match starts in a moment. Build phase: edit only your own land.', '', 3800);
+    const land = LANDS[p.landId], cls = CLASSES[p.classId], map = MAPS[this.server.mapId];
+    this.ui.banner(land.name.toUpperCase() + ' · ' + cls.name.toUpperCase(), (map ? map.name + '. ' : '') + (this.server.mode === 'sandbox' ? 'Sandbox: unlimited resources' : 'Build phase: edit only your own land.'), '', 3800);
+  }
+  startFromLobby() {
+    const L = this.lobby;
+    if (this.kind === 'host' && this.host) {
+      if (!this.host.canStart()) return;
+      this.launch(() => this.host.startMatch());
+    } else if (this.kind === 'single') {
+      const bots = clamp(L.bots, 1, 5);
+      const roster = [{ id: 'p0', name: L.name, classId: L.classId, isBot: false, look: this.myLook() }, ...this.ai.slice(0, bots).map((a) => ({ name: a.name, classId: a.classId, isBot: true, look: a.look }))];
+      this.launch(() => this.localServer.startMatch({ mode: L.mode, seed: L.seed, mapId: L.mapId, roster }));
+    }
+  }
+  /** After the results screen: back to the lobby for another round (or the menu). */
+  afterResults() {
+    this.clearReplay();
+    if (this.kind === 'host' && this.host) { this.host.returnToLobby(); this.openLobby('host'); }
+    else if (this.kind === 'client' && this.client && !this.client.done) { this.restoreLocal(); this.myReady = false; this.openLobby('client'); }
+    else if (this.kind === 'single') { this.freshLobby = true; this.openLobby('single'); }
+    else this.toMenu();
+  }
+
+  /* ---------------------------- multiplayer flows ---------------------------- */
+  async hostGame() {
+    if (this.busyNet) return; this.busyNet = true;
+    this.setNet('Creating a game...');
+    try {
+      this.kind = 'host';
+      const hs = new HostSession(this.localServer, { onLobby: () => { if (this.kind === 'host' && this.ui.$('panelLobby') && !this.ui.$('panelLobby').classList.contains('hidden')) this.refreshLobby(); }, onJoin: (peer) => this.ui.toast(esc(peer.name) + ' joined', 'good', 2500), onLeave: (peer) => { if (this.state === 'playing' || this.state === 'paused') this.ui.toast(esc(peer.name) + ' left (AI takes over)', 'warn', 3500); } });
+      hs.hostInfo = { name: this.lobby.name, classId: this.lobby.classId, look: this.myLook() };
+      await hs.open();
+      this.host = hs;
+      hs.cfg.mode = this.lobby.mode; hs.cfg.mapId = this.lobby.mapId; hs.cfg.bots = this.lobby.bots;
+      this.openLobby('host');
+      if (!hs.providers.includes('online')) this.ui.toast('Online service unreachable: friends can join from this computer only. Check your connection and try again to host online.', 'warn', 7000);
+    } catch (err) { this.kind = 'single'; this.setNet(err.message || 'Could not create a game.', 'bad'); }
+    this.busyNet = false;
+  }
+  async joinGame(rawCode) {
+    if (this.busyNet) return;
+    const code = cleanCode(rawCode);
+    if (code.length < 4) { this.setNet('Enter the game code your friend gave you.', 'bad'); return; }
+    this.busyNet = true; this.setNet('Connecting to ' + code + '...');
+    let ch;
+    try { ch = await netConnect(code); } catch (err) { this.setNet(err.message, 'bad'); this.busyNet = false; return; }
+    const cs = new ClientSession(ch);
+    this.client = cs; this.kind = 'client'; this.clientLobby = null; this.myReady = false;
+    cs.on.lobby = (m) => { this.clientLobby = m; if (this.state === 'menu') { if (this.ui.$('panelLobby').classList.contains('hidden') && this.netJoining) { this.netJoining = false; this.openLobby('client'); } else this.refreshLobby(); } };
+    cs.on.start = (m) => this.beginClientMatch(m);
+    cs.on.tick = (m) => { if (this.server.applyTick) this.server.applyTick(m); };
+    cs.on.world = (m) => { if (this.server.loadWorld) { this.server.loadWorld(m); if (this.chunks) { this.chunks.chunks.forEach((c) => { c.dirty = true; }); this.chunks.buildAll(); } } };
+    cs.on.res = (m) => { if (this.server.emit) this.server.emit({ type: 'rejected', reason: m.r, action: m.a, item: m.item }); };
+    cs.on.end = (m) => { if (this.server.setResults) { this.server.setResults(m); this.server.emit({ type: 'matchEnd', winners: this.server.results.winners, reason: m.reason, results: this.server.results }); } };
+    cs.on.rejected = (why) => { this.onNetClosed(why, true); };
+    cs.on.closed = (why) => this.onNetClosed(why);
+    this.netJoining = true;
+    cs.join({ name: this.lobby.name, classId: this.lobby.classId, look: this.myLook() });
+    this.setNet('Connected. Waiting for the host...');
+    setTimeout(() => { if (this.netJoining && this.client === cs) { this.setNet('The host did not answer. Is the code right and the lobby still open?', 'bad'); this.leaveSession(); } }, 9000);
+    this.busyNet = false;
+  }
+  /** Joined players rebuild the host's map from the seed, report ready-to-play, then follow the host's stream. */
+  beginClientMatch(msg) {
+    this.netJoining = false;
+    this.launch(() => {
+      this.localServer.suspendTracking = true; this.localServer.phase = 'idle';
+      if (this.server !== this.localServer && this.server.dispose) this.server.dispose();
+      const view = new NetServerView(this.world, this.client);
+      view.subscribe((e) => this.onServerEvent(e));
+      this.server = view;
+      const hash = view.start(msg);
+      this.client.send({ t: 'loaded', hash });
+    });
+    this.me0 = this.player;
+  }
+  restoreLocal() {
+    if (this.server !== this.localServer) { if (this.server.dispose) this.server.dispose(); this.server = this.localServer; }
+    this.localServer.suspendTracking = false;
+  }
+  leaveSession(quiet) {
+    if (this.host) { this.host.close(); this.host = null; }
+    if (this.client) { this.client.leave(); this.client = null; }
+    this.restoreLocal();
+    this.kind = 'single'; this.clientLobby = null; this.netJoining = false; this.freshLobby = true;
+  }
+  onNetClosed(why, rejected) {
+    const was = this.kind === 'client';
+    this.client = null;
+    if (!was) return;
+    this.restoreLocal(); this.kind = 'single'; this.netJoining = false;
+    this.releaseLock(); this.clearReplay();
+    this.state = 'menu'; this.ui.showHud(false); this.ui.$('results').classList.add('hidden'); this.ui.setPanelOpen('inventory', false); this.ui.setPanelOpen('diplomacy', false);
+    this.demoMatch(); this.ui.showOverlay('multi'); this.setNet(why || 'Disconnected.', 'bad');
   }
 
   startPlay() {
@@ -4240,6 +5671,8 @@ class Game {
     if (e.code === 'Tab') { this.scoreboardHeld = true; this.ui.renderScoreboard(s, p); this.ui.$('scoreboard').classList.remove('hidden'); return; }
     if (e.code.startsWith('Digit')) { const n = parseInt(e.code.slice(5), 10); if (n >= 1 && n <= 9) this.selectSlot(n - 1); return; }
     if (e.code === 'KeyM') { this.audio.toggleMute(); return; }
+    const em = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 }[e.code];
+    if (em != null && p.alive) { s.handle(p.id, { type: 'emote', slot: em }); return; }
     if (e.code === 'F3') { this.debugVisible = !this.debugVisible; return; }
     if (e.code === 'KeyE') { this.setPanel('inventory'); return; }
     if (e.code === 'KeyT') { this.setPanel('diplomacy'); return; }
@@ -4349,7 +5782,11 @@ class Game {
       case 'allianceFormed': this.ui.killfeed(`<b style="color:${e.a.color}">${esc(e.a.name)}</b> and <b style="color:${e.b.color}">${esc(e.b.name)}</b> formed an ALLIANCE`, 'good'); if (e.a === me || e.b === me) this.ui.banner('ALLIANCE FORMED', 'Allies cannot hit each other directly. Watch your TNT.', 'good', 2800); break;
       case 'allianceBroken': this.ui.killfeed(`<b style="color:${e.player.color}">${esc(e.player.name)}</b> ${e.betrayal ? 'BETRAYED their allies!' : 'left their alliance'}`, 'bad'); if (e.betrayal) { this.audio.play('siren', null, 0.6); } break;
       case 'death': this.onDeath(e); break;
+      case 'creeperHiss': this.sfx('fuse', e.mob.pos.x, e.mob.pos.y, e.mob.pos.z, 30); break;
       case 'mobDeath': break;
+      case 'emote': this.say(e.player, e.text); break;
+      case 'playerLeft': this.ui.killfeed(`<b style="color:${e.player.color}">${esc(e.player.name)}</b> left &mdash; the AI took over`, 'warn'); break;
+      case 'rejected': this.onRejected(e); break;
       case 'matchEnd': this.onMatchEnd(e); break;
       default: break;
     }
@@ -4373,16 +5810,21 @@ class Game {
     let txt;
     if (k) txt = `<b style="color:${k.color}">${esc(k.name)}</b> ${e.tnt && e.kind === 'explosion' ? 'blew up' : (KILL_VERB[e.kind] || 'killed')} ${vn}`;
     else if (e.kind === 'mob') txt = `${vn} was mauled by a zombie`;
+    else if (e.detail === 'creeper') txt = `${vn} was blown up by a creeper`;
     else txt = `${vn} ${e.kind === 'explosion' ? 'was blown up' : e.kind === 'crush' ? (e.detail === 'collapse' ? 'was crushed by a collapse' : e.detail === 'suffocation' ? 'suffocated' : 'was crushed') : (KILL_VERB[e.kind] || 'died')}`;
     if (e.bounty) txt += ` <em>+$${e.bounty}</em>`;
     U.killfeed(txt, k === me || v === me ? 'me' : '');
     this.sfx('death', v.pos.x, v.pos.y, v.pos.z, 50);
+    this.killEffect(k, v);
     const t = this.server.clock;
     this.killDeathTimes.push(t);
     this.killDeathTimes = this.killDeathTimes.filter((x) => t - x < 3.5);
     if (this.killDeathTimes.length >= 2) this.noteHighlight(v.pos.x, v.pos.y, v.pos.z, 'DOUBLE KILL', 60);
     else if (e.tnt && k) this.noteHighlight(v.pos.x, v.pos.y, v.pos.z, 'TNT KILL', 45);
-    if (k === me && v !== me) { U.banner('ELIMINATED ' + v.name, '+500' + (e.bounty ? ' +$' + e.bounty + ' bounty' : ''), 'good', 1800); }
+    if (k === me && v !== me) {
+      U.banner('ELIMINATED ' + v.name, '+500' + (e.bounty ? ' +$' + e.bounty + ' bounty' : ''), 'good', 1800);
+      if (e.loot) U.toast('LOOT: ' + Object.entries(e.loot).map(([r, n]) => '+' + n + ' ' + RESOURCES[r].label.toLowerCase()).join(', '), 'good', 3500);
+    }
     if (v === me) {
       this.deathReplay = { victim: v, killer: k };
       this.mining = null; this.charge = 0;
@@ -4400,16 +5842,53 @@ class Game {
     this.ui.banner(e.winners.length ? (e.winners.includes(this.player) ? 'VICTORY!' : 'MATCH OVER') : 'DRAW', e.winners.length ? e.winners.map((p) => p.name).join(' & ') + ' wins' : 'Nobody survived', e.winners.includes(this.player) ? 'good' : 'bad', 2400);
     this.audio.play('chime', null, 0.9);
   }
+  /** Rejected requests from a hosted match come back as events; same wording as a local refusal. */
+  onRejected(e) {
+    const r = e.reason, it = e.item && ITEMS[e.item], phase = this.server.phase;
+    const msg = { 'no-resource': it && it.res ? 'Out of ' + RESOURCES[it.res].label.toLowerCase() + '!' : 'Not enough resources.', 'not-allowed': phase === 'build' ? 'Build phase: you can only edit your own land.' : 'You cannot do that right now.', 'no-support': 'Needs something to attach to.', 'no-floor': 'Needs solid ground below it.', 'player-in-way': 'Someone is in the way.' }[r];
+    if (msg && (e.action === 'place' || e.action === 'break' || e.action === 'ignite')) this.ui.toast(msg, 'bad', 1500);
+  }
+  say(player, text) { this.bubbles.set(player.id, { text, until: this.time + 3 }); }
+  /** Trails behind moving players (cosmetic, from the public look). */
+  trails(dt) {
+    this.trailClock -= dt; if (this.trailClock > 0) return; this.trailClock = 0.07;
+    const l = this.cam || this.listener();
+    for (const q of this.server.players) {
+      if (!q.alive || !q.look || q.look.trail === 'none') continue;
+      if (Math.hypot(q.vel.x, q.vel.z) < 1.5 && q.onGround) continue;
+      if (Math.abs(q.pos.x - l.x) > 45 || Math.abs(q.pos.z - l.z) > 45) continue;
+      const t = COSMETICS.trail[q.look.trail]; if (!t) continue;
+      const c = t.color || (() => { const h = (this.time * 1.5 + q.index) % 1; return [0.55 + 0.45 * Math.sin(h * 6.28), 0.55 + 0.45 * Math.sin(h * 6.28 + 2.1), 0.55 + 0.45 * Math.sin(h * 6.28 + 4.2)]; })();
+      this.particles.puff(q.pos.x, q.pos.y + 0.15, q.pos.z, c, 1, 0.3, t.rise, t.size, 0.7, t.glow);
+    }
+  }
+  /** The killer's equipped kill effect plays at the victim. */
+  killEffect(k, v) {
+    const kind = k && k.look ? k.look.kill : 'none', P = this.particles, x = v.pos.x, y = v.pos.y + 1, z = v.pos.z;
+    if (kind === 'confetti') for (let i = 0; i < 5; i++) P.burst(x, y, z, [Math.random(), Math.random(), Math.random()], 8, 4.5, 0.11);
+    else if (kind === 'lightning') { for (let h = 0; h < 14; h++) P.puff(x + (Math.random() - 0.5) * 0.4, y + h * 0.9, z + (Math.random() - 0.5) * 0.4, [0.85, 0.9, 1], 3, 0.2, 0, 0.3, 0.45, true); this.sfx('crash', x, y, z, 60); }
+    else if (kind === 'ghost') P.puff(x, y, z, [0.9, 0.95, 1], 22, 0.5, 3.2, 0.3, 1.6, true);
+    else if (kind === 'pixels') P.burst(x, y, z, [v.color ? 1 : 1, 0.9, 0.3], 26, 5.5, 0.18);
+  }
   showResults() {
     const s = this.server, me = this.player, row = s.results.rows.find((r) => r.player === me);
+    let extra = { text: '' };
     if (!this.statsSaved && row) {
       this.statsSaved = true;
-      const c = this.career; c.matches++; if (row.won) c.wins++; c.kills += row.kills; c.deaths += row.deaths; c.xp += row.xp; c.coins += row.coins; c.blocks += row.blocksDestroyed; c.best = Math.max(c.best, row.score); this.saveCareer();
+      const c = this.career, before = levelFor(c.xp).level, had = TITLE_ORDER.filter((id) => TITLES[id].ok(c));
+      c.matches++; if (row.won) c.wins++; c.kills += row.kills; c.deaths += row.deaths; c.xp += row.xp; c.coins += row.coins; c.totalCoins += row.coins; c.blocks += row.blocksDestroyed;
+      c.tntKills += row.tntKills || 0; c.structures += row.structuresDestroyed || 0; c.damage += row.damageDealt || 0; c.best = Math.max(c.best, row.score);
+      const after = levelFor(c.xp).level, now = TITLE_ORDER.filter((id) => TITLES[id].ok(c) && !had.includes(id));
+      this.lastExtra = { levelUp: after > before ? after : 0, titles: now.map((id) => TITLES[id].name) };
+      this.saveCareer();
     }
+    extra = Object.assign({ text: `Career: ${this.career.wins} wins in ${this.career.matches} matches &middot; level ${levelFor(this.career.xp).level} &middot; ${this.career.coins} coins` }, this.lastExtra || {});
     this.clearReplay(); this.state = 'results'; this.releaseLock(); this.ui.showHud(false);
     this.ui.setPanelOpen('inventory', false); this.ui.setPanelOpen('diplomacy', false); this.ui.$('scoreboard').classList.add('hidden');
     s.replayAvailable = !!this.lastHighlight;
-    this.ui.renderResults(s, me, `Career: ${this.career.wins} wins in ${this.career.matches} matches &middot; ${this.career.xp} XP &middot; ${this.career.coins} coins`);
+    this.ui.renderResults(s, me, extra);
+    if (this.kind === 'client') this.ui.$('results').querySelector('[data-act="again"]').textContent = 'BACK TO LOBBY';
+    if (this.kind === 'host') this.ui.$('results').querySelector('[data-act="again"]').textContent = 'BACK TO LOBBY';
   }
 
   /* ----------------------------- replays ----------------------------- */
@@ -4449,7 +5928,9 @@ class Game {
     const playing = this.state === 'playing' && p.alive;
     p.controls = playing ? this.input.controls() : { forward: false, back: false, left: false, right: false, jump: false, crouch: false };
     s.update(dt);
+    if (this.host && s === this.localServer) this.host.afterStep();
     this.recorder.tick(dt);
+    this.trails(dt);
     if (s.phase === 'ended' && this.state !== 'results' && !this.resultsShown && this.time >= (this.matchEndAt || 0)) { this.resultsShown = true; this.showResults(); return; }
     if (playing) {
       if (p.jumped) this.audio.play('jump', null, 0.8);
@@ -4716,7 +6197,7 @@ class Game {
         if (s.world.lineBlocked(cam.x, cam.y, cam.z, q.pos.x, hy - 0.4, q.pos.z)) continue;
         const pr = Mat4.project(vp, q.pos.x, hy, q.pos.z);
         if (!pr || Math.abs(pr.x) > 1.1 || Math.abs(pr.y) > 1.1) continue;
-        plates.push({ x: (pr.x * 0.5 + 0.5) * cw, y: (1 - (pr.y * 0.5 + 0.5)) * ch, scale: clamp(1.2 - d / 90, 0.6, 1.1), name: q.name, color: q.color, hp: Math.round(q.health / q.maxHealth * 100), ally: s.areAllies(q, this.player), bounty: q.bounty });
+        plates.push({ x: (pr.x * 0.5 + 0.5) * cw, y: (1 - (pr.y * 0.5 + 0.5)) * ch, scale: clamp(1.2 - d / 90, 0.6, 1.1), name: q.name, color: q.color, hp: Math.round(q.health / q.maxHealth * 100), ally: s.areAllies(q, this.player), bounty: q.bounty, title: q.look && TITLES[q.look.title] ? TITLES[q.look.title].name : '', say: (this.bubbles.get(q.id) || {}).until > this.time ? this.bubbles.get(q.id).text : '' });
       }
     }
     this.ui.updateNameplates(plates);
@@ -4726,7 +6207,7 @@ class Game {
 /* ============================== EXPORTS / BOOT ============================== */
 const api = {
   CONFIG, BlockRegistry, BLOCKS, ID, TILE, World, MapGenerator, buildChunkMesh, buildBlockListMesh, Player, Mob, GameServer, Bot, Mat4, AIR, B, VERTEX_FLOATS,
-  CLASSES, LANDS, ITEMS, EVENT_DEFS, EVENT_LIST, startResources, mineTime, TOOLS, LAND_ORDER, CLASS_ORDER, RESOURCES,
+  CLASSES, LANDS, MAPS, MAP_ORDER, ITEMS, EVENT_DEFS, EVENT_LIST, startResources, mineTime, TOOLS, LAND_ORDER, CLASS_ORDER, RESOURCES,
 };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = api;                     // lets tests/logic.test.js run the game logic in Node
