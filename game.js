@@ -53,7 +53,7 @@ const CONFIG = {
     SANDBOX_RESPAWN: 2, SPEED: TIME_SPEED,
   },
   RENDER: { FOG_START: 50, FOG_END: 140, SKY: [0.55, 0.78, 0.95], REBUILD_BUDGET: 4 },
-  ATLAS: { TILES: 8, TILE_PX: 16 },
+  ATLAS: { TILES: 16, TILE_PX: 16 },
   COLORS: ['#ff5a36', '#3fa7ff', '#7be05a', '#ffd23f', '#c77dff', '#ff8fab'],
 };
 
@@ -66,7 +66,8 @@ const TILE_NAMES = ['grass_top', 'grass_side', 'dirt', 'stone', 'wood', 'glass',
   'tnt_side', 'tnt_top', 'water', 'lava', 'leaves', 'iron_ore', 'iron_block', 'obsidian', 'fire',
   'wire_off', 'wire_on', 'plate_off', 'plate_on', 'lever_off', 'lever_on', 'button', 'tripwire',
   'piston_side', 'piston_front', 'piston_back', 'piston_head', 'door', 'timer', 'sensor', 'alarm',
-  'vault', 'log_side', 'log_top', 'vault_top', 'icon_pickaxe', 'icon_sword', 'icon_axe', 'icon_bow', 'icon_staff', 'icon_lighter', 'brick', 'shingle', 'lamp', 'flower_red', 'flower_yellow', 'gold_ore'];
+  'vault', 'log_side', 'log_top', 'vault_top', 'icon_pickaxe', 'icon_sword', 'icon_axe', 'icon_bow', 'icon_staff', 'icon_lighter', 'brick', 'shingle', 'lamp', 'flower_red', 'flower_yellow', 'gold_ore',
+  'plotwall', 'turret', 'cannon', 'mine', 'spikes', 'jumppad', 'conv_0', 'conv_1', 'conv_2', 'conv_3', 'sprinkler', 'healer', 'flamer', 'dropper'];
 const TILE = {};
 TILE_NAMES.forEach((n, i) => { TILE[n.toUpperCase()] = i; });
 
@@ -156,6 +157,19 @@ const BlockRegistry = (() => {
   define({ type: 'flower_red', shape: 'box', solid: false, transparent: true, hardness: 0.05, blastResistance: 0.05, weight: 0.1, needsFloor: true, placeable: false, color: [0.9, 0.2, 0.25], tiles: all(TILE.FLOWER_RED), boxes: () => [[0.2, 0, 0.2, 0.8, 0.7, 0.8]] });
   define({ type: 'flower_yellow', shape: 'box', solid: false, transparent: true, hardness: 0.05, blastResistance: 0.05, weight: 0.1, needsFloor: true, placeable: false, color: [0.95, 0.8, 0.2], tiles: all(TILE.FLOWER_YELLOW), boxes: () => [[0.2, 0, 0.2, 0.8, 0.7, 0.8]] });
   define({ type: 'gold_ore', hardness: 5, blastResistance: 6, weight: 5, sound: 'stone', color: [0.8, 0.7, 0.3], placeable: false, tiles: all(TILE.GOLD_ORE), drop: ['iron', 2] });
+  // --- plot divider (build phase only), automatic machines, TNT dropper ---
+  define({ type: 'plotwall', hardness: Infinity, blastResistance: Infinity, weight: 99, sound: 'stone', color: [0.25, 0.27, 0.34], breakable: false, placeable: false, pushable: false, tiles: all(TILE.PLOTWALL) });
+  const MACH = { sound: 'stone', pushable: false, machine: true, shape: 'box', transparent: true };
+  define({ ...MACH, type: 'turret', hardness: 2, blastResistance: 3, weight: 3, color: [0.4, 0.45, 0.55], tiles: all(TILE.TURRET), boxes: () => [[0.15, 0, 0.15, 0.85, 0.45, 0.85], [0.3, 0.45, 0.3, 0.7, 0.85, 0.7], [0.45, 0.55, 0.05, 0.55, 0.7, 0.45]], drop: ['mech', 3, 0.8] });
+  define({ ...MACH, type: 'cannon', hardness: 2.5, blastResistance: 4, weight: 4, color: [0.3, 0.3, 0.34], tiles: all(TILE.CANNON), boxes: () => [[0.05, 0, 0.05, 0.95, 0.35, 0.95], [0.25, 0.35, 0.25, 0.75, 0.95, 0.75]], drop: ['mech', 4, 0.8] });
+  define({ ...MACH, type: 'mine', solid: false, hardness: 0.2, blastResistance: 0.3, weight: 0.5, needsFloor: true, color: [0.4, 0.3, 0.2], tiles: all(TILE.MINE), boxes: () => [[0.12, 0, 0.12, 0.88, 0.1, 0.88]], drop: ['mech', 1, 0.8] });
+  define({ ...MACH, type: 'spikes', solid: false, hardness: 0.5, blastResistance: 1, weight: 1, needsFloor: true, color: [0.6, 0.6, 0.65], tiles: all(TILE.SPIKES), boxes: () => [[0.03, 0, 0.03, 0.97, 0.3, 0.97]], drop: ['mech', 1, 0.8] });
+  define({ ...MACH, type: 'jumppad', solid: false, hardness: 0.4, blastResistance: 1, weight: 1, needsFloor: true, color: [0.3, 0.85, 0.4], tiles: all(TILE.JUMPPAD), boxes: () => [[0.04, 0, 0.04, 0.96, 0.14, 0.96]], drop: ['mech', 1, 0.8] });
+  define({ ...MACH, type: 'conveyor', solid: false, hardness: 0.4, blastResistance: 1, weight: 1, needsFloor: true, color: [0.3, 0.3, 0.3], tiles: all(TILE.CONV_0), tileFn: (m) => TILE.CONV_0 + (m & 3), boxes: () => [[0, 0, 0, 1, 0.12, 1]], drop: ['mech', 1, 0.8] });
+  define({ ...MACH, type: 'sprinkler', hardness: 1.5, blastResistance: 2, weight: 2, color: [0.3, 0.55, 0.9], tiles: all(TILE.SPRINKLER), boxes: () => [[0.2, 0, 0.2, 0.8, 0.6, 0.8], [0.4, 0.6, 0.4, 0.6, 0.85, 0.6]], drop: ['mech', 2, 0.8] });
+  define({ ...MACH, type: 'healer', hardness: 1.5, blastResistance: 2, weight: 2, color: [0.4, 0.9, 0.5], tiles: all(TILE.HEALER), boxes: () => [[0.15, 0, 0.15, 0.85, 0.7, 0.85]], drop: ['mech', 3, 0.8] });
+  define({ ...MACH, type: 'flamer', hardness: 2, blastResistance: 3, weight: 3, color: [0.85, 0.35, 0.15], tiles: all(TILE.FLAMER), boxes: () => [[0.15, 0, 0.15, 0.85, 0.5, 0.85], [0.35, 0.5, 0.35, 0.65, 0.8, 0.65]], drop: ['mech', 3, 0.8] });
+  define({ type: 'dropper', hardness: 2, blastResistance: 4, weight: 3, sound: 'stone', color: [0.75, 0.3, 0.2], mech: 'consumer', tiles: all(TILE.DROPPER), drop: ['mech', 2, 0.8] });
   define({ type: 'vault', hardness: Infinity, blastResistance: Infinity, weight: 20, sound: 'stone', color: [1, 0.8, 0.2], breakable: false, placeable: false, pushable: false, tiles: { top: TILE.VAULT_TOP, side: TILE.VAULT, bottom: TILE.VAULT } });
 
   return {
@@ -457,6 +471,21 @@ function generateAtlas() {
   paint(TILE.BRICK, 60, (x, y, r) => { const row = y >> 2, off = (row % 2) * 4; return (y % 4 === 3 || (x + off) % 8 === 7) ? [190, 176, 160] : noisy(r, 168, 78, 62, 22); });
   paint(TILE.SHINGLE, 61, (x, y, r) => { const row = y >> 2; return (y % 4 === 3) ? [88, 38, 32] : noisy(r, 148 - row * 4 + ((x >> 2) % 2) * 10, 66, 52, 14); });
   paint(TILE.LAMP, 62, (x, y, r) => (edge(x, y) ? [150, 110, 40] : (x === 7 || x === 8 || y === 7 || y === 8) ? [190, 140, 50] : noisy(r, 255, 232, 130, 14)));
+  paint(TILE.PLOTWALL, 70, (x, y, r) => { const band = ((x + y) >> 2) % 4 === 0; return edge(x, y) ? [30, 32, 44] : band ? [236, 180, 40] : noisy(r, 52, 56, 74, 10); });
+  paint(TILE.TURRET, 71, (x, y, r) => (edge(x, y) ? [40, 44, 56] : (Math.hypot(x - 7.5, y - 7.5) < 3) ? [230, 60, 50] : noisy(r, 92, 100, 122, 12)));
+  paint(TILE.CANNON, 72, (x, y, r) => (edge(x, y) ? [20, 20, 24] : (Math.hypot(x - 7.5, y - 7.5) < 4.2) ? [18, 18, 22] : noisy(r, 70, 70, 78, 10)));
+  paint(TILE.MINE, 73, (x, y, r) => ((x === 7 || x === 8) && (y === 7 || y === 8)) ? [200, 50, 40] : noisy(r, 108, 84, 58, 16));
+  paint(TILE.SPIKES, 74, (x, y, r) => (((x % 4) === 2 && (y % 4) === 2) ? [235, 235, 245] : ((x % 4) === 1 || (y % 4) === 1) ? [120, 122, 134] : noisy(r, 78, 80, 92, 10)));
+  paint(TILE.JUMPPAD, 75, (x, y, r) => { const a = Math.abs(x - 7.5) + (y - 3); return (edge(x, y)) ? [20, 90, 40] : (y > 3 && y < 12 && Math.abs(x - 7.5) < (y - 3) * 0.7 && Math.abs(x - 7.5) > (y - 3) * 0.7 - 2.2) ? [255, 255, 255] : noisy(r, 60, 200, 90, 14); });
+  for (let d = 0; d < 4; d++) paint(TILE.CONV_0 + d, 76 + d, (x, y, r) => {
+    let u = x - 7.5, v = y - 7.5; for (let k = 0; k < [0, 2, 1, 3][d]; k++) { const t = u; u = -v; v = t; }    // rotate the arrow
+    const arrow = (Math.abs(u) < 1.5 && v > -5 && v < 3) || (v >= 3 && v < 6 && Math.abs(u) < 6 - v);
+    return edge(x, y) ? [30, 30, 32] : arrow ? [250, 210, 60] : noisy(r, 64, 66, 72, 10);
+  });
+  paint(TILE.SPRINKLER, 80, (x, y, r) => (edge(x, y) ? [30, 70, 130] : ((x + y) % 5 === 0) ? [190, 225, 255] : noisy(r, 70, 130, 220, 14)));
+  paint(TILE.HEALER, 81, (x, y, r) => (edge(x, y) ? [30, 120, 60] : ((Math.abs(x - 7.5) < 1.6 && Math.abs(y - 7.5) < 5) || (Math.abs(y - 7.5) < 1.6 && Math.abs(x - 7.5) < 5)) ? [255, 255, 255] : noisy(r, 90, 210, 120, 12)));
+  paint(TILE.FLAMER, 82, (x, y, r) => (edge(x, y) ? [60, 20, 10] : (Math.hypot(x - 7.5, y - 8.5) < 3.2) ? [255, 190, 50] : noisy(r, 170, 60, 30, 14)));
+  paint(TILE.DROPPER, 83, (x, y, r) => (edge(x, y) ? [90, 30, 20] : (Math.hypot(x - 7.5, y - 7.5) < 3.5) ? [20, 20, 20] : noisy(r, 190, 70, 55, 14)));
   const flower = (tile, petal) => paint(tile, 63, (x, y, r) => {
     const d = Math.hypot(x - 7.5, y - 5.5);
     if (d < 1.6) return [250, 230, 90];
@@ -679,8 +708,15 @@ class Body {
     if (len > 0) {
       wx /= len; wz /= len;
       const accel = (this.onGround ? P.GROUND_ACCEL : inFluid ? 30 : P.AIR_ACCEL) * dt;
-      this.vel.x = approach(this.vel.x, wx * spd, accel);
-      this.vel.z = approach(this.vel.z, wz * spd, accel);
+      if (!this.onGround && !inFluid) {                           // Minecraft-style air control: steer, but never lose momentum you already have
+        const before = Math.hypot(this.vel.x, this.vel.z);
+        this.vel.x += wx * accel; this.vel.z += wz * accel;
+        const after = Math.hypot(this.vel.x, this.vel.z), cap = Math.max(spd, before);
+        if (after > cap) { this.vel.x *= cap / after; this.vel.z *= cap / after; }
+      } else {
+        this.vel.x = approach(this.vel.x, wx * spd, accel);
+        this.vel.z = approach(this.vel.z, wz * spd, accel);
+      }
     } else if (this.onGround) {
       const fr = P.GROUND_FRICTION * dt;                         // snappy stop, no ice-skating
       this.vel.x = approach(this.vel.x, 0, fr);
@@ -762,7 +798,8 @@ class Player extends Body {
     this.eyeHeight = CONFIG.PLAYER.EYE;
     this.crouching = false;
     this.stepDistance = 0; this.walkPhase = 0; this.swing = 0; this.drawTime = 0;
-    this.controls = { forward: false, back: false, left: false, right: false, jump: false, crouch: false };
+    this.controls = { forward: false, back: false, left: false, right: false, jump: false, crouch: false, sprint: false };
+    this.sprinting = false; this.hurtT = 0; this.lastDmg = 0;
     this.resources = {};
     this.cooldowns = { attack: 0, place: 0, shoot: 0, use: 0 };
     this.sinceDamage = 99;                          // seconds since last damage (regeneration)
@@ -797,10 +834,15 @@ class Player extends Body {
     const s = (controls.right ? 1 : 0) - (controls.left ? 1 : 0);
     const wx = f * -Math.sin(this.yaw) + s * Math.cos(this.yaw);
     const wz = f * -Math.cos(this.yaw) + s * -Math.sin(this.yaw);
-    const speed = (this.crouching ? P.CROUCH : P.WALK) * this.mods.speed;
+    this.sprinting = !!controls.sprint && f > 0 && !this.crouching && !this.inWater && !this.inLava;
+    const speed = (this.crouching ? P.CROUCH : P.WALK) * this.mods.speed * (this.sprinting ? 1.3 : 1);
     const px = this.pos.x, pz = this.pos.z;
 
     this.simulate(dt, wx, wz, speed, !!controls.jump, P.JUMP * this.mods.jump, world, env);
+    if (this.jumped && this.sprinting) {                         // sprint-jump: a burst of forward speed, like Minecraft
+      const l = Math.hypot(wx, wz) || 1; this.vel.x += wx / l * 3.2; this.vel.z += wz / l * 3.2;
+    }
+    this.hurtT = Math.max(0, this.hurtT - dt);
 
     this.eyeHeight = approach(this.eyeHeight, this.crouching ? P.EYE_CROUCH : P.EYE, 6 * dt);
     const moved = Math.hypot(this.pos.x - px, this.pos.z - pz);
@@ -815,7 +857,7 @@ class Mob extends Body {
     super();
     this.id = id; this.type = type;
     this.halfWidth = 0.3; this.height = type === 'creeper' ? 1.7 : 1.8;
-    this.health = type === 'creeper' ? 16 : 20; this.maxHealth = this.health; this.alive = true;
+    this.health = type === 'creeper' ? 40 : 50; this.maxHealth = this.health; this.alive = true;
     this.fuse = 0;                                  // creeper: seconds until it blows up (0 = not lit)
     this.teleport(x, y, z);
     this.attackCd = 0; this.walkPhase = 0; this.swing = 0; this.life = 0; this.stuck = 0;
@@ -934,6 +976,125 @@ class FluidSystem {
       return;
     }
     if (td.replaceable || (td.needsFloor && !td.solid)) w.set(x, y, z, fluidId, false, newLevel);
+  }
+}
+
+
+/* ---------- Machines: blocks that act on their own (turrets, cannons, mines, pads...). Owned by whoever placed them. ---------- */
+class MachineSystem {
+  constructor(server) { this.server = server; this.world = server.world; this.set = new Set(); this.state = new Map(); this.acc = 0; }
+  clear() { this.set.clear(); this.state.clear(); }
+  fresh() { return { cd: 0, ammo: 24, armed: this.server.clock + 2.5 }; }
+  register(k) { this.set.add(k); if (!this.state.has(k)) this.state.set(k, this.fresh()); }
+  onChange(x, y, z, old, nw) {
+    if (old === nw) return;
+    const k = keyOf(x, y, z);
+    if (BLOCKS[nw].machine) { this.set.add(k); this.state.set(k, this.fresh()); }
+    else if (BLOCKS[old].machine) { this.set.delete(k); this.state.delete(k); }
+  }
+  /** Owner's right-click on a turret: +12 arrows for 1 part. */
+  refill(player, x, y, z) {
+    const st = this.state.get(keyOf(x, y, z)), s = this.server;
+    if (!st || this.world.getOwner(x, y, z) !== player.index + 1 || st.ammo >= 36 || !s.hasResource(player, 'mech', 1)) return false;
+    s.spend(player, 'mech', 1); st.ammo = Math.min(36, st.ammo + 12);
+    s.emit({ type: 'mechClick', x, y, z, block: BLOCKS[ID.turret] });
+    return true;
+  }
+  dropperFire(x, y, z) {
+    const s = this.server, k = keyOf(x, y, z), st = this.state.get(k) || this.fresh();
+    this.state.set(k, st);
+    if (st.cd > 0) return;
+    const o = this.world.getOwner(x, y, z) - 1, op = o >= 0 ? s.playerBySlot(o) : null;
+    if (op && !s.hasResource(op, 'tnt', 1)) return;
+    if (op) s.spend(op, 'tnt', 1);
+    st.cd = 1.2;
+    s.spawnTnt(x + 0.5, y + 1.3, z + 0.5, 2.4, o, 'dropper', 5);
+    s.emit({ type: 'machineFx', kind: 'drop', x, y, z });
+  }
+  sees(sx, sy, sz, b, h = 1.0) { return !this.world.lineBlocked(sx, sy, sz, b.pos.x, b.pos.y + h, b.pos.z); }
+  update(dt) {
+    this.acc += dt;
+    if (this.acc < 0.1 || !this.set.size) return;
+    const step = this.acc; this.acc = 0; this.tickNo = (this.tickNo || 0) + 1;
+    const s = this.server, w = this.world, live = s.pvpEnabled();
+    const bodies = s.bodies().concat(s.tnts.filter((t) => t.alive !== false));
+    const inCell = (b, x, y, z, up = 0.9) => Math.abs(b.pos.x - (x + 0.5)) < b.halfWidth + 0.45 && Math.abs(b.pos.z - (z + 0.5)) < b.halfWidth + 0.45 && b.pos.y > y - 0.45 && b.pos.y < y + up;
+    for (const k of Array.from(this.set)) {
+      const [x, y, z] = unkey(k), id = w.get(x, y, z);
+      if (!BLOCKS[id].machine) { this.set.delete(k); continue; }
+      let st = this.state.get(k); if (!st) { st = this.fresh(); this.state.set(k, st); }
+      st.cd = Math.max(0, st.cd - step);
+      const o = w.getOwner(x, y, z) - 1, op = o >= 0 ? s.playerBySlot(o) : null;
+      const foe = (b) => b.alive !== false && (b instanceof Player || b instanceof Mob) && !(op && (b === op || s.areAllies(b, op)));
+      const cx = x + 0.5, cy = y + 0.5, cz = z + 0.5;
+      if (id === ID.turret) {
+        if (!live || st.cd > 0 || st.ammo <= 0) continue;
+        let best = null, bd = 17;
+        for (const b of bodies) { if (!foe(b)) continue; const d = Math.hypot(b.pos.x - cx, b.pos.y + 1 - cy, b.pos.z - cz); if (d < bd && this.sees(cx, y + 1.05, cz, b, 1.1)) { bd = d; best = b; } }
+        if (!best) continue;
+        const t = bd / 30, tx = best.pos.x + best.vel.x * t * 0.7, ty = best.pos.y + 1.1, tz = best.pos.z + best.vel.z * t * 0.7;
+        let dx = tx - cx, dy = ty - (y + 1.05) + 0.5 * 14 * t * t, dz = tz - cz;
+        const spread = 0.05 * bd; dx += (Math.random() - 0.5) * spread; dy += (Math.random() - 0.5) * spread; dz += (Math.random() - 0.5) * spread;
+        const l = Math.hypot(dx, dy, dz) || 1, sp = 30;
+        const a = new Arrow('a' + s.nextId(), cx, y + 1.05, cz, dx / l * sp, dy / l * sp, dz / l * sp, o, 12);
+        a.machine = true; s.arrows.push(a);
+        st.ammo--; st.cd = 1.0 + Math.random() * 0.5;
+        s.emit({ type: 'machineFx', kind: 'turret', x, y, z });
+      } else if (id === ID.cannon) {
+        if (!live || st.cd > 0 || w.isSolid(x, y + 1, z)) continue;
+        let best = null, bd = 31;
+        for (const b of bodies) { if (!foe(b)) continue; const d = Math.hypot(b.pos.x - cx, b.pos.z - cz); if (d > 6.5 && d < bd) { bd = d; best = b; } }
+        if (!best || (op && !s.hasResource(op, 'tnt', 1))) continue;
+        if (op) s.spend(op, 'tnt', 1);
+        const sc = 0.6 + bd * 0.04, tx = best.pos.x + (Math.random() - 0.5) * sc * 2, tz = best.pos.z + (Math.random() - 0.5) * sc * 2, ty = best.pos.y + 0.4;
+        const t = clamp(0.5 + bd / 16, 0.9, 2.6), g = CONFIG.PLAYER.GRAVITY;
+        const tnt = s.spawnTnt(cx, y + 1.3, cz, t + 0.12, o, 'cannon');
+        tnt.vel.x = (tx - cx) / t; tnt.vel.z = (tz - cz) / t; tnt.vel.y = clamp((ty - (y + 1.3) + 0.5 * g * t * t) / t, 4, 34);
+        st.cd = 6.5;
+        s.emit({ type: 'machineFx', kind: 'cannon', x, y, z });
+      } else if (id === ID.mine) {
+        if (!live || s.clock < st.armed) continue;
+        if (bodies.some((b) => foe(b) && inCell(b, x, y, z, 0.7))) {
+          w.set(x, y, z, AIR);
+          s.explode(cx, cy, cz, { radius: 2.8, power: 0.9, owner: o >= 0 ? o : null, cause: 'mine', crater: 2 });
+        }
+      } else if (id === ID.spikes) {
+        if (!live || st.cd > 0) continue;
+        for (const b of bodies) if (foe(b) && inCell(b, x, y, z, 0.5)) { s.damage(b, 7, { kind: 'trap', by: o, direct: false }); b.vel.x *= 0.45; b.vel.z *= 0.45; st.cd = 0.5; s.emit({ type: 'machineFx', kind: 'spikes', x, y, z }); break; }
+      } else if (id === ID.jumppad) {
+        for (const b of bodies) if (inCell(b, x, y, z, 0.6) && !(b.padUntil > s.clock)) { b.vel.y = 15; b.vel.x *= 1.2; b.vel.z *= 1.2; b.onGround = false; b.padUntil = s.clock + 0.45; s.emit({ type: 'machineFx', kind: 'pad', x, y, z }); }
+      } else if (id === ID.conveyor) {
+        const m = w.getMeta(x, y, z) & 3, dx = [1, -1, 0, 0][m], dz = [0, 0, 1, -1][m];
+        for (const b of bodies) if (Math.floor(b.pos.x) === x && Math.floor(b.pos.z) === z && b.pos.y > y - 0.45 && b.pos.y < y + 0.6 && b.onGround !== false && b.convTick !== this.tickNo) {
+          b.convTick = this.tickNo;
+          const nx = b.pos.x + dx * 3.2 * step, nz = b.pos.z + dz * 3.2 * step, ex = nx + dx * (b.halfWidth + 0.05), ez = nz + dz * (b.halfWidth + 0.05);
+          if (!w.isSolid(Math.floor(ex), Math.floor(b.pos.y + 0.1), Math.floor(ez)) && !w.isSolid(Math.floor(ex), Math.floor(b.pos.y + 1.1), Math.floor(ez))) { b.pos.x = nx; b.pos.z = nz; }
+        }
+      } else if (id === ID.sprinkler) {
+        if (st.cd > 0) continue;
+        st.cd = 1.0; let did = false;
+        for (let dz = -6; dz <= 6; dz++) for (let dy = -4; dy <= 5; dy++) for (let dx = -6; dx <= 6; dx++) {
+          if (dx * dx + dy * dy + dz * dz > 38) continue;
+          if (w.get(x + dx, y + dy, z + dz) === ID.fire) { w.set(x + dx, y + dy, z + dz, AIR); did = true; }
+        }
+        for (const b of bodies) if (b.burnTime > 0 && Math.hypot(b.pos.x - cx, b.pos.y - cy, b.pos.z - cz) < 6) { b.burnTime = 0; did = true; }
+        s.emit({ type: 'machineFx', kind: 'sprinkle', x, y, z, did });
+      } else if (id === ID.healer) {
+        if (st.cd > 0) continue;
+        st.cd = 1.0;
+        for (const q of s.players) if (q.alive && op && (q === op || s.areAllies(q, op)) && q.health < q.maxHealth && Math.hypot(q.pos.x - cx, q.pos.y - cy, q.pos.z - cz) < 6.5) { q.health = Math.min(q.maxHealth, q.health + 6); s.emit({ type: 'machineFx', kind: 'heal', x: q.pos.x, y: q.pos.y, z: q.pos.z }); }
+      } else if (id === ID.flamer) {
+        if (!live || st.cd > 0) continue;
+        let best = null, bd = 7.5;
+        for (const b of bodies) { if (!foe(b)) continue; const d = Math.hypot(b.pos.x - cx, b.pos.y + 0.9 - cy, b.pos.z - cz); if (d < bd && this.sees(cx, y + 0.9, cz, b, 0.9)) { bd = d; best = b; } }
+        if (!best) continue;
+        best.burnTime = Math.max(best.burnTime || 0, 4); best.burnCause = o >= 0 ? o : null;
+        const fx = Math.floor(best.pos.x), fy = Math.floor(best.pos.y), fz = Math.floor(best.pos.z);
+        if (w.get(fx, fy, fz) === AIR) s.fire.ignite(fx, fy, fz, o);
+        st.cd = 1.2;
+        s.emit({ type: 'machineFx', kind: 'flame', x, y, z, tx: best.pos.x, ty: best.pos.y + 0.9, tz: best.pos.z });
+      }
+    }
   }
 }
 
@@ -1090,7 +1251,7 @@ class StructureSystem {
     while (stack.length) {
       const [x, y, z] = stack.pop();
       list.push([x, y, z]);
-      if (y === 0 || w.get(x, y, z) === ID.bedrock || supportedSet.has(keyOf(x, y, z))) { grounded = true; break; }
+      if (y === 0 || w.get(x, y, z) === ID.bedrock || w.get(x, y, z) === ID.plotwall || supportedSet.has(keyOf(x, y, z))) { grounded = true; break; }
       if (list.length > this.cap) { grounded = true; break; }
       // push in reverse so that "down" is popped first
       for (let i = 5; i >= 0; i--) {
@@ -1168,6 +1329,7 @@ class RedstoneSystem {
     if (id === ID.button) { w.setMeta(x, y, z, m | 1); this.buttons.set(keyOf(x, y, z), 1.2); this.server.emit({ type: 'mechClick', x, y, z, block: BLOCKS[id] }); return true; }
     if (id === ID.door) { w.setMeta(x, y, z, m ^ 1); this.server.emit({ type: 'doorToggle', x, y, z }); return true; }
     if (id === ID.timer) { this.startTimer(x, y, z); return true; }
+    if (id === ID.turret) return this.server.machines.refill(player, x, y, z);
     return false;
   }
   startTimer(x, y, z) {
@@ -1244,6 +1406,7 @@ class RedstoneSystem {
       else if (id === ID.door) { w.setMeta(x, y, z, (w.getMeta(x, y, z) & ~1) | (isP ? 1 : 0)); s.emit({ type: 'doorToggle', x, y, z }); }
       else if (id === ID.alarm) { if (isP) { this.alarmClock.set(k, 0); this.alarmTick(x, y, z, 1); } }
       else if (id === ID.timer) { if (isP) this.startTimer(x, y, z); }
+      else if (id === ID.dropper) { if (isP) s.machines.dropperFire(x, y, z); }
     }
   }
   /** Line of sight from a sensor block to a body, starting just outside the (solid) sensor cube. */
@@ -1309,7 +1472,7 @@ const RESOURCES = {
   tnt:   { label: 'TNT',   cap: 8,  start: 3,  color: '#e0402e' },
   water: { label: 'Water', cap: 6,  start: 2,  color: '#4a84ff' },
   lava:  { label: 'Lava',  cap: 4,  start: 1,  color: '#ff8a1e' },
-  mech:  { label: 'Parts', cap: 60, start: 12, color: '#ff6a5a' },
+  mech:  { label: 'Parts', cap: 80, start: 22, color: '#ff6a5a' },
   earth: { label: 'Earth', cap: 80, start: 24, color: '#9a7350' },
 };
 const RESOURCE_ORDER = ['wood', 'stone', 'iron', 'glass', 'tnt', 'water', 'lava', 'mech', 'earth'];
@@ -1342,15 +1505,28 @@ const ITEMS = {
   timer:   { kind: 'mech', label: 'Timer', block: 'timer', res: 'mech', cost: 2 },
   sensor:  { kind: 'mech', label: 'Sensor', block: 'sensor', res: 'mech', cost: 2 },
   alarm:   { kind: 'mech', label: 'Alarm', block: 'alarm', res: 'mech', cost: 1 },
+  // automatic machines: place them and they work on their own (enemies only; they never hurt you or your allies)
+  turret:  { kind: 'mech', label: 'Arrow Turret', block: 'turret', res: 'mech', cost: 6, auto: true },
+  cannon:  { kind: 'mech', label: 'TNT Cannon', block: 'cannon', res: 'mech', cost: 8, auto: true },
+  mine:    { kind: 'mech', label: 'Land Mine', block: 'mine', res: 'mech', cost: 2, auto: true },
+  spikes:  { kind: 'mech', label: 'Spike Trap', block: 'spikes', res: 'mech', cost: 2, auto: true },
+  flamer:  { kind: 'mech', label: 'Flamethrower', block: 'flamer', res: 'mech', cost: 5, auto: true },
+  jumppad: { kind: 'mech', label: 'Launch Pad', block: 'jumppad', res: 'mech', cost: 2, auto: true },
+  conveyor:{ kind: 'mech', label: 'Conveyor', block: 'conveyor', res: 'mech', cost: 1, auto: true },
+  sprinkler:{ kind: 'mech', label: 'Sprinkler', block: 'sprinkler', res: 'mech', cost: 3, auto: true },
+  healer:  { kind: 'mech', label: 'Healing Beacon', block: 'healer', res: 'mech', cost: 5, auto: true },
+  dropper: { kind: 'mech', label: 'TNT Dropper', block: 'dropper', res: 'mech', cost: 4 },
 };
 const ITEM_ORDER = Object.keys(ITEMS);
 
+/** Combat numbers follow Minecraft's feel (scaled to 100 HP): sword 4 hits, axe heavy and slow, sprint hits knock back harder, crits while falling.
+ *  cd = seconds for a full attack charge, kb = horizontal knockback speed (blocks/s). */
 const TOOLS = {
-  pickaxe: { dmg: 3,  cd: 0.5,  reach: 3.2, kb: 3,  mine: 2.6 },
-  sword:   { dmg: 7,  cd: 0.45, reach: 3.3, kb: 5,  mine: 1.2 },
-  axe:     { dmg: 11, cd: 0.85, reach: 3.1, kb: 6,  mine: 1.0, woodMine: 2.5 },
-  staff:   { dmg: 2,  cd: 0.7,  reach: 3.4, kb: 16, mine: 1.0 },
-  bow:     { dmg: 9,  cd: 0.5,  draw: 0.7, speed: 34, mine: 1.0 },
+  pickaxe: { dmg: 14, cd: 0.83, reach: 3.2, kb: 8,  mine: 2.6 },
+  sword:   { dmg: 24, cd: 0.625, reach: 3.3, kb: 8,  mine: 1.2 },
+  axe:     { dmg: 32, cd: 1.0,  reach: 3.1, kb: 8,  mine: 1.0, woodMine: 2.5 },
+  staff:   { dmg: 5,  cd: 0.7,  reach: 3.4, kb: 24, mine: 1.0 },
+  bow:     { dmg: 28, cd: 0.5,  draw: 0.7, speed: 34, mine: 1.0 },
   lighter: { mine: 1.0 },
 };
 /** Seconds to break `def` by hand/tool (used by both the client progress bar and bots). */
@@ -1726,7 +1902,23 @@ const MapGenerator = {
     this.decorate(world, rng, mapId, spawns, cx, cz, PR);
     for (const s of spawns) s.y = world.getSolidHeight(Math.floor(s.x), Math.floor(s.z)) + 1;
     for (const p of plots) { const s = spawns[p.index]; p.spawn = { x: s.x, y: s.y, z: s.z }; }
-    return { spawns, plots, center: { x: cx + 0.5, z: cz + 0.5 }, vault, name: mapId, mapId };
+    // ---- plot dividers: tall walls on the borders between plots, so nobody sees what the others are building. Removed when the war starts. ----
+    const wallCells = [];
+    if (opts.walls) {
+      const sx2 = world.sizeX, sz2 = world.sizeZ, near = new Int8Array(sx2 * sz2);
+      for (let z = 0; z < sz2; z++) for (let x = 0; x < sx2; x++) {
+        let bi = 0, bd = 1e9;
+        for (let i = 0; i < plots.length; i++) { const d = (x + 0.5 - plots[i].x) ** 2 + (z + 0.5 - plots[i].z) ** 2; if (d < bd) { bd = d; bi = i; } }
+        near[x + z * sx2] = bi;
+      }
+      for (let z = 0; z < sz2; z++) for (let x = 0; x < sx2; x++) {
+        const n = near[x + z * sx2];
+        const edgeCol = (x > 0 && near[x - 1 + z * sx2] !== n) || (x < sx2 - 1 && near[x + 1 + z * sx2] !== n) || (z > 0 && near[x + (z - 1) * sx2] !== n) || (z < sz2 - 1 && near[x + (z + 1) * sx2] !== n);
+        if (!edgeCol) continue;
+        for (let y = 1; y < world.sizeY; y++) if (world.get(x, y, z) === AIR) { world.set(x, y, z, ID.plotwall, true); wallCells.push(x, y, z); }
+      }
+    }
+    return { spawns, plots, center: { x: cx + 0.5, z: cz + 0.5 }, vault, name: mapId, mapId, wallCells };
   },
 
   /** Village: a grid of houses with gravel streets between them, plus a church tower. */
@@ -1996,6 +2188,13 @@ function randomLook(rng = Math.random) {
  * It simulates every player/bot/entity at a fixed step through update(dt).
  */
 const PVP_PHASES = new Set(['war', 'chaos', 'sandbox']);
+/** Clears the divider cells. Used by the host's server and by every joined client (the generator is deterministic, so they hold the same list). */
+function removePlotWalls(world, cells, server) {
+  if (server) { server.suppressSupport = true; server.removingWalls = true; }
+  for (let i = 0; i < cells.length; i += 3) if (world.get(cells[i], cells[i + 1], cells[i + 2]) === ID.plotwall) world.set(cells[i], cells[i + 1], cells[i + 2], AIR);
+  if (server) { server.suppressSupport = false; server.removingWalls = false; }
+}
+const IFRAME_KINDS = new Set(['melee', 'arrow', 'trap']);
 const HAZARD_KINDS = new Set(['lava', 'fire', 'flood', 'drown', 'disaster', 'mob']);
 const TNT_CAUSES = new Set(['tnt', 'chain', 'trap', 'collapse']);
 
@@ -2127,6 +2326,7 @@ class GameServer {
     this.structure = new StructureSystem(this);
     this.gravity = new GravitySystem(this);
     this.redstone = new RedstoneSystem(this);
+    this.machines = new MachineSystem(this);
     world.listeners.push((x, y, z, o, n, om, oo) => this.onWorldChange(x, y, z, o, n, om, oo));
     this.resetState();
   }
@@ -2189,10 +2389,11 @@ class GameServer {
     this.suspendTracking = true;                                   // do not run per-block systems while generating
     const mapId = cfg.mapId === 'random' ? MAP_ORDER[Math.floor(rng() * MAP_ORDER.length)] : (MAPS[cfg.mapId] ? cfg.mapId : 'plains');
     this.mapId = mapId;
-    this.map = MapGenerator.generate(this.world, { seed: cfg.seed != null ? cfg.seed : 1337, mapId, lands, owners: [0, 1, 2, 3, 4, 5].map((i) => (i < n ? i : -1)) });
+    this.map = MapGenerator.generate(this.world, { seed: cfg.seed != null ? cfg.seed : 1337, mapId, lands, owners: [0, 1, 2, 3, 4, 5].map((i) => (i < n ? i : -1)), walls: cfg.mode !== 'sandbox' });
     this.suspendTracking = false;
+    this.wallCells = this.map.wallCells || []; this.wallsDropped = false;
     this.plots = this.map.plots;
-    this.fluids.pending.clear(); this.fire.fires.clear(); this.redstone.mechs.clear(); this.gravity.pending.clear();
+    this.fluids.pending.clear(); this.fire.fires.clear(); this.redstone.mechs.clear(); this.machines.clear(); this.gravity.pending.clear();
     this.scanWorldForSystems();
 
     const botNames = BOT_NAMES.slice().sort(() => rng() - 0.5).filter((nm) => !roster.some((r) => r.name === nm));
@@ -2247,19 +2448,21 @@ class GameServer {
       if (id === AIR) continue;
       const d = BLOCKS[id];
       if (d.mech) this.redstone.mechs.add(keyOf(x, y, z));
+      if (d.machine) this.machines.register(keyOf(x, y, z));
       if (id === ID.fire) this.fire.fires.add(keyOf(x, y, z));
     }
   }
   respawn(p, initial = false) {
     p.teleport(p.spawn.x, p.spawn.y, p.spawn.z);
     p.health = p.maxHealth; p.alive = true; p.burnTime = 0; p.air = 10; p.sinceDamage = 99;
-    p.invulnerable = initial ? 0 : 2.5; p.respawnTimer = 0; p.lastHits.length = 0; p.lastCause = null;
+    p.invulnerable = initial ? 0 : 2.5; p.hurtT = 0; p.lastDmg = 0; p.respawnTimer = 0; p.lastHits.length = 0; p.lastCause = null;
     if (!initial) this.emit({ type: 'respawn', player: p });
   }
 
   /* ----------------------------- rules ----------------------------- */
   pvpEnabled() { return PVP_PHASES.has(this.phase); }
   plotOf(p) { return this.plots[p.index]; }
+  nearestPlot(x, z) { let bi = 0, bd = 1e9; for (let i = 0; i < this.plots.length; i++) { const d = (x + 0.5 - this.plots[i].x) ** 2 + (z + 0.5 - this.plots[i].z) ** 2; if (d < bd) { bd = d; bi = i; } } return bi; }
   inPlot(plot, x, z) { return Math.hypot(x + 0.5 - plot.x, z + 0.5 - plot.z) <= CONFIG.PLOT_RADIUS; }
   /** Territory / phase rules for editing blocks. */
   canModify(p, x, y, z) {
@@ -2383,6 +2586,8 @@ class GameServer {
       const l = p.lookDirection(), ax = Math.abs(l.x), ay = Math.abs(l.y), az = Math.abs(l.z);
       const f = ay > ax && ay > az ? (l.y > 0 ? 2 : 3) : ax > az ? (l.x > 0 ? 0 : 1) : (l.z > 0 ? 4 : 5);
       meta = f << 2;
+    } else if (def.id === ID.conveyor) {                                // conveyors run the way you look
+      const l = p.lookDirection(); meta = Math.abs(l.x) > Math.abs(l.z) ? (l.x > 0 ? 0 : 1) : (l.z > 0 ? 2 : 3);
     } else if (def.id === ID.door && against) {                      // doors copy the look of the block they are built against
       const ad = w.def(against.x, against.y, against.z);
       if (ad.shape === 'cube' && ad.opaque && ad.id !== ID.door) meta = ad.id << 8;
@@ -2413,24 +2618,36 @@ class GameServer {
     return { ok: false, reason: 'nothing' };
   }
 
+  /**
+   * Minecraft-style melee. Damage scales with the attack charge (swinging early is weak), falling hits are critical (x1.5),
+   * knockback halves the victim's own momentum and shoves along the attacker's facing; hitting while sprinting adds a big extra knock.
+   */
   attack(p, { targetId, tool = 'sword' }) {
     const t = TOOLS[tool];
     if (!t || t.dmg == null) return { ok: false, reason: 'bad-tool' };
-    if (p.cooldowns.attack > 0) return { ok: false, reason: 'cooldown' };
+    const full = t.cd * p.mods.attackCooldown;
+    if (p.cooldowns.attack > full * 0.85) return { ok: false, reason: 'cooldown' };
     const target = this.playerMap.get(targetId) || this.mobs.find((m) => m.id === targetId);
     if (!target || !target.alive || target === p) return { ok: false, reason: 'no-target' };
     const e = p.eyePosition(), c = target.center();
     if (Math.hypot(c.x - e.x, c.y - e.y, c.z - e.z) > t.reach + 0.9) return { ok: false, reason: 'too-far' };
     if (this.world.lineBlocked(e.x, e.y, e.z, c.x, c.y, c.z)) return { ok: false, reason: 'blocked' };
-    p.cooldowns.attack = t.cd * p.mods.attackCooldown;
+    const frac = clamp(1 - p.cooldowns.attack / full, 0, 1);
+    p.cooldowns.attack = full;
     p.swing = 1;
-    let dmg = t.dmg * p.mods.meleeDamage;
-    if (!p.onGround && p.vel.y < -2) dmg *= 1.4;                       // falling hit
-    const dx = c.x - e.x, dz = c.z - e.z, l = Math.hypot(dx, dz) || 1;
+    const strong = frac > 0.9, sprint = !!(p.controls && p.controls.sprint && p.controls.forward && !p.inWater);
+    let dmg = t.dmg * p.mods.meleeDamage * (0.2 + 0.8 * frac * frac);
+    const crit = strong && !p.onGround && p.vel.y < -0.5 && !sprint && !p.inWater && !p.inLava;
+    if (crit) dmg *= 1.5;
     const dealt = this.damage(target, dmg, { kind: 'melee', by: p.index, direct: true });
     if (dealt !== null) {
-      target.vel.x += dx / l * t.kb; target.vel.z += dz / l * t.kb; target.vel.y += 2.5 + t.kb * 0.18;
-      this.emit({ type: 'hit', target, by: p.id, tool });
+      const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
+      const kb = t.kb * (0.4 + 0.6 * frac) + (sprint && strong ? 9 : 0);
+      target.vel.x = target.vel.x * 0.5 + fx * kb; target.vel.z = target.vel.z * 0.5 + fz * kb;
+      target.vel.y = Math.min(target.vel.y * 0.5 + 7.5, 7.5) + (sprint && strong ? 1.5 : 0);
+      target.onGround = false;
+      this.emit({ type: 'hit', target, by: p.id, tool, crit, sprint: sprint && strong });
+      if (crit) this.emit({ type: 'crit', target });
     }
     return { ok: true };
   }
@@ -2466,6 +2683,10 @@ class GameServer {
     else if (src.kind === 'fall') amount *= target.mods.fall;
     else if (HAZARD_KINDS.has(src.kind)) amount *= target.mods.hazardTaken;
     amount = Math.max(0, amount);
+    if (IFRAME_KINDS.has(src.kind)) {                                  // Minecraft hurt-time: after a hit, only a STRONGER hit within 0.5s lands (for the difference)
+      if (target.hurtT > 0) { if (amount <= target.lastDmg) return null; const extra = amount - target.lastDmg; target.lastDmg = amount; amount = extra; }
+      else { target.hurtT = 0.5; target.lastDmg = amount; }
+    }
     if (this.phase === 'build' && target.health - amount <= 0) {       // nobody is eliminated while building: just respawn
       this.emit({ type: 'damage', target, amount, src });
       this.respawn(target);
@@ -2625,6 +2846,7 @@ class GameServer {
     this.fluids.onChange(x, y, z);
     this.fire.onChange(x, y, z, old, nw);
     this.redstone.onChange(x, y, z, old, nw);
+    this.machines.onChange(x, y, z, old, nw);
     this.gravity.onChange(x, y, z);
     const od = BLOCKS[old], nd = BLOCKS[nw];
     if (old === nw) return;
@@ -2774,6 +2996,7 @@ class GameServer {
     this.fluids.update(dt);
     this.fire.update(dt);
     this.redstone.update(dt);
+    this.machines.update(dt);
     this.updateDrains(dt);
     if (this.phase === 'chaos') this.updateEvents(dt);
     if (live) { this.updateVault(dt); this.updateBounties(dt); this.updateProposals(); }
@@ -2792,6 +3015,14 @@ class GameServer {
   setPhase(name) {
     this.phase = name; this.phaseTime = 0;
     this.emit({ type: 'phase', phase: name });
+    if (name === 'war') this.dropPlotWalls();
+  }
+  /** The dividers between plots vanish when the war begins. Hosts do not stream these block changes: every client removes the same cells itself. */
+  dropPlotWalls() {
+    if (this.wallsDropped || !this.wallCells || !this.wallCells.length) return;
+    this.wallsDropped = true;
+    removePlotWalls(this.world, this.wallCells, this);
+    this.emit({ type: 'wallsDown' });
   }
   /** Seconds left in the current phase (or in the whole match with `total`). */
   timeLeft(total = false) {
@@ -2809,9 +3040,9 @@ class GameServer {
     if (q && q.length) {
       if (q.length > 10) q.splice(0, q.length - 4);                    // client ran ahead: drop the oldest
       const i = q.shift(), b = i.bits;
-      c.forward = !!(b & 1); c.back = !!(b & 2); c.left = !!(b & 4); c.right = !!(b & 8); c.jump = !!(b & 16); c.crouch = !!(b & 32);
+      c.forward = !!(b & 1); c.back = !!(b & 2); c.left = !!(b & 4); c.right = !!(b & 8); c.jump = !!(b & 16); c.crouch = !!(b & 32); c.sprint = !!(b & 64);
       p.yaw = i.yaw; p.pitch = clamp(i.pitch, -1.57, 1.57); p.ackSeq = i.seq; p.idleInput = 0;
-    } else if ((p.idleInput = (p.idleInput || 0) + dt) > 0.3) { c.forward = c.back = c.left = c.right = c.jump = c.crouch = false; }
+    } else if ((p.idleInput = (p.idleInput || 0) + dt) > 0.3) { c.forward = c.back = c.left = c.right = c.jump = c.crouch = c.sprint = false; }
   }
   updateDead(p, dt) {
     if (this.mode === 'sandbox' && p.respawnTimer > 0) { p.respawnTimer -= dt; if (p.respawnTimer <= 0) this.respawn(p); }
@@ -2904,6 +3135,7 @@ class GameServer {
         if (w.isSolid(Math.floor(a.pos.x), Math.floor(a.pos.y), Math.floor(a.pos.z))) { a.stuck = true; a.age = 8; this.emit({ type: 'arrowStuck', arrow: a }); break; }
         for (const b of this.bodies()) {
           if (b instanceof Player && b.index === a.owner && a.age < 0.4) continue;
+          if (a.machine && b instanceof Player && (b.index === a.owner || this.areAllies(b, this.players[a.owner]))) continue;
           const bb = b.aabb(), m = 0.18;
           if (a.pos.x > bb.minX - m && a.pos.x < bb.maxX + m && a.pos.y > bb.minY - m && a.pos.y < bb.maxY + m && a.pos.z > bb.minZ - m && a.pos.z < bb.maxZ + m) {
             const dealt = this.damage(b, a.damage, { kind: 'arrow', by: a.owner, direct: true });
@@ -3303,7 +3535,7 @@ class HostSession {
     this.code = null; this.providers = [];
     this.step = 0; this.tickNo = 0; this.blockQ = []; this.evQ = []; this.nextId = 1;
     this.lastBroadcast = 0; this.holdSince = 0;
-    this.blockListener = (x, y, z, o, n) => { if (this.state === 'playing') this.blockQ.push(x, y, z, n, server.world.getMeta(x, y, z), server.world.getOwner(x, y, z)); };
+    this.blockListener = (x, y, z, o, n) => { if (this.state === 'playing' && !server.removingWalls) this.blockQ.push(x, y, z, n, server.world.getMeta(x, y, z), server.world.getOwner(x, y, z)); };
     this.eventListener = (e) => { if (this.state === 'playing') this.captureEvent(e); };
     this.reroll();
   }
@@ -3572,7 +3804,7 @@ class ClientSession {
 }
 
 /* ============================== CLIENT-SIDE SERVER VIEW ============================== */
-const INPUT_BITS = { forward: 1, back: 2, left: 4, right: 8, jump: 16, crouch: 32 };
+const INPUT_BITS = { forward: 1, back: 2, left: 4, right: 8, jump: 16, crouch: 32, sprint: 64 };
 /**
  * Looks like a GameServer to the rest of the client (UI, renderer, replay), but only mirrors what the host sends.
  * The local player is predicted with the same physics and corrected by the host (input sequence numbers).
@@ -3599,7 +3831,7 @@ class NetServerView {
   }
   dispose() { const i = this.world.listeners.indexOf(this.worldListener); if (i >= 0) this.world.listeners.splice(i, 1); }
   subscribe(fn) { this.listeners.push(fn); }
-  emit(e) { for (const fn of this.listeners) fn(e); }
+  emit(e) { if (e.type === 'phase' && e.phase === 'war' && !this.wallsDropped) { this.wallsDropped = true; removePlotWalls(this.world, this.wallCells, null); } for (const fn of this.listeners) fn(e); }
   get human() { return this.me; }
   areAllies(a, b) { return !!a && !!b && a !== b && a.team === b.team; }
   alivePlayers() { return this.players.filter((p) => p.alive); }
@@ -3621,8 +3853,8 @@ class NetServerView {
     this.mode = cfg.mode; this.unlimited = cfg.mode === 'sandbox'; this.allianceMode = cfg.mode === 'alliance';
     this.mapId = cfg.mapId; this.lands = cfg.lands;
     this.world.clear();
-    this.map = MapGenerator.generate(this.world, { seed: cfg.seed != null ? cfg.seed : 1337, mapId: cfg.mapId, lands: cfg.lands, owners: [0, 1, 2, 3, 4, 5].map((i) => (i < n ? i : -1)) });
-    this.plots = this.map.plots;
+    this.map = MapGenerator.generate(this.world, { seed: cfg.seed != null ? cfg.seed : 1337, mapId: cfg.mapId, lands: cfg.lands, owners: [0, 1, 2, 3, 4, 5].map((i) => (i < n ? i : -1)), walls: cfg.mode !== 'sandbox' });
+    this.plots = this.map.plots; this.wallCells = this.map.wallCells || []; this.wallsDropped = false;
     this.fire.fires.clear(); this.redstone.mechs.clear();
     const w = this.world;
     for (let y = 0; y < w.sizeY; y++) for (let z = 0; z < w.sizeZ; z++) for (let x = 0; x < w.sizeX; x++) {
@@ -3733,7 +3965,7 @@ class NetServerView {
     if (me.alive && this.phase !== 'ended') {
       const c = me.controls; let bits = 0;
       for (const k in INPUT_BITS) if (c[k]) bits |= INPUT_BITS[k];
-      const copy = { forward: !!c.forward, back: !!c.back, left: !!c.left, right: !!c.right, jump: !!c.jump, crouch: !!c.crouch };
+      const copy = { forward: !!c.forward, back: !!c.back, left: !!c.left, right: !!c.right, jump: !!c.jump, crouch: !!c.crouch, sprint: !!c.sprint };
       this.seq++;
       this.pending.push({ seq: this.seq, c: copy, yaw: me.yaw });
       if (this.pending.length > 240) this.pending.shift();
@@ -3747,7 +3979,7 @@ class NetServerView {
   handle(playerId, msg) {
     if (!this.me || this.me.id !== playerId) return { ok: false, reason: 'unknown-player' };
     if (!this.me.alive) return { ok: false, reason: 'dead' };
-    if (msg.type === 'attack') this.me.cooldowns.attack = Math.max(this.me.cooldowns.attack, 0.3);
+    if (msg.type === 'attack') { const T = TOOLS[msg.tool]; this.me.cooldowns.attack = T && T.cd ? T.cd * this.me.mods.attackCooldown : 0.5; }
     else if (msg.type === 'place') this.me.cooldowns.place = Math.max(this.me.cooldowns.place, 0.15 * this.me.mods.placeCooldown);
     else if (msg.type === 'shoot') this.me.cooldowns.shoot = Math.max(this.me.cooldowns.shoot, 0.4);
     this.session.send({ t: 'act', m: msg });
@@ -3856,6 +4088,7 @@ class Bot {
     p.yaw += clamp(angleDiff(p.yaw, want), -0.2, 0.2);
     p.pitch += (0 - p.pitch) * 0.2;
     c.forward = true;
+    c.sprint = d > 7 && !this.mine && !p.inWater;
     const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
     const ax = Math.floor(p.pos.x + fx * 0.75), az = Math.floor(p.pos.z + fz * 0.75), fy = Math.floor(p.pos.y + 0.05);
     if (p.inWater || p.inLava) c.jump = true;
@@ -3993,6 +4226,16 @@ class Bot {
     trap(3);
     if (style === 'trapfield') { trap(5); if (Math.random() < 0.6) trap(7); }
     for (let layer = 3; layer < layers + 1; layer++) for (const [x, z] of ring) q.push({ kind: 'wall', x, z, layer, y0: this.groundY(x, z) });
+    // automatic machines, by personality
+    const ox = this.out[0], oz = this.out[1], sx = oz, sz = ox, at = (f, side) => ({ x: gap[0] + ox * f + sx * side, z: gap[1] + oz * f + sz * side });
+    const add = (kind, pos) => q.push({ kind, x: pos.x, z: pos.z });
+    const A = this.archetype;
+    if (A === 'trapper' || A === 'bomber' || style === 'trapfield') { add('mine', at(4, 0)); add('mine', at(4, 2)); add('mine', at(5, -2)); add('turret', at(-2, 2)); }
+    if (A === 'turtle' || style === 'keep') { add('turret', { x: cx + half - 1, z: cz + half - 1 }); add('turret', { x: cx - half + 1, z: cz - half + 1 }); add('healer', { x: cx, z: cz + 1 }); }
+    if (A === 'bomber' || A === 'demolitionist') add('cannon', { x: cx + 1, z: cz - 1 });
+    if (A === 'digger' || style === 'moat') { add('spikes', at(2, 0)); add('spikes', at(3, 1)); add('sprinkler', { x: cx - 1, z: cz }); }
+    if (A === 'sniper' || A === 'opportunist' || A === 'vaulter') { add('turret', at(-1, -2)); add('jumppad', { x: cx + 2, z: cz }); }
+    if (Math.random() < 0.35) add('flamer', at(-2, -2));
     this.queue = q; this.queueIndex = 0;
   }
   /** Extra defences queued during the war (trap fields and patches for holes in the wall). */
@@ -4041,7 +4284,7 @@ class Bot {
       if (w.isSolid(job.x, y, job.z)) { this.queueIndex++; return; }
     } else if (w.get(job.x, y, job.z) !== AIR) { this.queueIndex++; return; }
     if (job.kind === 'tnt' && !s.hasResource(p, 'tnt', 1)) { this.queueIndex++; return; }
-    if (job.kind === 'plate' && !s.hasResource(p, 'mech', 1 * p.mods.mechCost)) { this.queueIndex++; return; }
+    if (ITEMS[job.kind] && ITEMS[job.kind].kind === 'mech' && !s.hasResource(p, 'mech', ITEMS[job.kind].cost * p.mods.mechCost)) { this.queueIndex++; return; }
     if (!item) { if (!this.gather(dt, 40)) this.queueIndex++; return; }   // out of materials: collect more
     const e = p.eyePosition(), dist = Math.hypot(job.x + 0.5 - e.x, y + 0.5 - e.y, job.z + 0.5 - e.z);
     if (dist > 4.8) { this.walkTo(job.x + 0.5, job.z + 0.5, dt, 3.4, false); return; }
@@ -4062,6 +4305,7 @@ class Bot {
       if (!w.inBounds(x, y, z)) continue;
       const id = w.get(x, y, z);
       if (id === AIR || w.getOwner(x, y, z)) continue;
+      if (this.s.phase === 'build' && this.s.nearestPlot(x, z) !== p.index) continue;       // the divider walls keep us in our own cell
       let pref = 0;
       if (id === ID.log) pref = needWood ? 0 : 6;
       else if (id === ID.iron_ore) pref = needIron ? -2 : 7;
@@ -4171,7 +4415,7 @@ class Bot {
         if (!t) break;
         this.face(t.pos.x, t.pos.y + 1.2, t.pos.z, true);
         this.strafeT -= dt; if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 0.5 + Math.random() * 0.8; }
-        if (this.dist(t) > 2.4) c.forward = true; else if (this.dist(t) < 1.3) c.back = true;
+        if (this.dist(t) > 2.4) { c.forward = true; c.sprint = this.dist(t) > 2.8; } else if (this.dist(t) < 1.3) c.back = true;
         if (this.strafe > 0) c.right = true; else c.left = true;
         const tool = Math.random() < 0.15 ? pickOf(['sword', 'axe', 'staff']) : this.meleeTool;
         if (p.cooldowns.attack <= 0) {
@@ -4831,10 +5075,11 @@ class Input {
       if (e.code === 'F3' || e.code === 'Tab') e.preventDefault();
       if (e.repeat) return;
       this.keys.add(e.code);
+      if (e.code === 'KeyW') { const now = performance.now(); if (now - (this.lastW || 0) < 300) this.sprintLatch = true; this.lastW = now; }      // double-tap W = sprint
       for (const fn of this.keyHandlers) fn(e);
     });
-    window.addEventListener('keyup', (e) => { this.keys.delete(e.code); for (const fn of this.keyUpHandlers) fn(e); });
-    window.addEventListener('blur', () => { this.keys.clear(); this.mouse.left = this.mouse.right = false; });
+    window.addEventListener('keyup', (e) => { this.keys.delete(e.code); if (e.code === 'KeyW') this.sprintLatch = false; for (const fn of this.keyUpHandlers) fn(e); });
+    window.addEventListener('blur', () => { this.sprintLatch = false; this.keys.clear(); this.mouse.left = this.mouse.right = false; });
     window.addEventListener('mousemove', (e) => {
       if (!this.locked || performance.now() - this.lockTime < 120) return;      // ignore the jump some browsers report right after capturing the mouse
       const mx = e.movementX || 0, my = e.movementY || 0;
@@ -4846,10 +5091,10 @@ class Input {
     window.addEventListener('wheel', (e) => { if (this.locked) { this.wheel += Math.sign(e.deltaY); e.preventDefault(); } }, { passive: false });
     window.addEventListener('contextmenu', (e) => e.preventDefault());
   }
-  releaseAll() { this.keys.clear(); this.mouse.left = this.mouse.right = false; this.dx = this.dy = this.wheel = 0; }
+  releaseAll() { this.sprintLatch = false; this.keys.clear(); this.mouse.left = this.mouse.right = false; this.dx = this.dy = this.wheel = 0; }
   controls() {
     const k = this.keys;
-    return { forward: k.has('KeyW'), back: k.has('KeyS'), left: k.has('KeyA'), right: k.has('KeyD'), jump: k.has('Space'), crouch: k.has('ShiftLeft') || k.has('ShiftRight') };
+    return { forward: k.has('KeyW'), back: k.has('KeyS'), left: k.has('KeyA'), right: k.has('KeyD'), jump: k.has('Space'), crouch: k.has('ShiftLeft') || k.has('ShiftRight'), sprint: !!this.sprintLatch || k.has('ControlLeft') };
   }
 }
 
@@ -5282,9 +5527,9 @@ class Replay {
 }
 
 /* ============================== 17. GAME =============================== */
-const INTERACTIVE = new Set(['lever', 'button', 'door', 'timer']);
+const INTERACTIVE = new Set(['lever', 'button', 'door', 'timer', 'turret']);
 const DEFAULT_HOTBAR = ['pickaxe', 'sword', 'bow', 'stone', 'wood', 'tnt', 'lighter', 'water', 'plate'];
-const KILL_VERB = { melee: 'slew', arrow: 'shot', explosion: 'blew up', crush: 'crushed', mob: 'was mauled by a zombie', lava: 'swam in lava', fire: 'burned', fall: 'hit the ground too hard', drown: 'drowned', flood: 'was swept away' };
+const KILL_VERB = { trap: 'impaled', melee: 'slew', arrow: 'shot', explosion: 'blew up', crush: 'crushed', mob: 'was mauled by a zombie', lava: 'swam in lava', fire: 'burned', fall: 'hit the ground too hard', drown: 'drowned', flood: 'was swept away' };
 
 function rayAabb(o, d, b, maxT) {
   let t0 = 0, t1 = maxT;
@@ -5724,6 +5969,7 @@ class Game {
       case 'shoot': { const a = e.arrow; this.sfx('shoot', a.pos.x, a.pos.y, a.pos.z, 45); break; }
       case 'hit': {
         const t = e.target; this.sfx('hit', t.pos.x, t.pos.y + 1, t.pos.z, 40);
+        if (e.sprint) P.puff(t.pos.x, t.pos.y + 0.3, t.pos.z, [0.9, 0.9, 0.9], 6, 1.2, 0.3, 0.2, 0.5, false);
         if (t === me) { this.hurt = Math.min(1, this.hurt + 0.35); this.audio.play('hurt', null, 0.8); }
         break;
       }
@@ -5782,6 +6028,9 @@ class Game {
       case 'allianceFormed': this.ui.killfeed(`<b style="color:${e.a.color}">${esc(e.a.name)}</b> and <b style="color:${e.b.color}">${esc(e.b.name)}</b> formed an ALLIANCE`, 'good'); if (e.a === me || e.b === me) this.ui.banner('ALLIANCE FORMED', 'Allies cannot hit each other directly. Watch your TNT.', 'good', 2800); break;
       case 'allianceBroken': this.ui.killfeed(`<b style="color:${e.player.color}">${esc(e.player.name)}</b> ${e.betrayal ? 'BETRAYED their allies!' : 'left their alliance'}`, 'bad'); if (e.betrayal) { this.audio.play('siren', null, 0.6); } break;
       case 'death': this.onDeath(e); break;
+      case 'crit': { const t = e.target; P.burst(t.pos.x, t.pos.y + 1.4, t.pos.z, [1, 0.95, 0.5], 14, 4.2, 0.1); this.sfx('hit', t.pos.x, t.pos.y + 1, t.pos.z, 40); break; }
+      case 'wallsDown': this.ui.toast('The plot walls came down. Everyone can see your base now!', 'warn', 4500); this.audio.play('rumble', null, 0.9); this.shake = Math.max(this.shake, 1.1); break;
+      case 'machineFx': this.machineFx(e); break;
       case 'creeperHiss': this.sfx('fuse', e.mob.pos.x, e.mob.pos.y, e.mob.pos.z, 30); break;
       case 'mobDeath': break;
       case 'emote': this.say(e.player, e.text); break;
@@ -5794,7 +6043,7 @@ class Game {
   onPhase(e) {
     const U = this.ui, M = CONFIG.MATCH, s = this.server;
     this.audio.play('phase', null, 0.7);
-    if (e.phase === 'build') U.banner('BUILD PHASE', `Fortify your land &mdash; ${fmtTime(M.BUILD)}`.replace('&mdash;', '·'), '', 3400);
+    if (e.phase === 'build') U.banner('BUILD PHASE', `Fortify your land · walls hide you until war · ${fmtTime(M.BUILD)}`, '', 3400);
     else if (e.phase === 'war') { U.banner('WAR!', 'PvP is on. Destroy their bases. Capture the vault.', 'bad', 3600); this.audio.play('siren', null, 0.5); }
     else if (e.phase === 'chaos') { U.banner('CHAOS', 'Disasters rage until the end', 'warn', 3400); this.audio.play('siren', null, 0.7); }
     else if (e.phase === 'sandbox') U.banner('SANDBOX', 'Unlimited resources. Break everything.', '', 3000);
@@ -5847,6 +6096,20 @@ class Game {
     const r = e.reason, it = e.item && ITEMS[e.item], phase = this.server.phase;
     const msg = { 'no-resource': it && it.res ? 'Out of ' + RESOURCES[it.res].label.toLowerCase() + '!' : 'Not enough resources.', 'not-allowed': phase === 'build' ? 'Build phase: you can only edit your own land.' : 'You cannot do that right now.', 'no-support': 'Needs something to attach to.', 'no-floor': 'Needs solid ground below it.', 'player-in-way': 'Someone is in the way.' }[r];
     if (msg && (e.action === 'place' || e.action === 'break' || e.action === 'ignite')) this.ui.toast(msg, 'bad', 1500);
+  }
+  machineFx(e) {
+    const P = this.particles, x = e.x + 0.5, y = e.y + 0.5, z = e.z + 0.5;
+    switch (e.kind) {
+      case 'turret': this.sfx('shoot', x, y, z, 45); P.puff(x, y + 1, z, [0.8, 0.8, 0.8], 3, 0.2, 0.5, 0.1, 0.4, false); break;
+      case 'cannon': this.sfx('explode', x, y, z, 60); P.puff(x, y + 1.2, z, [0.45, 0.45, 0.45], 14, 0.6, 2.2, 0.3, 0.9, false); P.puff(x, y + 1.2, z, [1, 0.7, 0.2], 6, 0.4, 1.5, 0.2, 0.4, true); break;
+      case 'spikes': this.sfx('hit', x, y, z, 30); P.burst(x, y + 0.3, z, [0.8, 0.8, 0.85], 6, 2.5, 0.08); break;
+      case 'pad': this.sfx('jump', x, y, z, 30); P.puff(x, y + 0.3, z, [0.4, 1, 0.5], 10, 0.5, 3, 0.15, 0.6, true); break;
+      case 'sprinkle': if (e.did) { this.sfx('splash', x, y, z, 30); P.puff(x, y + 0.9, z, [0.45, 0.65, 1], 14, 3, 1, 0.18, 0.8, true); } break;
+      case 'heal': P.puff(e.x, e.y + 1, e.z, [0.4, 1, 0.5], 8, 0.5, 1.8, 0.14, 0.9, true); break;
+      case 'flame': { this.sfx('sizzle', x, y, z, 30); for (let i = 1; i <= 9; i++) { const f = i / 9; P.puff(x + (e.tx - x) * f, y + 0.4 + (e.ty - y - 0.4) * f, z + (e.tz - z) * f, Math.random() < 0.5 ? [1, 0.5, 0.1] : [1, 0.8, 0.2], 2, 0.25, 0.6, 0.22, 0.5, true); } break; }
+      case 'drop': this.sfx('place', x, y, z, 30); break;
+      default: break;
+    }
   }
   say(player, text) { this.bubbles.set(player.id, { text, until: this.time + 3 }); }
   /** Trails behind moving players (cosmetic, from the public look). */
@@ -5976,7 +6239,7 @@ class Game {
         if (leftEdge && tgt) { const r = s.handle(p.id, { type: 'ignite', x: tgt.x, y: tgt.y, z: tgt.z, nx: tgt.nx, ny: tgt.ny, nz: tgt.nz }); if (!r.ok && r.reason === 'not-allowed') this.ui.toast('You cannot do that here right now.', 'bad', 1500); }
       } else if (left && ent) {
         this.mining = null;
-        if (p.cooldowns.attack <= 0) s.handle(p.id, { type: 'attack', targetId: ent.id, tool: T && T.dmg != null ? item.id : 'pickaxe' });
+        if (leftEdge || p.cooldowns.attack <= 0) s.handle(p.id, { type: 'attack', targetId: ent.id, tool: T && T.dmg != null ? item.id : 'pickaxe' });
       } else if (left && tgt) {
         const key = tgt.x + ',' + tgt.y + ',' + tgt.z, def = w.def(tgt.x, tgt.y, tgt.z);
         if (!this.mining || this.mining.key !== key) this.mining = { key, progress: 0 };
@@ -5990,6 +6253,8 @@ class Game {
         }
       } else this.mining = null;
     }
+
+    if (item && T && T.dmg != null && item.id !== 'bow' && p.cooldowns.attack > 0) this.charge = clamp(1 - p.cooldowns.attack / (T.cd * p.mods.attackCooldown), 0, 1);      // attack-charge bar
 
     // ---- right button ----
     if (right && tgt) {
@@ -6036,6 +6301,7 @@ class Game {
     if (this.replay) { this.replay.update(dt); if (this.replay.done) this.endReplay(); }
     this.shake = Math.max(0, this.shake - dt * 2.2); this.hurt = Math.max(0, this.hurt - dt * 1.3);
     this.dark = lerp(this.dark, s.darkness, clamp(dt * 1.5, 0, 1));
+    this.fovAdd = lerp(this.fovAdd || 0, this.state === 'playing' && p && p.sprinting ? 7 : 0, clamp(dt * 8, 0, 1));
     if (this.state === 'playing' || this.state === 'panel') {
       this.hudClock -= dt;
       if (this.hudClock <= 0) { this.hudClock = 0.2; this.updateHud(); }
@@ -6095,7 +6361,7 @@ class Game {
     // contextual hint
     let hint = '';
     const t = this.target;
-    if (t && p.alive) { const d = this.world.def(t.x, t.y, t.z); if (INTERACTIVE.has(d.type)) hint = { lever: '[Right-click] flip lever', button: '[Right-click] press button', door: '[Right-click] open / close door', timer: '[Right-click] start timer' }[d.type] + '  ·  crouch to place instead'; }
+    if (t && p.alive) { const d = this.world.def(t.x, t.y, t.z); if (INTERACTIVE.has(d.type)) hint = { lever: '[Right-click] flip lever', button: '[Right-click] press button', door: '[Right-click] open / close door', timer: '[Right-click] start timer', turret: '[Right-click] refill arrows (1 part)' }[d.type] + '  ·  crouch to place instead'; }
     if (!p.alive) hint = '';
     U.setHint(hint);
     if (!p.alive && s.mode !== 'sandbox' && this.state !== 'results' && !(this.replay && this.replay.fullscreen)) {
@@ -6145,7 +6411,7 @@ class Game {
     }
     if (!cam) {
       const e = p.eyePosition(alpha), dir = p.lookDirection(), sh = this.shake * 0.12;
-      cam = { x: e.x + (Math.random() - 0.5) * sh, y: e.y + (Math.random() - 0.5) * sh, z: e.z + (Math.random() - 0.5) * sh, dir, fov: this.settings.fov };
+      cam = { x: e.x + (Math.random() - 0.5) * sh, y: e.y + (Math.random() - 0.5) * sh, z: e.z + (Math.random() - 0.5) * sh, dir, fov: this.settings.fov + (this.fovAdd || 0) };
       const it = this.currentItem();
       if (p.alive && it) held = it.def.kind === 'tool' ? { kind: 'tool', tile: TILE['ICON_' + it.id.toUpperCase()] } : { kind: 'block', id: BlockRegistry.byType(it.def.block).id, meta: it.id === 'piston' ? 12 : 0 };
     }
