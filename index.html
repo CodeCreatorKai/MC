@@ -74,10 +74,13 @@
       <p id="subtitle">The world itself is your weapon.</p>
 
       <div id="panelMain" class="panelview">
-        <button id="btnPlay" class="btn">PLAY</button>
+        <div id="profileBar"></div>
+        <button id="btnPlay" class="btn primary">SINGLE PLAYER</button>
+        <button id="btnMulti" class="btn">MULTIPLAYER</button>
+        <button id="btnLocker" class="btn">LOCKER</button>
         <button id="btnHow" class="btn">HOW TO PLAY</button>
         <button id="btnSettings" class="btn">SETTINGS</button>
-        <button id="btnStats" class="btn">CAREER</button>
+        <button id="btnStats" class="btn">STATS</button>
       </div>
 
       <div id="panelPause" class="panelview hidden">
@@ -87,23 +90,61 @@
         <button id="btnQuit" class="btn">LEAVE MATCH</button>
       </div>
 
+      <div id="panelMulti" class="panelview hidden">
+        <div class="panel">
+          <h2>MULTIPLAYER</h2>
+          <p class="hint">One player hosts and shares a <b>game code</b> or an <b>invite link</b>. Up to 6 players; empty slots can be filled with AI. The host's browser runs the match.</p>
+          <div class="mpcols">
+            <div class="mpbox"><h3>HOST A GAME</h3><button id="btnHost" class="btn">CREATE GAME</button></div>
+            <div class="mpbox"><h3>JOIN A GAME</h3>
+              <input id="joinCode" type="text" maxlength="6" placeholder="GAME CODE" autocomplete="off" spellcheck="false">
+              <button id="btnJoin" class="btn">JOIN</button></div>
+          </div>
+          <p id="netMsg" class="netmsg"></p>
+          <button class="btn small back">BACK</button>
+        </div>
+      </div>
+
       <div id="panelLobby" class="panelview hidden">
         <div class="panel lobby">
-          <h2>MATCH SETUP</h2>
+          <h2 id="lobbyTitle">SINGLE PLAYER</h2>
+          <div id="inviteBox" class="hidden">
+            <span class="lbl">GAME CODE</span> <b id="inviteCode">-----</b>
+            <button id="btnCopyCode" class="btn tiny">COPY CODE</button>
+            <button id="btnCopyLink" class="btn tiny">COPY INVITE LINK</button>
+            <span id="netStatus"></span>
+          </div>
           <div class="row">
             <div class="seg" id="segMode"></div>
-            <label class="inline">Bots <output id="outBots"></output><input id="setBots" type="range" min="1" max="5" step="1"></label>
+            <label class="inline" id="botsLabel">AI players <output id="outBots"></output><input id="setBots" type="range" min="1" max="5" step="1"></label>
             <label class="inline">Name <input id="setName" type="text" maxlength="12"></label>
           </div>
+          <h3>MAP</h3>
+          <div id="mapCards"></div>
+          <h3>PLAYERS <span id="rosterCount"></span></h3>
+          <div id="rosterList"></div>
           <h3>CHOOSE YOUR CLASS</h3>
           <div id="classCards"></div>
-          <h3>YOUR LAND <button id="btnReroll" class="btn tiny">RE-ROLL LANDS</button></h3>
+          <h3>YOUR LAND <button id="btnReroll" class="btn tiny">RE-ROLL LANDS &amp; OPPONENTS</button></h3>
           <div id="landInfo"></div>
           <div id="matchup"></div>
           <div class="row end">
-            <button class="btn small back">BACK</button>
+            <button class="btn small back" id="btnLobbyBack">BACK</button>
+            <button id="btnReady" class="btn small hidden">READY</button>
             <button id="btnStart" class="btn">START MATCH</button>
           </div>
+          <p id="lobbyHint" class="netmsg"></p>
+        </div>
+      </div>
+
+      <div id="panelLocker" class="panelview hidden">
+        <div class="panel wide">
+          <h2>LOCKER</h2>
+          <p class="hint">Earn <b>XP</b> to level up and <b>coins</b> to unlock cosmetics. Cosmetics never change gameplay: nobody wins by buying things.</p>
+          <div id="lockerBar"></div>
+          <div class="seg" id="lockerTabs"></div>
+          <div id="lockerGrid"></div>
+          <button class="btn small back">BACK</button>
         </div>
       </div>
 
@@ -118,7 +159,8 @@
               <tr><td>Right click</td><td>Place block / flip lever, press button, open door</td></tr>
               <tr><td>Crouch + Right click</td><td>Place instead of interact</td></tr>
               <tr><td>1 &ndash; 9 / Wheel</td><td>Hotbar</td></tr>
-              <tr><td>E</td><td>Build menu (pick items)</td></tr>
+              <tr><td>E</td><td>Inventory (pick items, axe, knockback staff, liquids)</td></tr>
+              <tr><td>Z X C V</td><td>Emotes (set in the Locker)</td></tr>
               <tr><td>Tab (hold)</td><td>Scoreboard</td></tr>
               <tr><td>T</td><td>Diplomacy &amp; bounties</td></tr>
               <tr><td>Y / N</td><td>Accept / decline alliance</td></tr>
@@ -127,6 +169,8 @@
             </table>
             <div class="tips">
               <p><b>The loop:</b> BUILD your base &rarr; PREPARE traps &rarr; FIGHT &rarr; DESTROY enemy bases &rarr; SURVIVE &rarr; CHAOS disasters. Last team standing wins; on timeout the best score wins.</p>
+              <p><b>Maps:</b> Plains, Canyon (cliffs) and Village (houses). <b>Weapons:</b> sword, axe (slow, heavy), bow, knockback staff. Water and lava buckets are in the inventory too.</p>
+              <p><b>Multiplayer:</b> host a game, share the code or invite link, pick a map, ready up. If a player disconnects, AI takes over their character.</p>
               <p><b>Resources are finite.</b> Mine trees, stone, iron and dirt. TNT, water, lava and machine parts are rare: spend them where they hurt most.</p>
               <p><b>Mechanisms:</b> a pressure plate or tripwire powers any TNT, piston, door or alarm touching it, directly or through wire. Doors copy the block they are built against.</p>
               <p><b>Physics:</b> blocks need support. Cut the base of a tower and it falls, crushing what is below. Sand and gravel fall. Water flows, lava burns, fire spreads on wood.</p>
@@ -152,14 +196,17 @@
 
       <div id="panelStats" class="panelview hidden">
         <div class="panel">
-          <h2>CAREER</h2>
+          <h2>STATS</h2>
+          <div id="statsLevel"></div>
           <table class="keys" id="statsTable"></table>
+          <h3>TITLES</h3>
+          <div id="titleList"></div>
           <button class="btn small back">BACK</button>
         </div>
       </div>
 
       <p id="errorBox" class="hidden"></p>
-      <p id="footer">Click PLAY &middot; the mouse is captured while you fight &middot; Esc releases it</p>
+      <p id="footer">Click SINGLE PLAYER to start &middot; the mouse is captured while you fight &middot; Esc releases it</p>
     </div>
   </div>
 
