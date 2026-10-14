@@ -8,26 +8,66 @@
 </head>
 <body>
   <canvas id="gl"></canvas>
+  <div id="nameplates"></div>
+  <div id="fx"></div>
 
-  <!-- In-game HUD -->
+  <!-- In-game HUD (filled in by game.js) -->
   <div id="hud" class="hidden">
-    <div id="modeTag">SANDBOX &middot; v0.1</div>
-    <div id="debug"></div>
+    <div id="topbar">
+      <div id="phaseName">BUILD</div>
+      <div id="timer">0:00</div>
+      <div id="objective"></div>
+      <div id="eventBar" class="hidden"></div>
+    </div>
+    <div id="players"></div>
+    <div id="killfeed"></div>
+    <div id="banner" class="hidden"><div id="bannerMain"></div><div id="bannerSub"></div></div>
+    <div id="toasts"></div>
+    <div id="vault" class="hidden"><div class="label">VAULT</div><div class="bar"><i id="vaultFill"></i></div></div>
     <div id="crosshair"></div>
-    <div id="hotbar"></div>
+    <div id="hint"></div>
+    <div id="charge" class="hidden"><i id="chargeFill"></i></div>
+    <div id="bottom">
+      <div id="vitals">
+        <div class="meter"><span class="lbl">HEALTH</span><div class="bar hp"><i id="hpFill"></i></div><b id="hpText">100</b></div>
+        <div class="meter"><span class="lbl">BASE</span><div class="bar base"><i id="baseFill"></i></div><b id="baseText">100%</b></div>
+        <div id="statusLine"></div>
+      </div>
+      <div id="hotbar"></div>
+      <div id="resources"></div>
+    </div>
+    <div id="debug"></div>
+    <div id="spectate" class="hidden"></div>
+    <div id="replayTag" class="hidden"></div>
   </div>
 
-  <!-- Inventory (E) -->
+  <!-- Scoreboard (hold Tab) -->
+  <div id="scoreboard" class="hidden"></div>
+
+  <!-- Build menu (E) -->
   <div id="inventory" class="hidden">
-    <div class="panel">
-      <h2>INVENTORY</h2>
-      <p class="hint">Click a block to put it in the selected hotbar slot. Press <b>E</b> to close.</p>
+    <div class="panel wide">
+      <h2>BUILD MENU</h2>
+      <p class="hint">Click an item to put it in the selected hotbar slot. Press <b>E</b> to close.</p>
+      <div id="invRes"></div>
       <div id="invGrid"></div>
       <button id="invClose" class="btn small">CLOSE</button>
     </div>
   </div>
 
-  <!-- Title / pause menu -->
+  <!-- Diplomacy (T) -->
+  <div id="diplomacy" class="hidden">
+    <div class="panel wide">
+      <h2>DIPLOMACY &amp; BOUNTIES</h2>
+      <div id="diploBody"></div>
+      <button id="diploClose" class="btn small">CLOSE</button>
+    </div>
+  </div>
+
+  <!-- Match results -->
+  <div id="results" class="hidden"></div>
+
+  <!-- Menus: title, lobby, help, settings, stats, pause -->
   <div id="overlay">
     <div class="menu">
       <h1 id="title"><span>MINECRAFT</span><span>PHYSICS</span><span>WARS</span></h1>
@@ -37,27 +77,62 @@
         <button id="btnPlay" class="btn">PLAY</button>
         <button id="btnHow" class="btn">HOW TO PLAY</button>
         <button id="btnSettings" class="btn">SETTINGS</button>
-        <button id="btnStats" class="btn">STATS</button>
+        <button id="btnStats" class="btn">CAREER</button>
+      </div>
+
+      <div id="panelPause" class="panelview hidden">
+        <button id="btnResume" class="btn">RESUME</button>
+        <button id="btnHow2" class="btn">HOW TO PLAY</button>
+        <button id="btnSettings2" class="btn">SETTINGS</button>
+        <button id="btnQuit" class="btn">LEAVE MATCH</button>
+      </div>
+
+      <div id="panelLobby" class="panelview hidden">
+        <div class="panel lobby">
+          <h2>MATCH SETUP</h2>
+          <div class="row">
+            <div class="seg" id="segMode"></div>
+            <label class="inline">Bots <output id="outBots"></output><input id="setBots" type="range" min="1" max="5" step="1"></label>
+            <label class="inline">Name <input id="setName" type="text" maxlength="12"></label>
+          </div>
+          <h3>CHOOSE YOUR CLASS</h3>
+          <div id="classCards"></div>
+          <h3>YOUR LAND <button id="btnReroll" class="btn tiny">RE-ROLL LANDS</button></h3>
+          <div id="landInfo"></div>
+          <div id="matchup"></div>
+          <div class="row end">
+            <button class="btn small back">BACK</button>
+            <button id="btnStart" class="btn">START MATCH</button>
+          </div>
+        </div>
       </div>
 
       <div id="panelHow" class="panelview hidden">
-        <div class="panel">
+        <div class="panel wide">
           <h2>HOW TO PLAY</h2>
-          <table class="keys">
-            <tr><td>W A S D</td><td>Move</td></tr>
-            <tr><td>Mouse</td><td>Look around</td></tr>
-            <tr><td>Space</td><td>Jump</td></tr>
-            <tr><td>Shift</td><td>Crouch (slower)</td></tr>
-            <tr><td>Left click (hold)</td><td>Break block</td></tr>
-            <tr><td>Right click</td><td>Place block</td></tr>
-            <tr><td>1 &ndash; 9 / Wheel</td><td>Select hotbar slot</td></tr>
-            <tr><td>E</td><td>Inventory</td></tr>
-            <tr><td>R</td><td>Respawn at base</td></tr>
-            <tr><td>M</td><td>Mute / unmute</td></tr>
-            <tr><td>F3</td><td>Debug info</td></tr>
-            <tr><td>Esc</td><td>Pause</td></tr>
-          </table>
-          <p class="hint">Version 0.1 is the sandbox foundation: walk, jump, build and dig. TNT, structural collapse, water, lava and the match phases come in later versions.</p>
+          <div class="cols">
+            <table class="keys">
+              <tr><td>W A S D</td><td>Move</td></tr>
+              <tr><td>Space / Shift</td><td>Jump / Crouch</td></tr>
+              <tr><td>Left click</td><td>Hit / mine (hold) / draw bow</td></tr>
+              <tr><td>Right click</td><td>Place block / flip lever, press button, open door</td></tr>
+              <tr><td>Crouch + Right click</td><td>Place instead of interact</td></tr>
+              <tr><td>1 &ndash; 9 / Wheel</td><td>Hotbar</td></tr>
+              <tr><td>E</td><td>Build menu (pick items)</td></tr>
+              <tr><td>Tab (hold)</td><td>Scoreboard</td></tr>
+              <tr><td>T</td><td>Diplomacy &amp; bounties</td></tr>
+              <tr><td>Y / N</td><td>Accept / decline alliance</td></tr>
+              <tr><td>R</td><td>Respawn (sandbox) / replay last event</td></tr>
+              <tr><td>M / F3 / Esc</td><td>Mute / debug / pause</td></tr>
+            </table>
+            <div class="tips">
+              <p><b>The loop:</b> BUILD your base &rarr; PREPARE traps &rarr; FIGHT &rarr; DESTROY enemy bases &rarr; SURVIVE &rarr; CHAOS disasters. Last team standing wins; on timeout the best score wins.</p>
+              <p><b>Resources are finite.</b> Mine trees, stone, iron and dirt. TNT, water, lava and machine parts are rare: spend them where they hurt most.</p>
+              <p><b>Mechanisms:</b> a pressure plate or tripwire powers any TNT, piston, door or alarm touching it, directly or through wire. Doors copy the block they are built against.</p>
+              <p><b>Physics:</b> blocks need support. Cut the base of a tower and it falls, crushing what is below. Sand and gravel fall. Water flows, lava burns, fire spreads on wood.</p>
+              <p><b>Base integrity:</b> your base counts only blocks you built around your spawn. Below 5% it is destroyed.</p>
+            </div>
+          </div>
           <button class="btn small back">BACK</button>
         </div>
       </div>
@@ -77,14 +152,14 @@
 
       <div id="panelStats" class="panelview hidden">
         <div class="panel">
-          <h2>STATS</h2>
+          <h2>CAREER</h2>
           <table class="keys" id="statsTable"></table>
           <button class="btn small back">BACK</button>
         </div>
       </div>
 
       <p id="errorBox" class="hidden"></p>
-      <p id="footer">Click PLAY to capture the mouse &middot; Esc to release it</p>
+      <p id="footer">Click PLAY &middot; the mouse is captured while you fight &middot; Esc releases it</p>
     </div>
   </div>
 
