@@ -22,9 +22,14 @@
     <div id="players"></div>
     <div id="killfeed"></div>
     <div id="banner" class="hidden"><div id="bannerMain"></div><div id="bannerSub"></div></div>
+    <div id="tutorial" class="hidden"></div>
     <div id="toasts"></div>
+    <div id="chat"><div id="chatLog"></div><input id="chatIn" type="text" maxlength="140" autocomplete="off" placeholder="Enter to send, Esc to cancel. /team, /me, /mute, /help"></div>
     <div id="vault" class="hidden"><div class="label">VAULT</div><div class="bar"><i id="vaultFill"></i></div></div>
     <div id="crosshair"></div>
+    <div id="hitmarker"></div>
+    <div id="dmgdir"></div>
+    <div id="floaters"></div>
     <div id="hint"></div>
     <div id="charge" class="hidden"><i id="chargeFill"></i></div>
     <div id="bottom">
@@ -76,6 +81,7 @@
       <div id="panelMain" class="panelview">
         <div id="profileBar"></div>
         <button id="btnPlay" class="btn primary">SINGLE PLAYER</button>
+        <button id="btnTutorial" class="btn">TUTORIAL <small>(optional)</small></button>
         <button id="btnMulti" class="btn">MULTIPLAYER</button>
         <button id="btnLocker" class="btn">LOCKER</button>
         <button id="btnHow" class="btn">HOW TO PLAY</button>
@@ -101,6 +107,8 @@
               <button id="btnJoin" class="btn">JOIN</button></div>
           </div>
           <p id="netMsg" class="netmsg"></p>
+          <button id="btnNetTest" class="btn small">TEST CONNECTION</button>
+          <div id="netDiag" class="netdiag"></div>
           <button class="btn small back">BACK</button>
         </div>
       </div>
@@ -134,6 +142,11 @@
             <button id="btnStart" class="btn">START MATCH</button>
           </div>
           <p id="lobbyHint" class="netmsg"></p>
+          <div id="lobbyChat" class="hidden">
+            <h3>CHAT</h3>
+            <div id="lobbyChatLog"></div>
+            <input id="lobbyChatIn" type="text" maxlength="140" autocomplete="off" placeholder="Say something... (/help for commands)">
+          </div>
         </div>
       </div>
 
