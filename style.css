@@ -382,3 +382,6 @@ body.killcam #crosshair, body.killcam #hotbar { display: none !important; }
 #tutorial .ts.cur { opacity: 1; color: #fff; font-weight: bold; }
 #tutorial .tdesc { margin: 8px 0; line-height: 1.35; color: #e8e8e8; }
 #tutorial .tkeys { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.diffwrap { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.diffwrap .lbl { font-size: 12px; letter-spacing: 1px; opacity: .8; }
