@@ -1573,6 +1573,16 @@ const CLASSES = {
     mods: { regenRate: 1.5, regenDelay: 0.6, hazardTaken: 0.75 }, bonus: {},
   },
 };
+/** AI difficulty. aim = bow aim error multiplier, lead = how well bots lead moving targets, bowRange = max shooting distance,
+ *  shootGap = pause between arrows (s), draw = bow draw time multiplier, botBow / botMelee = damage multipliers for AI attacks,
+ *  rate = chance per update that a ready melee swing is taken, block = block frequency, think = reaction time multiplier, aggr = eagerness offset. */
+const DIFFICULTIES = {
+  easy:   { name: 'Easy',   blurb: 'Slow, sloppy AI. Bows are weak and rare.',            aim: 2.4,  lead: 0.25, bowRange: 18, shootGap: 3.2, draw: 1.5,  botBow: 0.5,  botMelee: 0.7, rate: 0.10, block: 0,   think: 1.6, aggr: -0.2 },
+  normal: { name: 'Normal', blurb: 'A fair fight. Archers miss a fair amount.',            aim: 1.5,  lead: 0.6,  bowRange: 26, shootGap: 1.8, draw: 1.25, botBow: 0.7,  botMelee: 0.9, rate: 0.30, block: 1,   think: 1.15, aggr: 0 },
+  hard:   { name: 'Hard',   blurb: 'Sharper aim, faster reactions, real blocking.',        aim: 0.9,  lead: 0.9,  bowRange: 32, shootGap: 1.1, draw: 1.1,  botBow: 0.85, botMelee: 1.0, rate: 0.60, block: 1.5, think: 1.0, aggr: 0.1 },
+  brutal: { name: 'Brutal', blurb: 'Near-perfect aim and relentless pressure. Good luck.', aim: 0.45, lead: 1.0,  bowRange: 38, shootGap: 0.6, draw: 1.0,  botBow: 1.0,  botMelee: 1.1, rate: 1.0,  block: 2.5, think: 0.75, aggr: 0.2 },
+};
+const DIFF_ORDER = ['easy', 'normal', 'hard', 'brutal'];
 const CLASS_ORDER = ['builder', 'fighter', 'engineer', 'demolitionist', 'scout', 'survivalist'];
 
 /** Land types: each plot has a reason to pick it AND a reason to fear it. */
@@ -2382,6 +2392,7 @@ class GameServer {
     }
     roster = roster.slice(0, 6);
     const n = roster.length;
+    this.difficulty = DIFFICULTIES[cfg.difficulty] ? cfg.difficulty : 'normal';
     this.mode = mode; this.unlimited = mode === 'sandbox'; this.allianceMode = mode === 'alliance';
     const seed = cfg.seed != null ? cfg.seed : 1;
     const rng = mulberry32(seed * 7919 + 13);
@@ -2648,7 +2659,7 @@ class GameServer {
     p.swing = 1; p.swingKind = tool; p.held = tool;
     if (p.blocking) { p.blocking = false; p.blockCd = 0.3; }
     const strong = frac > 0.9, sprint = !!(p.controls && p.controls.sprint && p.controls.forward && !p.inWater);
-    let dmg = t.dmg * p.mods.meleeDamage * (0.2 + 0.8 * frac * frac);
+    let dmg = t.dmg * p.mods.meleeDamage * (0.2 + 0.8 * frac * frac) * (p.bot ? this.diff().botMelee : 1);
     const crit = strong && !p.onGround && p.vel.y < -0.5 && !sprint && !p.inWater && !p.inLava;
     if (crit) dmg *= 1.5;
     target.lastBlocked = false;
@@ -2665,12 +2676,13 @@ class GameServer {
     return { ok: true };
   }
 
+  diff() { return DIFFICULTIES[this.difficulty] || DIFFICULTIES.normal; }
   shoot(p, { charge = 1 }) {
     if (p.cooldowns.shoot > 0) return { ok: false, reason: 'cooldown' };
     const T = TOOLS.bow, ch = clamp(charge, 0.15, 1);
     p.cooldowns.shoot = T.cd; p.swing = 0.6; p.swingKind = 'bow'; p.held = 'bow';
     const e = p.eyePosition(), d = p.lookDirection(), speed = T.speed * (0.5 + 0.5 * ch);
-    const a = new Arrow(this.nextId(), e.x + d.x * 0.6, e.y + d.y * 0.6, e.z + d.z * 0.6, d.x * speed, d.y * speed, d.z * speed, p.index, T.dmg * (0.4 + 0.6 * ch) * p.mods.meleeDamage);
+    const a = new Arrow(this.nextId(), e.x + d.x * 0.6, e.y + d.y * 0.6, e.z + d.z * 0.6, d.x * speed, d.y * speed, d.z * speed, p.index, T.dmg * (0.4 + 0.6 * ch) * p.mods.meleeDamage * (p.bot ? this.diff().botBow : 1));
     this.arrows.push(a);
     this.emit({ type: 'shoot', by: p.id, arrow: a });
     return { ok: true };
@@ -3416,7 +3428,8 @@ const LocalProvider = {
 };
 
 /** WebRTC through PeerJS. The library is fetched only when someone hosts or joins online. */
-const PEERJS_URLS = ['https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js', 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'];
+// Optional local copy first (drop peerjs.min.js next to index.html to work on networks that block CDNs), then two CDNs.
+const PEERJS_URLS = ['peerjs.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js', 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'];
 class PeerChannel extends Channel {
   constructor(conn, peer) {
     super(); this.conn = conn; this.peer = peer || null;
@@ -3602,7 +3615,7 @@ class HostSession {
     this.server = server; this.hooks = hooks;
     this.peers = new Map();                  // channel -> peer
     this.state = 'lobby';                    // lobby | playing | closed
-    this.cfg = { mode: 'war', mapId: 'plains', bots: 3, seed: 1 };
+    this.cfg = { mode: 'war', mapId: 'plains', bots: 3, seed: 1, difficulty: 'normal' };
     this.hostInfo = { name: 'HOST', classId: 'builder', look: sanitizeLook(null) };
     this.ai = [];                            // preview of the AI opponents (same list shown to everyone)
     this.code = null; this.providers = [];
@@ -3659,6 +3672,7 @@ class HostSession {
     if (patch.mode && ['war', 'alliance', 'sandbox'].includes(patch.mode)) this.cfg.mode = patch.mode;
     if (patch.mapId && (MAPS[patch.mapId] || patch.mapId === 'random')) this.cfg.mapId = patch.mapId;
     if (patch.bots != null) this.cfg.bots = clamp(patch.bots | 0, 0, 5);
+    if (patch.difficulty && DIFFICULTIES[patch.difficulty]) this.cfg.difficulty = patch.difficulty;
     if (patch.reroll) this.reroll();
     this.broadcastLobby();
   }
@@ -3744,7 +3758,7 @@ class HostSession {
   startMatch(extra = {}) {
     if (!this.canStart()) return null;
     const roster = this.roster().map((r) => ({ id: r.isBot ? undefined : r.id, name: r.name, classId: r.classId, isBot: !!r.isBot, look: r.look }));
-    const cfg = { mode: this.cfg.mode, seed: this.cfg.seed, mapId: this.cfg.mapId, roster, ...extra };
+    const cfg = { mode: this.cfg.mode, seed: this.cfg.seed, mapId: this.cfg.mapId, difficulty: this.cfg.difficulty, roster, ...extra };
     this.blockQ.length = 0; this.evQ.length = 0;
     this.server.startMatch(cfg);
     this.state = 'playing';
@@ -4455,10 +4469,11 @@ class Bot {
     this.thinkClock -= dt; this.warClock += dt;
     if (this.thinkClock <= 0) {
       const T = this.traits;
-      this.thinkClock = 0.25 + Math.random() * 0.25 + T.react * 0.35;       // slower thinkers react later
+      const D = s.diff();
+      this.thinkClock = (0.25 + Math.random() * 0.25 + T.react * 0.35) * D.think;       // slower thinkers react later
       this.target = this.pickTarget(foes);
       const t = this.target, d = t ? this.dist(t) : 99;
-      const aggr = clamp(T.aggr + this.mood * 0.3 + (s.phase === 'chaos' ? 0.25 : 0) + Math.min(0.5, this.warClock / 120), 0, 1);
+      const aggr = clamp(T.aggr + D.aggr + this.mood * 0.3 + (s.phase === 'chaos' ? 0.25 : 0) + Math.min(0.5, this.warClock / 120), 0, 1);
       const hurt = p.health < p.maxHealth * (T.nerve + (p.classId === 'survivalist' ? 0.12 : 0));
       const vaultReady = s.vault.cooldown <= 0 && s.phase !== 'build';
       const toVault = Math.hypot(s.map.vault.x - p.pos.x, s.map.vault.z - p.pos.z);
@@ -4467,7 +4482,7 @@ class Bot {
       if (hurt && t && d < 16) this.mode = 'retreat';
       else if (this.hitRun > 0 && t) this.mode = 'retreat';
       else if (t && d < 3.4 && this.hasLOS(t)) this.mode = 'melee';
-      else if (t && d < (wantRange ? 36 : 22) && d > (wantRange ? 8 : 6) && this.hasLOS(t) && aggr > 0.25 && (wantRange || Math.random() < 0.6)) this.mode = 'shoot';
+      else if (t && d < Math.min(D.bowRange, wantRange ? 36 : 22) && d > (wantRange ? 8 : 6) && this.hasLOS(t) && aggr > 0.25 && (wantRange || Math.random() < 0.6)) this.mode = 'shoot';
       else if (vaultReady && T.greed > 0.4 && toVault < 70 && (!t || d > 12 || T.greed > 0.85)) this.mode = 'vault';
       else if (this.extra && this.queueIndex < this.queue.length) this.mode = 'fortify';
       else if (!s.unlimited && (p.resources.stone || 0) < 4 && (p.resources.wood || 0) < 4) this.mode = 'gather';
@@ -4513,8 +4528,8 @@ class Bot {
         if (p.held !== tool) s.handle(p.id, { type: 'hold', item: tool });
         this.blockT = (this.blockT || 0) - dt;
         if (p.blocking && this.blockT <= 0) s.handle(p.id, { type: 'block', on: false });
-        else if (!p.blocking && t.swing > 0.5 && Math.random() < 0.05 * (1 - this.traits.sloppy) && tool !== 'bow') { if (s.handle(p.id, { type: 'block', on: true }).ok) this.blockT = 0.4 + Math.random() * 0.5; }
-        if (!p.blocking && p.cooldowns.attack <= 0) {
+        else if (!p.blocking && t.swing > 0.5 && Math.random() < 0.05 * s.diff().block * (1 - this.traits.sloppy) && tool !== 'bow') { if (s.handle(p.id, { type: 'block', on: true }).ok) this.blockT = 0.4 + Math.random() * 0.5; }
+        if (!p.blocking && p.cooldowns.attack <= 0 && Math.random() < s.diff().rate) {
           s.handle(p.id, { type: 'attack', targetId: t.id, tool });
           if (p.classId === 'scout' && Math.random() < 0.35) this.hitRun = 0.8 + Math.random() * 0.8;      // scouts strike and slip away
           else if (Math.random() < 0.08 * this.traits.sloppy) this.hitRun = 0.6;
@@ -4523,15 +4538,18 @@ class Bot {
       }
       case 'shoot': {
         if (!t) break;
-        const flight = this.dist(t) / 28, lead = flight;
-        const err = this.traits.sloppy * 0.9 * (1 + this.dist(t) / 25), ex = (Math.random() - 0.5) * err, ey = (Math.random() - 0.5) * err;
-        this.face(t.pos.x + t.vel.x * lead * (0.6 + Math.random() * 0.6) + ex, t.pos.y + 1.2 + this.dist(t) * 0.035 + ey, t.pos.z + t.vel.z * lead + ex, true);
-        if (this.dist(t) < 10 && this.traits.range > 0.45) c.back = true;                  // snipers keep their distance
+        const D = s.diff(), dist = this.dist(t);
+        // one aiming error per arrow (re-rolled after each shot), not a fresh jitter every frame: this is what makes archers miss
+        if (!this.aimErr) { const mag = D.aim * (0.4 + this.traits.sloppy) * (1 + dist / 18); this.aimErr = { x: (Math.random() - 0.5) * mag * 2, y: (Math.random() - 0.5) * mag, z: (Math.random() - 0.5) * mag * 2, lead: D.lead * (0.7 + Math.random() * 0.5) }; }
+        const E = this.aimErr, flight = dist / 28;
+        this.face(t.pos.x + t.vel.x * flight * E.lead + E.x, t.pos.y + 1.2 + dist * 0.035 + E.y, t.pos.z + t.vel.z * flight * E.lead + E.z, true);
+        if (dist < 10 && this.traits.range > 0.45) c.back = true;                  // snipers keep their distance
         if (p.held !== 'bow') s.handle(p.id, { type: 'hold', item: 'bow' });
-        this.shootCharge += dt;
+        this.shootWait = (this.shootWait || 0) - dt;
+        if (this.shootWait <= 0) this.shootCharge += dt;
         this.strafeT -= dt; if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 0.6 + Math.random(); }
         if (this.strafe > 0) c.right = true; else c.left = true;
-        if (this.shootCharge >= TOOLS.bow.draw * p.mods.bowDraw && p.cooldowns.shoot <= 0) { s.handle(p.id, { type: 'shoot', charge: 1 }); this.shootCharge = 0; }
+        if (this.shootCharge >= TOOLS.bow.draw * p.mods.bowDraw * D.draw && p.cooldowns.shoot <= 0) { s.handle(p.id, { type: 'shoot', charge: 1 }); this.shootCharge = 0; this.aimErr = null; this.shootWait = D.shootGap * (0.7 + Math.random() * 0.6); }
         break;
       }
       case 'vault': {
@@ -5363,6 +5381,9 @@ class UI {
     const seg = this.$('segMode');
     seg.innerHTML = modes.map(([id, label, tip]) => `<button class="segbtn ${v.mode === id ? 'on' : ''}" data-mode="${id}" title="${esc(tip)}" ${v.edit ? '' : 'disabled'}>${label}</button>`).join('');
     if (v.edit) seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => on.change({ mode: b.dataset.mode })));
+    const dseg = this.$('segDiff'), showD = v.kind !== 'client'; dseg.classList.toggle('hidden', !showD); this.$('diffLabel').classList.toggle('hidden', !showD);
+    dseg.innerHTML = DIFF_ORDER.map((id) => `<button class="segbtn ${v.difficulty === id ? 'on' : ''}" data-diff="${id}" title="${esc(DIFFICULTIES[id].blurb)}">${DIFFICULTIES[id].name.toUpperCase()}</button>`).join('');
+    dseg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => on.change({ difficulty: b.dataset.diff })));
     const bots = this.$('setBots'); bots.min = v.minBots; bots.max = v.maxBots; bots.value = v.bots; bots.disabled = !v.edit;
     this.$('outBots').textContent = v.bots; this.$('setName').value = v.name;
     this.$('mapCards').innerHTML = [...MAP_ORDER, 'random'].map((id) => {
@@ -5717,7 +5738,7 @@ class Game {
     this.settings = Storage.load('mpw.settings', { sens: 1, fov: 75, vol: 0.7 });
     this.career = Object.assign({ matches: 0, wins: 0, kills: 0, deaths: 0, xp: 0, coins: 0, blocks: 0, best: 0, playSeconds: 0, tntKills: 0, structures: 0, damage: 0, totalCoins: 0 }, Storage.load('mpw.career', {}));
     this.profile = sanitizeProfile(Storage.load('mpw.profile', null));
-    this.lobby = Object.assign({ mode: 'war', bots: 3, classId: 'builder', name: 'PLAYER', seed: 1, mapId: 'plains' }, Storage.load('mpw.lobby', {}));
+    this.lobby = Object.assign({ difficulty: 'normal', mode: 'war', bots: 3, classId: 'builder', name: 'PLAYER', seed: 1, mapId: 'plains' }, Storage.load('mpw.lobby', {}));
     if (!CLASSES[this.lobby.classId]) this.lobby.classId = 'builder';
     if (!MAPS[this.lobby.mapId] && this.lobby.mapId !== 'random') this.lobby.mapId = 'plains';
     this.lobby.bots = clamp(this.lobby.bots | 0, 1, 5);
@@ -6047,7 +6068,7 @@ class Game {
     const L = this.lobby, me = { name: L.name, classId: L.classId, look: this.myLook(), ready: true, you: true };
     if (this.kind === 'host' && this.host) {
       const m = this.host.lobbyMessage(), roster = m.roster.map((r) => ({ ...r, you: r.id === 'p0' }));
-      return { kind: 'host', mode: m.cfg.mode, mapId: m.cfg.mapId, bots: m.cfg.bots, minBots: m.min, maxBots: m.max, name: L.name, classId: L.classId, lands: assignLandList(m.cfg.seed), roster, edit: true, me: 0, code: this.host.code, canStart: this.host.canStart(), myReady: true,
+      return { kind: 'host', difficulty: m.cfg.difficulty || 'normal', mode: m.cfg.mode, mapId: m.cfg.mapId, bots: m.cfg.bots, minBots: m.min, maxBots: m.max, name: L.name, classId: L.classId, lands: assignLandList(m.cfg.seed), roster, edit: true, me: 0, code: this.host.code, canStart: this.host.canStart(), myReady: true,
         hint: this.host.canStart() ? 'Everybody is ready: start when you like. Share the code or invite link to bring friends in.' : this.host.allReady() ? 'You need at least 2 players: add AI players or wait for a friend.' : 'Waiting for players to press READY...', hintClass: this.host.canStart() ? 'good' : '',
         providers: m.providers };
     }
@@ -6056,7 +6077,7 @@ class Game {
       return { kind: 'client', mode: m.cfg.mode, mapId: m.cfg.mapId, bots: m.cfg.bots, minBots: m.min, maxBots: m.max, name: L.name, classId: L.classId, lands: assignLandList(m.cfg.seed), roster, edit: false, me: myIdx, code: m.code, canStart: false, myReady: !!(roster[myIdx] && roster[myIdx].ready), hint: this.myReady ? 'Waiting for the host to start...' : 'Pick your class, then press READY.' };
     }
     const bots = clamp(L.bots, 1, 5), roster = [me, ...this.ai.slice(0, bots)];
-    return { kind: 'single', mode: L.mode, mapId: L.mapId, bots, minBots: 1, maxBots: 5, name: L.name, classId: L.classId, lands: assignLandList(L.seed), roster, edit: true, me: 0, code: '', canStart: true, myReady: true, hint: '' };
+    return { kind: 'single', difficulty: DIFFICULTIES[L.difficulty] ? L.difficulty : 'normal', mode: L.mode, mapId: L.mapId, bots, minBots: 1, maxBots: 5, name: L.name, classId: L.classId, lands: assignLandList(L.seed), roster, edit: true, me: 0, code: '', canStart: true, myReady: true, hint: '' };
   }
   refreshLobby() {
     const v = this.lobbyView();
@@ -6067,9 +6088,10 @@ class Game {
     const L = this.lobby;
     if (patch.classId) { L.classId = patch.classId; if (this.host) this.host.setHostInfo({ classId: patch.classId }); else if (this.client) this.client.send({ t: 'prof', classId: patch.classId }); }
     if (patch.name) { L.name = patch.name; if (this.host) this.host.setHostInfo({ name: patch.name }); else if (this.client) this.client.send({ t: 'prof', name: patch.name }); }
-    if (this.kind === 'host' && this.host) { const hp = {}; for (const k of ['mode', 'mapId', 'bots', 'reroll']) if (k in patch) hp[k] = patch[k]; if (Object.keys(hp).length) this.host.setConfig(hp); }
+    if (this.kind === 'host' && this.host) { const hp = {}; for (const k of ['mode', 'mapId', 'bots', 'reroll', 'difficulty']) if (k in patch) hp[k] = patch[k]; if (Object.keys(hp).length) this.host.setConfig(hp); }
     else if (this.kind === 'single') {
       if (patch.mode) L.mode = patch.mode;
+      if (DIFFICULTIES[patch.difficulty]) L.difficulty = patch.difficulty;
       if (patch.mapId) L.mapId = patch.mapId;
       if (patch.bots != null) L.bots = clamp(patch.bots | 0, 1, 5);
       if (patch.reroll) this.rerollAI();
@@ -6118,7 +6140,7 @@ class Game {
     } else if (this.kind === 'single') {
       const bots = clamp(L.bots, 1, 5);
       const roster = [{ id: 'p0', name: L.name, classId: L.classId, isBot: false, look: this.myLook() }, ...this.ai.slice(0, bots).map((a) => ({ name: a.name, classId: a.classId, isBot: true, look: a.look }))];
-      this.launch(() => this.localServer.startMatch({ mode: L.mode, seed: L.seed, mapId: L.mapId, roster }));
+      this.launch(() => this.localServer.startMatch({ mode: L.mode, seed: L.seed, mapId: L.mapId, difficulty: L.difficulty, roster }));
     }
   }
   /** After the results screen: back to the lobby for another round (or the menu). */
@@ -6841,7 +6863,7 @@ class Game {
 /* ============================== EXPORTS / BOOT ============================== */
 const api = {
   CONFIG, BlockRegistry, BLOCKS, ID, TILE, World, MapGenerator, buildChunkMesh, buildBlockListMesh, Player, Mob, GameServer, Bot, Mat4, AIR, B, VERTEX_FLOATS,
-  CLASSES, LANDS, MAPS, MAP_ORDER, ITEMS, EVENT_DEFS, EVENT_LIST, startResources, mineTime, TOOLS, LAND_ORDER, CLASS_ORDER, RESOURCES,
+  CLASSES, LANDS, MAPS, MAP_ORDER, ITEMS, EVENT_DEFS, EVENT_LIST, startResources, mineTime, TOOLS, LAND_ORDER, CLASS_ORDER, RESOURCES, DIFFICULTIES, DIFF_ORDER,
 };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = api;                     // lets tests/logic.test.js run the game logic in Node
