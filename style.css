@@ -321,3 +321,64 @@ body.killcam #crosshair, body.killcam #hotbar { display: none !important; }
 .np .say { display: block; margin: 0 auto 3px; padding: 2px 8px; max-width: 160px; font: 800 12px "Trebuchet MS", sans-serif; color: #111; background: #fff; border: 2px solid #000; border-radius: 6px; }
 .np .ttlTag { font-size: 9px; letter-spacing: 1px; color: #ffe48a; display: block; }
 .kf.chat { color: #ffe48a; }
+
+.netdiag { margin: 8px 0; text-align: left; font-size: 13px; line-height: 1.5; }
+.netdiag div { padding: 3px 8px; border-left: 4px solid #666; background: rgba(0,0,0,0.25); margin-bottom: 3px; }
+.netdiag div.ok { border-color: #5fd16a; }
+.netdiag div.bad { border-color: #ff6a5a; }
+.netdiag small { display: block; color: #aab; }
+
+/* ---- combat feedback ---- */
+#hitmarker { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; transform: translate(-50%, -50%); pointer-events: none; opacity: 0; --c: #fff; }
+#hitmarker::before, #hitmarker::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 38px; margin: -19px 0 0 -2px; background: var(--c); box-shadow: 0 0 0 1px rgba(0,0,0,0.6); -webkit-mask: linear-gradient(#000 0 32%, transparent 32% 68%, #000 68%); mask: linear-gradient(#000 0 32%, transparent 32% 68%, #000 68%); }
+#hitmarker::before { transform: rotate(45deg); }
+#hitmarker::after { transform: rotate(-45deg); }
+#hitmarker.on { animation: hm 0.3s ease-out forwards; }
+#hitmarker.crit { --c: #ffd23a; }
+#hitmarker.kill { --c: #ff3b30; }
+#hitmarker.block { --c: #9aa3b2; }
+@keyframes hm { 0% { opacity: 1; transform: translate(-50%, -50%) scale(0.6); } 35% { transform: translate(-50%, -50%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.3); } }
+#hitmarker.kill.on { animation-duration: 0.55s; }
+#dmgdir { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+#dmgdir .dd { position: absolute; left: -150px; top: -150px; width: 300px; height: 300px; animation: ddfade 0.9s ease-out forwards; }
+#dmgdir .dd::before { content: ""; position: absolute; left: 50%; top: 0; width: 120px; height: 46px; margin-left: -60px; background: radial-gradient(ellipse at 50% 0, rgba(255, 50, 40, 0.95), transparent 70%); }
+@keyframes ddfade { from { opacity: 1; } to { opacity: 0; } }
+#floaters { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#floaters .fl { position: absolute; left: 0; top: 0; font-weight: 900; font-size: 20px; color: #fff; text-shadow: 0 0 3px #000, 0 2px 0 #000; white-space: nowrap; }
+#floaters .fl.crit { color: #ffd23a; font-size: 28px; }
+#floaters .fl.blocked { color: #9aa3b2; }
+#floaters .fl.heal { color: #6cf07a; }
+.np.hot .nb { height: 9px; box-shadow: 0 0 8px #fff; }
+.np.hot .nn { background: rgba(255, 255, 255, 0.22); }
+
+/* ---------- chat ---------- */
+#chat { position: absolute; left: 8px; bottom: 150px; width: 380px; max-width: 46vw; pointer-events: none; }
+#chatLog { display: flex; flex-direction: column; justify-content: flex-end; gap: 1px; max-height: 200px; overflow: hidden; }
+#chat .cl { background: rgba(0,0,0,.45); padding: 2px 7px; font-size: 13px; line-height: 1.3; color: #fff; text-shadow: 1px 1px 0 #000; word-break: break-word; animation: chatfade 14s forwards; }
+#chat .cl.sys { color: #ffd23f; font-style: italic; }
+#chat .cl.team i { color: #6bd36b; font-style: normal; font-size: 11px; }
+#chat .cl b { cursor: default; }
+@keyframes chatfade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+#chatIn { display: none; width: 100%; margin-top: 4px; box-sizing: border-box; background: rgba(0,0,0,.75); border: 2px solid #fff; color: #fff; padding: 5px 8px; font: inherit; font-size: 13px; outline: none; }
+#chat.open { pointer-events: auto; }
+#chat.open #chatIn { display: block; }
+#chat.open .cl { animation: none; opacity: 1; }
+#chat.open .chatname { cursor: pointer; text-decoration: underline dotted; }
+#lobbyChat h3 { margin-top: 14px; }
+#lobbyChatLog { background: rgba(0,0,0,.35); border: 2px solid #555; height: 110px; overflow-y: auto; padding: 4px 6px; font-size: 13px; text-align: left; }
+#lobbyChatLog .cl { margin: 1px 0; word-break: break-word; }
+#lobbyChatLog .cl.sys { color: #ffd23f; font-style: italic; }
+#lobbyChatLog .chatname { cursor: pointer; }
+#lobbyChatIn { width: 100%; box-sizing: border-box; margin-top: 4px; background: #222; border: 2px solid #777; color: #fff; padding: 6px 8px; font: inherit; font-size: 13px; }
+
+/* ---------- tutorial ---------- */
+#tutorial { position: absolute; left: 8px; top: 96px; width: 250px; max-height: calc(100vh - 330px); overflow: hidden; background: rgba(0,0,0,.6); border: 2px solid #ffd23f; padding: 6px 9px; font-size: 12px; color: #fff; pointer-events: auto; }
+#tutorial.hidden { display: none; }
+#tutorial h4 { margin: 0 0 6px; color: #ffd23f; letter-spacing: 1px; }
+#tutorial h4 small, #btnTutorial small { opacity: .7; font-weight: normal; }
+#tutorial .ts { padding: 1px 0; opacity: .55; }
+#tutorial .ts span { display: inline-block; width: 20px; }
+#tutorial .ts.done { opacity: .9; color: #6bd36b; }
+#tutorial .ts.cur { opacity: 1; color: #fff; font-weight: bold; }
+#tutorial .tdesc { margin: 8px 0; line-height: 1.35; color: #e8e8e8; }
+#tutorial .tkeys { display: flex; gap: 6px; flex-wrap: wrap; }
