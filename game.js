@@ -3440,12 +3440,47 @@ class PeerChannel extends Channel {
   send(msg) { if (this.alive) try { this.conn.send(msg); } catch (e) { /* ignore */ } }
   close() { try { this.conn.close(); } catch (e) { /* ignore */ } if (this.peer) try { this.peer.destroy(); } catch (e) { /* ignore */ } this._closed(); }
 }
-/** Several STUN servers (find your public address) plus public TURN relays (carry the game when a direct link is blocked by the router/firewall). */
+/** STUN servers find your public address. They are enough for most home networks. */
 const ICE_SERVERS = [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478', 'stun:global.stun.twilio.com:3478'] },
-  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
 ];
-const PEER_OPTS = () => ({ debug: 0, config: { iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 } });
+/**
+ * TURN relay: carries the game when a router or firewall blocks the direct link (school, mobile, strict NAT).
+ * Fill in ONE of these (both work too):
+ *   TURN_CREDENTIALS_URL : a URL that returns a JSON array of ICE servers, e.g. Metered's
+ *                          'https://YOURAPP.metered.live/api/v1/turn/credentials?apiKey=YOUR_KEY'
+ *   TURN_SERVERS         : fixed entries, e.g. [{ urls: ['turn:host:3478', 'turns:host:443?transport=tcp'], username: '...', credential: '...' }]
+ * Leave both empty to play with STUN only.
+ */
+const TURN_CREDENTIALS_URL = '';
+const TURN_SERVERS = [                                           // Metered free relay (dashboard: TURN Server > Credentials)
+  {
+    urls: ['turn:global.relay.metered.ca:80', 'turn:global.relay.metered.ca:80?transport=tcp', 'turn:global.relay.metered.ca:443', 'turns:global.relay.metered.ca:443?transport=tcp'],
+    username: '3592d25850ce0b9db7ffbd84', credential: 'nostK+5fN24wl141',
+  },
+];
+let iceCache = null, iceCacheAt = 0;
+/** STUN + TURN, fetching relay credentials when configured (cached for 30 minutes; falls back to STUN only on failure). */
+async function getIceServers() {
+  if (iceCache && Date.now() - iceCacheAt < 30 * 60 * 1000) return iceCache;
+  let fetched = [];
+  if (TURN_CREDENTIALS_URL && typeof fetch !== 'undefined') {
+    try {
+      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = setTimeout(() => ctl && ctl.abort(), 6000);
+      const res = await fetch(TURN_CREDENTIALS_URL, ctl ? { signal: ctl.signal } : {});
+      clearTimeout(timer);
+      const data = res.ok ? await res.json() : null;
+      const list = Array.isArray(data) ? data : data && Array.isArray(data.iceServers) ? data.iceServers : [];
+      fetched = list.filter((s) => s && s.urls);
+      if (!fetched.length && typeof console !== 'undefined') console.warn('net: TURN credentials URL returned no servers', res.status);
+    } catch (e) { if (typeof console !== 'undefined') console.warn('net: could not fetch TURN credentials', e); }
+  }
+  const servers = ICE_SERVERS.concat(TURN_SERVERS, fetched);
+  if (fetched.length || !TURN_CREDENTIALS_URL) { iceCache = servers; iceCacheAt = Date.now(); }
+  return servers;
+}
+const PEER_OPTS = (iceServers) => ({ debug: 0, config: { iceServers, iceCandidatePoolSize: 4 } });
 const netErr = (code, msg) => { const e = new Error(msg); e.code = code; return e; };
 let peerLoading = null;
 function loadPeerJS() {
@@ -3470,9 +3505,9 @@ const PeerProvider = {
   name: 'online',
   available() { return typeof window !== 'undefined'; },
   async host(code, onchannel) {
-    const Peer = await loadPeerJS();
+    const Peer = await loadPeerJS(), ice = await getIceServers();
     return new Promise((resolve, reject) => {
-      const peer = new Peer(NET.PEER_PREFIX + code, PEER_OPTS());
+      const peer = new Peer(NET.PEER_PREFIX + code, PEER_OPTS(ice));
       let opened = false, closed = false;
       const timer = setTimeout(() => { if (!opened) { try { peer.destroy(); } catch (e) { /* ignore */ } reject(netErr('signal', 'The matchmaking service did not answer (PeerJS server down or blocked).')); } }, 15000);
       peer.on('open', () => { opened = true; clearTimeout(timer); resolve({ name: 'online', close() { closed = true; try { peer.destroy(); } catch (e) { /* ignore */ } } }); });
@@ -3483,9 +3518,9 @@ const PeerProvider = {
     });
   },
   async connect(code, timeout = 16000) {
-    const Peer = await loadPeerJS();
+    const Peer = await loadPeerJS(), ice = await getIceServers();
     return new Promise((resolve, reject) => {
-      const peer = new Peer(PEER_OPTS());
+      const peer = new Peer(PEER_OPTS(ice));
       let done = false, signalled = false;
       const fail = (e) => {
         if (done) return; done = true; clearTimeout(timer); try { peer.destroy(); } catch (x) { /* ignore */ }
@@ -3560,20 +3595,22 @@ async function netDiagnose(report) {
   step(typeof BroadcastChannel !== 'undefined', 'Same-computer play (two tabs)', 'Works without internet.');
   let Peer = null;
   try { Peer = await loadPeerJS(); step(true, 'Multiplayer library loaded'); } catch (e) { step(false, 'Multiplayer library loaded', 'unpkg.com and cdn.jsdelivr.net are unreachable here (blocked network, offline, or an ad blocker).'); }
+  const ice = await getIceServers();
   if (Peer) {
-    const ok = await new Promise((res) => { const p = new Peer(PEER_OPTS()); const t = setTimeout(() => { try { p.destroy(); } catch (e) { /* ignore */ } res(false); }, 9000); p.on('open', () => { clearTimeout(t); try { p.destroy(); } catch (e) { /* ignore */ } res(true); }); p.on('error', () => { clearTimeout(t); res(false); }); });
+    const ok = await new Promise((res) => { const p = new Peer(PEER_OPTS(ice)); const t = setTimeout(() => { try { p.destroy(); } catch (e) { /* ignore */ } res(false); }, 9000); p.on('open', () => { clearTimeout(t); try { p.destroy(); } catch (e) { /* ignore */ } res(true); }); p.on('error', () => { clearTimeout(t); res(false); }); });
     step(ok, 'Matchmaking service reachable (PeerJS)', ok ? '' : 'The free PeerJS server did not answer. It is sometimes down; try again later, or from another network.');
   }
   if (typeof RTCPeerConnection !== 'undefined') {
     const found = await new Promise((res) => {
       const types = new Set(); let pc;
-      try { pc = new RTCPeerConnection({ iceServers: ICE_SERVERS }); pc.createDataChannel('x'); } catch (e) { res(types); return; }
+      try { pc = new RTCPeerConnection({ iceServers: ice }); pc.createDataChannel('x'); } catch (e) { res(types); return; }
       const t = setTimeout(() => { try { pc.close(); } catch (e) { /* ignore */ } res(types); }, 6000);
       pc.onicecandidate = (ev) => { if (!ev.candidate) { clearTimeout(t); try { pc.close(); } catch (e) { /* ignore */ } res(types); return; } const m = / typ (\w+)/.exec(ev.candidate.candidate); if (m) types.add(m[1]); };
       pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(() => { clearTimeout(t); res(types); });
     });
     step(found.has('srflx'), 'Public address found (STUN)', found.has('srflx') ? '' : 'STUN is blocked, so direct links to friends on other networks will fail.');
-    step(found.has('relay'), 'Relay available (TURN)', found.has('relay') ? 'Backup route if the direct link is blocked.' : 'No relay reachable. If a direct link fails, play on the same network or use two tabs.');
+    const turnSet = ice.length > ICE_SERVERS.length;
+    step(found.has('relay'), 'Relay available (TURN)', found.has('relay') ? 'Backup route if the direct link is blocked.' : turnSet ? 'A relay is configured but did not answer (wrong credentials, used-up quota, or blocked).' : 'No relay is configured (TURN_CREDENTIALS_URL in game.js). If a direct link fails, play on the same network or use two tabs.');
   }
 }
 
