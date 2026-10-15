@@ -800,6 +800,7 @@ class Player extends Body {
     this.stepDistance = 0; this.walkPhase = 0; this.swing = 0; this.drawTime = 0;
     this.controls = { forward: false, back: false, left: false, right: false, jump: false, crouch: false, sprint: false };
     this.sprinting = false; this.hurtT = 0; this.lastDmg = 0;
+    this.held = 'pickaxe'; this.swingKind = 'sword'; this.blocking = false; this.blockT = 0; this.blockCd = 0; this.lastBlocked = false;
     this.resources = {};
     this.cooldowns = { attack: 0, place: 0, shoot: 0, use: 0 };
     this.sinceDamage = 99;                          // seconds since last damage (regeneration)
@@ -834,8 +835,8 @@ class Player extends Body {
     const s = (controls.right ? 1 : 0) - (controls.left ? 1 : 0);
     const wx = f * -Math.sin(this.yaw) + s * Math.cos(this.yaw);
     const wz = f * -Math.cos(this.yaw) + s * -Math.sin(this.yaw);
-    this.sprinting = !!controls.sprint && f > 0 && !this.crouching && !this.inWater && !this.inLava;
-    const speed = (this.crouching ? P.CROUCH : P.WALK) * this.mods.speed * (this.sprinting ? 1.3 : 1);
+    this.sprinting = !!controls.sprint && f > 0 && !this.crouching && !this.blocking && !this.inWater && !this.inLava;
+    const speed = (this.crouching ? P.CROUCH : P.WALK) * this.mods.speed * (this.sprinting ? 1.3 : 1) * (this.blocking ? 0.6 : 1);
     const px = this.pos.x, pz = this.pos.z;
 
     this.simulate(dt, wx, wz, speed, !!controls.jump, P.JUMP * this.mods.jump, world, env);
@@ -848,7 +849,7 @@ class Player extends Body {
     const moved = Math.hypot(this.pos.x - px, this.pos.z - pz);
     if (this.onGround) { this.stepDistance += moved; this.walkPhase += moved * 1.6; }
     for (const k in this.cooldowns) this.cooldowns[k] = Math.max(0, this.cooldowns[k] - dt);
-    this.swing = Math.max(0, this.swing - dt * 4);
+    this.swing = Math.max(0, this.swing - dt * (this.swingKind === 'axe' ? 2.3 : this.swingKind === 'bow' ? 4 : 3.2));
   }
 }
 
@@ -1558,18 +1559,18 @@ const CLASSES = {
   },
   demolitionist: {
     name: 'Demolitionist', blurb: 'Carries more TNT and shrugs off a little blast damage.',
-    perks: ['Carry +3 TNT', 'Takes 30% less explosion damage', '+2 TNT to start'],
-    mods: { tntCap: 3, explosionTaken: 0.7 }, bonus: { tnt: 2 },
+    perks: ['Carry +5 TNT', 'Takes 35% less explosion damage', '+4 TNT to start', '+5% melee damage'],
+    mods: { tntCap: 5, explosionTaken: 0.65, meleeDamage: 1.05 }, bonus: { tnt: 4 },
   },
   scout: {
     name: 'Scout', blurb: 'Quick on their feet. Best for flanking and hit-and-run.',
-    perks: ['10% faster movement', 'Jumps 8% higher', 'Takes half fall damage'],
-    mods: { speed: 1.1, jump: 1.08, fall: 0.5 }, bonus: {},
+    perks: ['12% faster movement', 'Jumps 8% higher', 'Takes half fall damage', 'Draws the bow 15% faster', '+4 wood to start'],
+    mods: { speed: 1.12, jump: 1.08, fall: 0.5, bowDraw: 0.85 }, bonus: { wood: 4 },
   },
   survivalist: {
     name: 'Survivalist', blurb: 'Hard to finish off. Best for players who prioritize staying alive.',
     perks: ['Regenerates faster, starts sooner', 'Takes 25% less lava / fire / flood damage', 'Disasters hurt less'],
-    mods: { regenRate: 1.8, regenDelay: 0.6, hazardTaken: 0.75 }, bonus: {},
+    mods: { regenRate: 1.5, regenDelay: 0.6, hazardTaken: 0.75 }, bonus: {},
   },
 };
 const CLASS_ORDER = ['builder', 'fighter', 'engineer', 'demolitionist', 'scout', 'survivalist'];
@@ -1578,33 +1579,33 @@ const CLASS_ORDER = ['builder', 'fighter', 'engineer', 'demolitionist', 'scout',
 const LANDS = {
   fortress: {
     name: 'Fortress', icon: '#8d8d98', blurb: 'Stone walls, towers and natural cliffs behind your base.',
-    pros: ['Pre-built stone walls and four towers', 'Cliffs protect your back', '+20 stone, +2 iron'],
+    pros: ['Pre-built stone walls and four towers', 'Cliffs protect your back', '+16 stone, +2 iron'],
     cons: ['Little wood or glass', 'Cliffs box you in, so expanding is slow', 'No water nearby'],
-    res: { stone: 20, iron: 2, wood: -12, glass: -4, water: -1 }, blastMult: 1,
+    res: { stone: 16, iron: 2, wood: -12, glass: -4, water: -1 }, blastMult: 1,
   },
   forest: {
     name: 'Forest', icon: '#3f8f3a', blurb: 'Dense woods, wood everywhere, and a cabin to start in.',
-    pros: ['Trees give wood and cover', 'Wooden cabin ready to go', '+30 wood'],
-    cons: ['Everything burns: lava and fire can eat your base', 'Little stone and iron'],
-    res: { wood: 30, stone: -8, iron: -2 }, blastMult: 1,
+    pros: ['Trees give wood and cover', 'Wooden cabin ready to go', '+24 wood, a little of everything else'],
+    cons: ['Everything burns: lava and fire can eat your base', 'Little iron or stone nearby'],
+    res: { wood: 24, stone: 6, iron: 2, glass: 4, mech: 2 }, blastMult: 1,
   },
   mountain: {
     name: 'Mountain', icon: '#b7b0a2', blurb: 'A high plateau with steep cliffs and rock spires.',
-    pros: ['High ground sees the whole map', 'Cliffs on every side', '+12 stone, +3 iron'],
-    cons: ['Brittle rock: 20% less blast resistance, spires topple', 'Long falls and slow expansion', 'Little wood'],
-    res: { stone: 12, iron: 3, wood: -10, earth: -8 }, blastMult: 0.8,
+    pros: ['High ground sees the whole map', 'Cliffs on every side', '+22 stone, +5 iron, +5 parts'],
+    cons: ['Spires topple when undermined', 'Long falls and slow expansion', 'Little wood'],
+    res: { stone: 22, iron: 5, mech: 5, wood: 0, earth: 0 }, blastMult: 1,
   },
   cave: {
     name: 'Cave', icon: '#5a5260', blurb: 'Natural tunnels and chambers under your base.',
     pros: ['Ready-made bunker and tunnels', 'Iron ore in the walls', 'Hidden route toward enemies'],
     cons: ['Pour water or lava down the shaft and you drown', 'TNT on the ceiling brings it down', 'Little wood and glass'],
-    res: { stone: 10, iron: 6, mech: 4, wood: -8, glass: -4 }, blastMult: 1,
+    res: { stone: 10, iron: 3, mech: 1, wood: -8, glass: -4 }, blastMult: 1,
   },
   river: {
     name: 'River', icon: '#3f78d8', blurb: 'A river crosses your plot. Water is your friend (and your problem).',
-    pros: ['Moat and current for defence', 'Water puts fires out', '+8 water, +8 earth'],
+    pros: ['Moat and current for defence', 'Water puts fires out', '+8 water, +4 earth'],
     cons: ['Less flat building land', 'Sand banks slump when undermined', 'Digging near the river floods your tunnels'],
-    res: { water: 8, earth: 8, wood: -6, stone: -6 }, blastMult: 1,
+    res: { water: 8, earth: 4, wood: -8, stone: -10 }, blastMult: 1,
   },
   industrial: {
     name: 'Industrial', icon: '#c9c3b0', blurb: 'Iron veins, a piston machine and a stack of TNT crates.',
@@ -2455,7 +2456,7 @@ class GameServer {
   respawn(p, initial = false) {
     p.teleport(p.spawn.x, p.spawn.y, p.spawn.z);
     p.health = p.maxHealth; p.alive = true; p.burnTime = 0; p.air = 10; p.sinceDamage = 99;
-    p.invulnerable = initial ? 0 : 2.5; p.hurtT = 0; p.lastDmg = 0; p.respawnTimer = 0; p.lastHits.length = 0; p.lastCause = null;
+    p.invulnerable = initial ? 0 : 2.5; p.hurtT = 0; p.lastDmg = 0; p.blocking = false; p.blockCd = 0; p.respawnTimer = 0; p.lastHits.length = 0; p.lastCause = null;
     if (!initial) this.emit({ type: 'respawn', player: p });
   }
 
@@ -2513,6 +2514,8 @@ class GameServer {
       case 'leaveAlliance': return this.leaveAlliance(p);
       case 'bounty': return this.placeBounty(p, msg);
       case 'emote': return this.emote(p, msg);
+      case 'hold': if (ITEMS[msg.item]) p.held = msg.item; return { ok: true };
+      case 'block': return this.setBlock(p, !!msg.on);
       default: return { ok: false, reason: 'unknown-action' };
     }
   }
@@ -2622,6 +2625,14 @@ class GameServer {
    * Minecraft-style melee. Damage scales with the attack charge (swinging early is weak), falling hits are critical (x1.5),
    * knockback halves the victim's own momentum and shoves along the attacker's facing; hitting while sprinting adds a big extra knock.
    */
+  /** Hold right-click with a melee weapon to block: front hits do 65% less damage and little knockback. Limited to 2.5s, then a cooldown. */
+  setBlock(p, on) {
+    if (!on) { if (p.blocking) { p.blocking = false; p.blockCd = Math.max(p.blockCd, 0.35); } return { ok: true }; }
+    const it = ITEMS[p.held];
+    if (!p.alive || p.blocking || p.blockCd > 0 || !it || it.kind !== 'tool' || p.held === 'bow' || p.held === 'lighter') return { ok: false, reason: 'cooldown' };
+    p.blocking = true; p.blockT = 0;
+    return { ok: true };
+  }
   attack(p, { targetId, tool = 'sword' }) {
     const t = TOOLS[tool];
     if (!t || t.dmg == null) return { ok: false, reason: 'bad-tool' };
@@ -2634,19 +2645,21 @@ class GameServer {
     if (this.world.lineBlocked(e.x, e.y, e.z, c.x, c.y, c.z)) return { ok: false, reason: 'blocked' };
     const frac = clamp(1 - p.cooldowns.attack / full, 0, 1);
     p.cooldowns.attack = full;
-    p.swing = 1;
+    p.swing = 1; p.swingKind = tool; p.held = tool;
+    if (p.blocking) { p.blocking = false; p.blockCd = 0.3; }
     const strong = frac > 0.9, sprint = !!(p.controls && p.controls.sprint && p.controls.forward && !p.inWater);
     let dmg = t.dmg * p.mods.meleeDamage * (0.2 + 0.8 * frac * frac);
     const crit = strong && !p.onGround && p.vel.y < -0.5 && !sprint && !p.inWater && !p.inLava;
     if (crit) dmg *= 1.5;
+    target.lastBlocked = false;
     const dealt = this.damage(target, dmg, { kind: 'melee', by: p.index, direct: true });
     if (dealt !== null) {
       const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
-      const kb = t.kb * (0.4 + 0.6 * frac) + (sprint && strong ? 9 : 0);
+      const kb = (t.kb * (0.4 + 0.6 * frac) + (sprint && strong ? 9 : 0)) * (target.lastBlocked ? 0.4 : 1);
       target.vel.x = target.vel.x * 0.5 + fx * kb; target.vel.z = target.vel.z * 0.5 + fz * kb;
       target.vel.y = Math.min(target.vel.y * 0.5 + 7.5, 7.5) + (sprint && strong ? 1.5 : 0);
       target.onGround = false;
-      this.emit({ type: 'hit', target, by: p.id, tool, crit, sprint: sprint && strong });
+      this.emit({ type: 'hit', target, by: p.id, tool, crit, sprint: sprint && strong, blocked: !!target.lastBlocked, charge: frac });
       if (crit) this.emit({ type: 'crit', target });
     }
     return { ok: true };
@@ -2655,7 +2668,7 @@ class GameServer {
   shoot(p, { charge = 1 }) {
     if (p.cooldowns.shoot > 0) return { ok: false, reason: 'cooldown' };
     const T = TOOLS.bow, ch = clamp(charge, 0.15, 1);
-    p.cooldowns.shoot = T.cd; p.swing = 0.6;
+    p.cooldowns.shoot = T.cd; p.swing = 0.6; p.swingKind = 'bow'; p.held = 'bow';
     const e = p.eyePosition(), d = p.lookDirection(), speed = T.speed * (0.5 + 0.5 * ch);
     const a = new Arrow(this.nextId(), e.x + d.x * 0.6, e.y + d.y * 0.6, e.z + d.z * 0.6, d.x * speed, d.y * speed, d.z * speed, p.index, T.dmg * (0.4 + 0.6 * ch) * p.mods.meleeDamage);
     this.arrows.push(a);
@@ -2679,6 +2692,11 @@ class GameServer {
       if (src.direct && this.areAllies(attacker, target)) return null;   // allies cannot hit each other directly (explosions still can)
     }
     if (target.invulnerable > 0) return null;
+    target.lastBlocked = false;
+    if (target.blocking && src.direct && attacker && (src.kind === 'melee' || src.kind === 'arrow')) {     // only hits from the front are blocked
+      const ax = attacker.pos.x - target.pos.x, az = attacker.pos.z - target.pos.z, l = Math.hypot(ax, az) || 1;
+      if ((ax * -Math.sin(target.yaw) + az * -Math.cos(target.yaw)) / l > 0.2) { amount *= 0.35; target.lastBlocked = true; this.emit({ type: 'blocked', target, by: attacker.id }); }
+    }
     if (src.kind === 'explosion') amount *= target.mods.explosionTaken;
     else if (src.kind === 'fall') amount *= target.mods.fall;
     else if (HAZARD_KINDS.has(src.kind)) amount *= target.mods.hazardTaken;
@@ -3052,6 +3070,7 @@ class GameServer {
     const wasAir = !p.onGround;
     p.update(dt, p.controls, this.world, env);
     p.invulnerable = Math.max(0, p.invulnerable - dt);
+    if (p.blocking) { p.blockT += dt; if (p.blockT > 2.5) { p.blocking = false; p.blockCd = 1.6; } } else p.blockCd = Math.max(0, p.blockCd - dt);
     if (p.impactSpeed > CONFIG.HEALTH.FALL_SAFE && !p.inWater && !p.inLava && wasAir) {
       const dmg = (p.impactSpeed - CONFIG.HEALTH.FALL_SAFE) * CONFIG.HEALTH.FALL_DMG;
       this.damage(p, dmg, { kind: 'fall' });
@@ -3305,7 +3324,7 @@ class GameServer {
     const L = (b, k) => lerp(b.prev[k], b.pos[k], alpha);
     return {
       time: this.clock,
-      players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, moving: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround })),
+      players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, moving: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround, held: p.held, sk: p.swingKind, blocking: p.blocking, sprinting: p.sprinting })),
       tnts: this.tnts.map((t) => ({ x: L(t, 'x'), y: L(t, 'y'), z: L(t, 'z'), fuse: t.fuse })),
       groups: this.groups.map((g) => ({ g, off: g.off })),
       arrows: this.arrows.filter((a) => a.alive).map((a) => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z, yaw: a.yaw, pitch: a.pitch })),
@@ -3408,6 +3427,13 @@ class PeerChannel extends Channel {
   send(msg) { if (this.alive) try { this.conn.send(msg); } catch (e) { /* ignore */ } }
   close() { try { this.conn.close(); } catch (e) { /* ignore */ } if (this.peer) try { this.peer.destroy(); } catch (e) { /* ignore */ } this._closed(); }
 }
+/** Several STUN servers (find your public address) plus public TURN relays (carry the game when a direct link is blocked by the router/firewall). */
+const ICE_SERVERS = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478', 'stun:global.stun.twilio.com:3478'] },
+  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' },
+];
+const PEER_OPTS = () => ({ debug: 0, config: { iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 } });
+const netErr = (code, msg) => { const e = new Error(msg); e.code = code; return e; };
 let peerLoading = null;
 function loadPeerJS() {
   if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
@@ -3416,7 +3442,7 @@ function loadPeerJS() {
   peerLoading = new Promise((resolve, reject) => {
     let i = 0;
     const next = () => {
-      if (i >= PEERJS_URLS.length) { peerLoading = null; reject(new Error('Could not load the online multiplayer library (offline or blocked).')); return; }
+      if (i >= PEERJS_URLS.length) { peerLoading = null; reject(netErr('lib', 'Could not load the online multiplayer library (offline, or unpkg.com / jsdelivr.net is blocked on this network).')); return; }
       const s = document.createElement('script');
       s.src = PEERJS_URLS[i++]; s.async = true; s.referrerPolicy = 'no-referrer';
       s.onload = () => (window.Peer ? resolve(window.Peer) : next());
@@ -3433,22 +3459,31 @@ const PeerProvider = {
   async host(code, onchannel) {
     const Peer = await loadPeerJS();
     return new Promise((resolve, reject) => {
-      const peer = new Peer(NET.PEER_PREFIX + code, { debug: 0 });
-      let opened = false; const timer = setTimeout(() => { if (!opened) { try { peer.destroy(); } catch (e) { /* ignore */ } reject(new Error('timeout')); } }, 12000);
-      peer.on('open', () => { opened = true; clearTimeout(timer); resolve({ name: 'online', close() { try { peer.destroy(); } catch (e) { /* ignore */ } } }); });
-      peer.on('error', (e) => { if (!opened) { clearTimeout(timer); reject(e); } });
+      const peer = new Peer(NET.PEER_PREFIX + code, PEER_OPTS());
+      let opened = false, closed = false;
+      const timer = setTimeout(() => { if (!opened) { try { peer.destroy(); } catch (e) { /* ignore */ } reject(netErr('signal', 'The matchmaking service did not answer (PeerJS server down or blocked).')); } }, 15000);
+      peer.on('open', () => { opened = true; clearTimeout(timer); resolve({ name: 'online', close() { closed = true; try { peer.destroy(); } catch (e) { /* ignore */ } } }); });
+      // the signalling link drops now and then; without this the game code silently stops working for new players
+      peer.on('disconnected', () => { if (opened && !closed) { const retry = () => { if (closed || !peer.disconnected) return; try { peer.reconnect(); } catch (e) { /* ignore */ } setTimeout(retry, 4000); }; setTimeout(retry, 500); } });
+      peer.on('error', (e) => { if (!opened) { clearTimeout(timer); const t = e && e.type; reject(t === 'unavailable-id' ? e : netErr('signal', 'Could not reach the matchmaking service (' + (t || 'error') + ').')); } });
       peer.on('connection', (conn) => { conn.on('open', () => onchannel(new PeerChannel(conn))); });
     });
   },
-  async connect(code, timeout = 14000) {
+  async connect(code, timeout = 16000) {
     const Peer = await loadPeerJS();
     return new Promise((resolve, reject) => {
-      const peer = new Peer({ debug: 0 });
-      let done = false;
-      const fail = (e) => { if (done) return; done = true; clearTimeout(timer); try { peer.destroy(); } catch (x) { /* ignore */ } reject(e instanceof Error ? e : new Error(e && e.type ? e.type : 'failed')); };
-      const timer = setTimeout(() => fail(new Error('timeout')), timeout);
+      const peer = new Peer(PEER_OPTS());
+      let done = false, signalled = false;
+      const fail = (e) => {
+        if (done) return; done = true; clearTimeout(timer); try { peer.destroy(); } catch (x) { /* ignore */ }
+        if (e && e.type === 'peer-unavailable') reject(netErr('nohost', 'No game with that code was found. Check the code, and that the host is still on the lobby screen.'));
+        else if (e && e.code) reject(e);
+        else reject(netErr('signal', 'Could not reach the matchmaking service (' + ((e && e.type) || (e && e.message) || 'error') + ').'));
+      };
+      const timer = setTimeout(() => fail(signalled ? netErr('direct', 'Found the host but could not open a direct connection. A firewall or router (school, work, some mobile networks) is blocking it.') : netErr('signal', 'The matchmaking service did not answer (PeerJS server down or blocked).')), timeout);
       peer.on('error', fail);
       peer.on('open', () => {
+        signalled = true;
         const conn = peer.connect(NET.PEER_PREFIX + code, { reliable: true });
         conn.on('open', () => { if (done) return; done = true; clearTimeout(timer); resolve(new PeerChannel(conn, peer)); });
         conn.on('error', fail);
@@ -3458,6 +3493,20 @@ const PeerProvider = {
 };
 /** Registered providers (tests add an in-memory one). */
 const NET_PROVIDERS = [LocalProvider, PeerProvider];
+
+/* ============================== CHAT HELPERS ============================== */
+const CHAT = { MAX: 140, BURST: 4, WINDOW: 6000 };
+const LEET = { a: '[a4@]', e: '[e3]', i: '[i1!|]', o: '[o0]', s: '[s5$]', t: '[t7]' };
+const BAD_SUB = ['fuck', 'shit', 'bitch', 'asshole', 'bastard', 'whore', 'slut', 'nigger', 'nigga', 'faggot', 'retard', 'dickhead', 'wanker'];
+const BAD_WORD = ['cunt', 'cunts', 'dick', 'piss', 'cock', 'twat', 'fag', 'rape', 'raped'];
+const badRegex = (w, whole) => new RegExp((whole ? '\\b' : '') + w.split('').map((c) => (LEET[c] || c) + '+').join('[\\W_]{0,2}') + (whole ? '\\b' : ''), 'gi');
+const BAD_RES = [...BAD_SUB.map((w) => badRegex(w, false)), ...BAD_WORD.map((w) => badRegex(w, true))];
+/** Basic profanity filter: swaps bad words (including l33t spellings) for asterisks. */
+function chatFilter(text) { let t = text; for (const re of BAD_RES) t = t.replace(re, (m) => '*'.repeat(m.length)); return t; }
+function chatClean(text) { return String(text == null ? '' : text).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, CHAT.MAX); }
+/** Simple sliding-window rate limiter: at most BURST messages per WINDOW ms. */
+function chatAllowed(rec) { const now = Date.now(); rec.times = (rec.times || []).filter((t) => now - t < CHAT.WINDOW); if (rec.times.length >= CHAT.BURST) return false; rec.times.push(now); return true; }
+
 
 /** Host: listen on every available provider. Resolves with { code, providers:[names that work], close() }. */
 async function netHost(onchannel, providers = NET_PROVIDERS) {
@@ -3484,11 +3533,35 @@ function netConnect(code, providers = NET_PROVIDERS) {
     }, (e) => {
       errs.push(e);
       if (--pending === 0 && !won) {
-        const peerErr = errs.find((x) => x && x.type === 'peer-unavailable');
-        reject(new Error(peerErr ? 'No game with that code was found.' : errs.some((x) => /library|offline/i.test(String(x && x.message))) ? 'Could not reach the online service. If the host is on this computer, open the game in another tab; otherwise check your connection.' : 'Could not connect. Check the code and that the host is still in the lobby.'));
+        const order = ['nohost', 'direct', 'lib', 'signal'], best = order.map((c) => errs.find((x) => x && x.code === c)).find(Boolean);
+        reject(best ? new Error(best.message + (best.code === 'nohost' ? '' : ' Press TEST CONNECTION to see what is blocked.')) : new Error('Could not connect. Check the code and that the host is still in the lobby.'));
       }
     });
   });
+}
+
+/** Step-by-step connection check shown on the multiplayer screen, so a failure says exactly what is blocked. */
+async function netDiagnose(report) {
+  const step = (ok, label, detail) => report({ ok, label, detail: detail || '' });
+  step(typeof RTCPeerConnection !== 'undefined', 'Browser supports WebRTC', typeof RTCPeerConnection !== 'undefined' ? '' : 'Use a recent Chrome, Edge, Firefox or Safari.');
+  step(typeof BroadcastChannel !== 'undefined', 'Same-computer play (two tabs)', 'Works without internet.');
+  let Peer = null;
+  try { Peer = await loadPeerJS(); step(true, 'Multiplayer library loaded'); } catch (e) { step(false, 'Multiplayer library loaded', 'unpkg.com and cdn.jsdelivr.net are unreachable here (blocked network, offline, or an ad blocker).'); }
+  if (Peer) {
+    const ok = await new Promise((res) => { const p = new Peer(PEER_OPTS()); const t = setTimeout(() => { try { p.destroy(); } catch (e) { /* ignore */ } res(false); }, 9000); p.on('open', () => { clearTimeout(t); try { p.destroy(); } catch (e) { /* ignore */ } res(true); }); p.on('error', () => { clearTimeout(t); res(false); }); });
+    step(ok, 'Matchmaking service reachable (PeerJS)', ok ? '' : 'The free PeerJS server did not answer. It is sometimes down; try again later, or from another network.');
+  }
+  if (typeof RTCPeerConnection !== 'undefined') {
+    const found = await new Promise((res) => {
+      const types = new Set(); let pc;
+      try { pc = new RTCPeerConnection({ iceServers: ICE_SERVERS }); pc.createDataChannel('x'); } catch (e) { res(types); return; }
+      const t = setTimeout(() => { try { pc.close(); } catch (e) { /* ignore */ } res(types); }, 6000);
+      pc.onicecandidate = (ev) => { if (!ev.candidate) { clearTimeout(t); try { pc.close(); } catch (e) { /* ignore */ } res(types); return; } const m = / typ (\w+)/.exec(ev.candidate.candidate); if (m) types.add(m[1]); };
+      pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(() => { clearTimeout(t); res(types); });
+    });
+    step(found.has('srflx'), 'Public address found (STUN)', found.has('srflx') ? '' : 'STUN is blocked, so direct links to friends on other networks will fail.');
+    step(found.has('relay'), 'Relay available (TURN)', found.has('relay') ? 'Backup route if the direct link is blocked.' : 'No relay reachable. If a direct link fails, play on the same network or use two tabs.');
+  }
 }
 
 /* ============================ event serialisation ============================ */
@@ -3628,11 +3701,26 @@ class HostSession {
         case 'loaded': this.onLoaded(peer, m); break;
         case 'in': this.onInputs(peer, m); break;
         case 'act': this.onAction(peer, m); break;
+        case 'chat': if (peer.joined) this.onChat(peer, m); break;
         case 'ping': peer.ch.send({ t: 'pong', c: m.c }); break;
         case 'bye': peer.ch.close(); break;
         default: break;
       }
     } catch (err) { if (typeof console !== 'undefined') console.error('net:', err); }
+  }
+  /** Chat: filtered and rate-limited here so every player sees the same clean text. Team chat only reaches allies. */
+  onChat(peer, m) {
+    if (!chatAllowed(peer)) { peer.ch.send({ t: 'chat', sys: 1, x: 'Slow down: you are sending messages too fast.' }); return; }
+    this.relayChat(peer.id, peer.name, m.x, !!m.tm, !!m.me);
+  }
+  sendChat(text, team, me) { this.relayChat('p0', this.hostInfo.name, text, !!team, !!me); }
+  relayChat(id, name, text, team, me) {
+    const x = chatFilter(chatClean(text)); if (!x) return;
+    const msg = { t: 'chat', id, n: name, x, tm: team ? 1 : 0, me: me ? 1 : 0 };
+    const sender = this.state === 'playing' ? this.server.playerById(id) : null;
+    const sees = (pid) => { if (!team || !sender) return true; const q = this.server.playerById(pid); return !!q && (q === sender || this.server.areAllies(sender, q)); };
+    for (const peer of this.peers.values()) if (peer.joined && sees(peer.id)) peer.ch.send(msg);
+    if (sees('p0')) this.hooks.onChat && this.hooks.onChat(msg);
   }
   profile(peer, m) {
     if (typeof m.name === 'string') peer.name = m.name.replace(/[^\w \-]/g, '').slice(0, 12) || 'PLAYER';
@@ -3693,7 +3781,7 @@ class HostSession {
     const p = this.server.playerById(peer.id);
     if (!p || !p.isRemote || !m.m || typeof m.m !== 'object' || this.state !== 'playing') return;
     const msg = m.m;
-    if (!['break', 'place', 'use', 'attack', 'shoot', 'ignite', 'propose', 'respond', 'leaveAlliance', 'bounty', 'emote'].includes(msg.type)) return;
+    if (!['break', 'place', 'use', 'attack', 'shoot', 'ignite', 'propose', 'respond', 'leaveAlliance', 'bounty', 'emote', 'hold', 'block'].includes(msg.type)) return;
     for (const k of ['x', 'y', 'z']) if (k in msg && !Number.isInteger(msg[k])) return;
     if (msg.type === 'place' && !ITEMS[msg.item]) return;
     if (msg.type === 'shoot') msg.charge = clamp(+msg.charge || 0, 0, 1);
@@ -3749,7 +3837,7 @@ class HostSession {
       v: { progress: s.vault.progress, team: s.vault.team, cooldown: s.vault.cooldown, capturing: s.vault.capturing, captured: s.vault.captured },
       p: s.players.map((p) => ({
         i: p.index, x: p.pos.x, y: p.pos.y, z: p.pos.z, yw: p.yaw, pt: p.pitch, hp: p.health, al: p.alive ? 1 : 0, cr: p.crouching ? 1 : 0, bu: p.burnTime > 0 ? 1 : 0,
-        wk: p.walkPhase, sw: p.swing, bo: p.bounty, tm: p.team, bot: p.isBot ? 1 : 0, mv: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround ? 1 : 0,
+        wk: p.walkPhase, sw: p.swing, bo: p.bounty, tm: p.team, bot: p.isBot ? 1 : 0, mv: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround ? 1 : 0, hd: p.held, sk: p.swingKind, bk: p.blocking ? 1 : 0, sp: p.sprinting ? 1 : 0,
         st: [p.stats.score, p.stats.kills, p.stats.assists, p.stats.deaths, p.stats.damageDealt, p.stats.blocksDestroyed, p.stats.structuresDestroyed, p.stats.tntKills, p.stats.objectives],
       })),
       tn: s.tnts.filter((t) => t.alive).map((t) => [t.id, t.pos.x, t.pos.y, t.pos.z, t.fuse]),
@@ -3774,7 +3862,7 @@ class HostSession {
 class ClientSession {
   constructor(ch) {
     this.ch = ch; this.id = null; this.closed = false; this.lastRecv = Date.now();
-    this.on = { lobby() {}, start() {}, tick() {}, end() {}, closed() {}, rejected() {}, world() {}, res() {} };
+    this.on = { chat() {}, lobby() {}, start() {}, tick() {}, end() {}, closed() {}, rejected() {}, world() {}, res() {} };
     ch.onmessage = (m) => this.recv(m);
     ch.onclose = () => this.finish('Connection lost.');
     this.pinger = setInterval(() => { if (this.closed) return; this.ch.send({ t: 'ping', c: Date.now() }); if (Date.now() - this.lastRecv > NET.TIMEOUT) { this.finish('Lost contact with the host.'); this.ch.close(); } }, 1500);
@@ -3786,6 +3874,7 @@ class ClientSession {
     this.lastRecv = Date.now();
     switch (m.t) {
       case 'welcome': this.id = m.id; break;
+      case 'chat': this.on.chat(m); break;
       case 'lobby': this.on.lobby(m); break;
       case 'start': this.on.start(m); break;
       case 'tick': this.on.tick(m); break;
@@ -3916,7 +4005,7 @@ class NetServerView {
       if (!mineP) { p.prev.x = p.pos.x; p.prev.y = p.pos.y; p.prev.z = p.pos.z; p.pos.x = q.x; p.pos.y = q.y; p.pos.z = q.z; p.yaw = q.yw; p.pitch = q.pt; }
       if (p.alive && !q.al) p.alive = false; else if (!p.alive && q.al) { p.alive = true; if (mineP) { p.teleport(q.x, q.y, q.z); this.pending.length = 0; } }
       p.health = q.hp; p.crouching = !!q.cr; p.burnTime = q.bu ? 1 : 0; p.walkPhase = q.wk; p.swing = q.sw; p.bounty = q.bo; p.team = q.tm; p.isBot = !!q.bot;
-      p.moving = !!q.mv;
+      p.moving = !!q.mv; p.held = q.hd || 'pickaxe'; p.swingKind = q.sk || 'sword'; p.sprinting = !!q.sp; if (!mineP) p.blocking = !!q.bk;
       const st = p.stats; [st.score, st.kills, st.assists, st.deaths, st.damageDealt, st.blocksDestroyed, st.structuresDestroyed, st.tntKills, st.objectives] = q.st;
     }
     // other bodies
@@ -3973,12 +4062,15 @@ class NetServerView {
       me.update(dt, copy, this.world, { gravityScale: this.gravityScale });
       me.invulnerable = Math.max(0, me.invulnerable - dt);
     } else for (const k in me.cooldowns) me.cooldowns[k] = Math.max(0, me.cooldowns[k] - dt);
+    if (me.blocking) { me.blockT += dt; if (me.blockT > 2.5) { me.blocking = false; me.blockCd = 1.6; } } else me.blockCd = Math.max(0, me.blockCd - dt);
     if (this.outInputs.length >= NET.TICK_STEPS) this.session.send({ t: 'in', s: this.outInputs.splice(0) });
   }
   /** Client requests: the host decides. Returns optimistically; refusals come back as 'rejected' events. */
   handle(playerId, msg) {
     if (!this.me || this.me.id !== playerId) return { ok: false, reason: 'unknown-player' };
     if (!this.me.alive) return { ok: false, reason: 'dead' };
+    if (msg.type === 'hold') this.me.held = msg.item;
+    else if (msg.type === 'block') { if (msg.on) { if (this.me.blockCd <= 0 && !this.me.blocking) { this.me.blocking = true; this.me.blockT = 0; } } else if (this.me.blocking) { this.me.blocking = false; this.me.blockCd = 0.35; } }
     if (msg.type === 'attack') { const T = TOOLS[msg.tool]; this.me.cooldowns.attack = T && T.cd ? T.cd * this.me.mods.attackCooldown : 0.5; }
     else if (msg.type === 'place') this.me.cooldowns.place = Math.max(this.me.cooldowns.place, 0.15 * this.me.mods.placeCooldown);
     else if (msg.type === 'shoot') this.me.cooldowns.shoot = Math.max(this.me.cooldowns.shoot, 0.4);
@@ -3992,7 +4084,7 @@ class NetServerView {
     const L = (b, k) => (b === me ? lerp(b.prev[k], b.pos[k], alpha) : A(b, k));
     return {
       time: this.clock,
-      players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, moving: p === me ? Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround : !!p.moving })),
+      players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, held: p.held, sk: p.swingKind, blocking: p.blocking, sprinting: p.sprinting, moving: p === me ? Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround : !!p.moving })),
       tnts: this.tnts.map((t) => ({ x: A(t, 'x'), y: A(t, 'y'), z: A(t, 'z'), fuse: t.fuse })),
       groups: this.groups.map((g) => ({ g, off: g.off })),
       arrows: this.arrows.map((a) => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z, yaw: a.yaw, pitch: a.pitch })),
@@ -4418,7 +4510,11 @@ class Bot {
         if (this.dist(t) > 2.4) { c.forward = true; c.sprint = this.dist(t) > 2.8; } else if (this.dist(t) < 1.3) c.back = true;
         if (this.strafe > 0) c.right = true; else c.left = true;
         const tool = Math.random() < 0.15 ? pickOf(['sword', 'axe', 'staff']) : this.meleeTool;
-        if (p.cooldowns.attack <= 0) {
+        if (p.held !== tool) s.handle(p.id, { type: 'hold', item: tool });
+        this.blockT = (this.blockT || 0) - dt;
+        if (p.blocking && this.blockT <= 0) s.handle(p.id, { type: 'block', on: false });
+        else if (!p.blocking && t.swing > 0.5 && Math.random() < 0.05 * (1 - this.traits.sloppy) && tool !== 'bow') { if (s.handle(p.id, { type: 'block', on: true }).ok) this.blockT = 0.4 + Math.random() * 0.5; }
+        if (!p.blocking && p.cooldowns.attack <= 0) {
           s.handle(p.id, { type: 'attack', targetId: t.id, tool });
           if (p.classId === 'scout' && Math.random() < 0.35) this.hitRun = 0.8 + Math.random() * 0.8;      // scouts strike and slip away
           else if (Math.random() < 0.08 * this.traits.sloppy) this.hitRun = 0.6;
@@ -4431,6 +4527,7 @@ class Bot {
         const err = this.traits.sloppy * 0.9 * (1 + this.dist(t) / 25), ex = (Math.random() - 0.5) * err, ey = (Math.random() - 0.5) * err;
         this.face(t.pos.x + t.vel.x * lead * (0.6 + Math.random() * 0.6) + ex, t.pos.y + 1.2 + this.dist(t) * 0.035 + ey, t.pos.z + t.vel.z * lead + ex, true);
         if (this.dist(t) < 10 && this.traits.range > 0.45) c.back = true;                  // snipers keep their distance
+        if (p.held !== 'bow') s.handle(p.id, { type: 'hold', item: 'bow' });
         this.shootCharge += dt;
         this.strafeT -= dt; if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 0.6 + Math.random(); }
         if (this.strafe > 0) c.right = true; else c.left = true;
@@ -4766,21 +4863,55 @@ class Renderer {
     this.part(base, 0.1, 1.5, -0.235, 0, 0, 0.1, 0.1, 0.03, [0.02, 0.02, 0.02]);
     this.part(base, 0, 1.4, -0.235, 0, 0, 0.12, 0.16, 0.03, [0.02, 0.02, 0.02]);
   }
+  /** A tool held in the right/left hand, drawn from boxes. `arm` = rotation of the arm it hangs from, `px` = shoulder x. */
+  heldProp(base, id, px, py, arm, thrust, tint) {
+    const P = (dx, cy, w, h, d, c) => this.part(base, px + dx, py, 0, arm, cy - thrust, w, h, d, tint(c));
+    const wood = [0.45, 0.31, 0.16], iron = [0.78, 0.8, 0.86], dark = [0.3, 0.3, 0.34];
+    switch (id) {
+      case 'sword': P(0, -0.68, 0.06, 0.16, 0.06, wood); P(0, -0.78, 0.22, 0.05, 0.08, dark); P(0, -1.12, 0.08, 0.62, 0.04, iron); break;
+      case 'axe': P(0, -0.95, 0.06, 0.72, 0.06, wood); P(0.1, -1.24, 0.28, 0.22, 0.05, iron); break;
+      case 'pickaxe': P(0, -0.95, 0.06, 0.72, 0.06, wood); P(0, -1.27, 0.5, 0.08, 0.06, iron); break;
+      case 'staff': P(0, -1.0, 0.06, 1.15, 0.06, wood); P(0, -1.64, 0.15, 0.15, 0.15, [0.3, 0.9, 1]); break;
+      case 'bow': P(0, -0.75, 0.05, 0.9, 0.05, wood); P(0, -0.75, 0.012, 0.8, 0.012, [0.95, 0.95, 0.95]); break;
+      case 'lighter': P(0, -0.7, 0.07, 0.12, 0.05, dark); break;
+      default: { const it = ITEMS[id]; if (it && it.block) { const d = BlockRegistry.byType(it.block); if (d) P(0, -0.78, 0.22, 0.22, 0.22, d.color || [0.6, 0.6, 0.6]); } }
+    }
+  }
   humanoid(e, skin, shirt, legs, zombie, time, accent) {
-    const swing = zombie ? 0 : e.swing || 0, ph = (e.walk || 0) * 3.2;
+    const swing = zombie ? 0 : e.swing || 0, ph = (e.walk || 0) * 3.2, fl = e.flash || 0;
     const crouch = e.crouch ? 0.14 : 0, burn = e.burning ? 0.25 + 0.25 * Math.sin(time * 18) : 0;
-    const tint = (c) => burn ? [Math.min(1, c[0] + burn), c[1] * (1 - burn * 0.4), c[2] * (1 - burn * 0.6)] : c;
+    const tint = (c) => { let r = c[0], g = c[1], b = c[2]; if (burn) { r = Math.min(1, r + burn); g *= 1 - burn * 0.4; b *= 1 - burn * 0.6; } if (fl) { r = Math.min(1, r + fl * 0.75); g *= 1 - fl * 0.65; b *= 1 - fl * 0.65; } return [r, g, b]; };
+    const lean = e.sprinting ? 0.18 : 0;
     const base = Mat4.chain(Mat4.translation(e.x, e.y, e.z), Mat4.rotationY(e.yaw));
-    const sw = Math.sin(ph) * (e.moving === false ? 0 : 0.85);
+    const sw = Math.sin(ph) * (e.moving === false ? 0 : 0.85) * (e.sprinting ? 1.25 : 1);
     const armSwing = zombie ? -1.35 + Math.sin(ph) * 0.15 : null;
     this.part(base, -0.14, 0.7, 0, sw, -0.35, 0.27, 0.7, 0.27, tint(legs));
     this.part(base, 0.14, 0.7, 0, -sw, -0.35, 0.27, 0.7, 0.27, tint(legs));
-    this.part(base, 0, 1.05 - crouch, 0, crouch * 2, 0, 0.58, 0.7, 0.3, tint(shirt));
+    this.part(base, 0, 1.05 - crouch, 0, crouch * 2 + lean, 0, 0.58, 0.7, 0.3, tint(shirt));
     if (accent) this.part(base, 0, 0.8 - crouch * 0.6, 0, crouch * 2, 0, 0.6, 0.12, 0.32, tint(accent));
-    this.part(base, 0, 1.4 - crouch, 0, e.pitch ? clamp(e.pitch, -1.2, 1.2) : 0, 0.21, 0.42, 0.42, 0.42, tint(skin));
-    const ra = zombie ? armSwing : -sw - swing * 1.9, la = zombie ? armSwing : sw;
+    this.part(base, 0, 1.4 - crouch, 0, (e.pitch ? clamp(e.pitch, -1.2, 1.2) : 0) + lean, 0.21, 0.42, 0.42, 0.42, tint(skin));
+    let ra, la, thrust = 0, rp = e.held || 'pickaxe', lp = null;
+    if (zombie) { ra = la = armSwing; }
+    else {
+      const t = swing > 0 ? 1 - swing : 1, sk = e.sk || 'sword', ease = (x) => 1 - Math.pow(1 - x, 3), k = (x) => clamp(x, 0, 1);
+      ra = -sw * 0.5 - 0.2; la = sw;
+      if (rp === 'bow') { ra = -1.45; la = -1.5; lp = 'bow'; rp = null; if (swing > 0) ra = -1.45 + 0.7 * Math.sin(t * Math.PI); }
+      else if (e.blocking) { ra = -1.15; la = -0.55; }
+      else if (swing > 0) {
+        if (sk === 'axe') ra = t < 0.45 ? -2.7 + Math.sin(t * 6) * 0.05 : -2.7 + 2.6 * ease(k((t - 0.45) / 0.22)) * (1 - 0.1 * k((t - 0.67) / 0.33));
+        else if (sk === 'staff') { ra = -1.55; thrust = Math.sin(t * Math.PI) * 0.4; }
+        else if (sk === 'pickaxe') ra = -2.5 + 2.2 * ease(k(t / 0.7)) - 0.2 * k((t - 0.7) / 0.3);
+        else ra = -2.4 + 2.1 * ease(k(t / 0.6)) - 0.2 * k((t - 0.6) / 0.4);
+        la = sw * 0.3;
+      }
+    }
     this.part(base, 0.4, 1.38 - crouch, 0, ra, -0.3, 0.22, 0.68, 0.22, tint(zombie ? skin : shirt));
     this.part(base, -0.4, 1.38 - crouch, 0, la, -0.3, 0.22, 0.68, 0.22, tint(zombie ? skin : shirt));
+    if (!zombie) {
+      if (rp) this.heldProp(base, rp, 0.4, 1.38 - crouch, ra, thrust, tint);
+      if (lp) this.heldProp(base, lp, -0.4, 1.38 - crouch, la, 0, tint);
+      if (e.blocking && !lp) this.part(base, -0.4, 1.38 - crouch, 0, la, -0.85, 0.34, 0.1, 0.34, tint([0.55, 0.38, 0.2]));       // off-hand guard plate
+    }
   }
 
   /* ---------- frame ---------- */
@@ -4908,7 +5039,18 @@ class Renderer {
       this.drawMesh(this.blockMesh(held.id, held.meta || 0), m);
     } else if (held.kind === 'tool') {
       gl.disable(gl.CULL_FACE);
-      const m = Mat4.chain(Mat4.translation(0.4, -0.3 + bob, -0.72), Mat4.rotationY(-0.35), Mat4.rotationZ(-0.5 + sw * 0.2), Mat4.rotationX(-sw * 1.3), Mat4.translation(0, 0.1, 0), Mat4.scaling(0.42, 0.42, 0.42));
+      const sm = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+      const t = swing, id = held.id, W = { sword: [0.15, 0.25], axe: [0.45, 0.2], pickaxe: [0.25, 0.25], staff: [0.1, 0.2], lighter: [0.2, 0.2] }[id] || [0.2, 0.25];
+      const r = sm(t / W[0]) * (1 - sm((t - W[0]) / W[1])), c = sm((t - W[0]) / W[1]) * (1 - sm((t - W[0] - W[1]) / Math.max(0.05, 1 - W[0] - W[1]))), on = swing > 0;
+      const R = { sword: [0.15, 0.2, 0.05, 0.6, 0, 0.5], axe: [0, 0.5, 0.1, 1.4, 0, 0], pickaxe: [0.05, 0.4, 0.05, 1.0, 0, 0], staff: [0, -0.05, 0.15, 0, 0, 0], lighter: [0, 0.1, 0, 0.5, 0, 0] }[id] || [0, 0, 0, 0, 0, 0];
+      const C = { sword: [-0.6, -0.15, -0.15, -0.9, -0.4, 1.6], axe: [-0.15, -0.25, -0.3, -1.6, 0, 0.4], pickaxe: [-0.1, -0.2, -0.25, -1.3, 0, 0], staff: [-0.1, 0.05, -0.55, -0.5, 0, 0], lighter: [0, 0, 0, -0.4, 0, 0] }[id] || [0, 0, 0, 0, 0, 0];
+      let X = 0.4, Y = -0.3 + bob, Z = -0.72, RX = 0, RY = -0.35, RZ = -0.5;
+      if (on) { X += r * R[0] + c * C[0]; Y += r * R[1] + c * C[1]; Z += r * R[2] + c * C[2]; RX += r * R[3] + c * C[3]; RY += c * C[4]; RZ += r * R[5] + c * C[5]; }
+      const bk = held.block || 0;
+      if (bk > 0 && id !== 'bow') { X += -0.3 * bk; Y += 0.1 * bk; Z += 0.0; RZ += 1.1 * bk; RY += -0.7 * bk; RX += 0.3 * bk; }
+      if (id === 'bow') { const ch = held.charge || 0; X += -0.22 * ch; Z += 0.04 * ch; RZ += -0.3 * ch; Y += Math.sin(time * 40) * 0.003 * ch; }
+      Y -= (1 - (held.equip == null ? 1 : held.equip)) * 0.55;
+      const m = Mat4.chain(Mat4.translation(X, Y, Z), Mat4.rotationY(RY), Mat4.rotationZ(RZ), Mat4.rotationX(RX), Mat4.translation(0, 0.1, 0), Mat4.scaling(0.42, 0.42, 0.42));
       this.drawMesh(this.iconQuad(held.tile), m);
       gl.enable(gl.CULL_FACE);
     }
@@ -5040,6 +5182,13 @@ class AudioEngine {
       case 'bigexplode': this.noise(1.8, 'lowpass', 700, 1.0 * v, 1, 40); this.tone(70, 20, 1.5, 0.6 * v, 'sawtooth'); break;
       case 'fuse': this.noise(0.5, 'highpass', 3800, 0.16 * v, 1); break;
       case 'hit': this.noise(0.08, 'bandpass', 900, 0.4 * v, 3); this.tone(220, 90, 0.1, 0.18 * v, 'square'); break;
+      case 'slash': this.noise(0.14, 'bandpass', 2200, 0.28 * v, 2, 5200); this.tone(520, 260, 0.1, 0.08 * v, 'triangle'); break;
+      case 'chop': this.noise(0.16, 'lowpass', 700, 0.5 * v, 1, 200); this.tone(130, 55, 0.16, 0.3 * v, 'square'); break;
+      case 'crit': this.noise(0.1, 'bandpass', 1500, 0.4 * v, 3); this.tone(880, 1320, 0.12, 0.2 * v, 'triangle'); this.tone(1760, 1760, 0.14, 0.12 * v, 'sine', 0.05); break;
+      case 'block': this.noise(0.08, 'highpass', 3000, 0.35 * v); this.tone(760, 700, 0.12, 0.2 * v, 'square'); this.tone(1140, 1000, 0.1, 0.1 * v, 'square'); break;
+      case 'thump': this.noise(0.2, 'lowpass', 300, 0.6 * v, 1, 80); this.tone(70, 40, 0.25, 0.4 * v, 'sine'); break;
+      case 'twang': this.tone(220, 180, 0.2, 0.18 * v, 'triangle'); this.noise(0.08, 'bandpass', 2500, 0.2 * v, 3); break;
+      case 'kill': this.tone(520, 520, 0.1, 0.2 * v, 'square'); this.tone(780, 780, 0.1, 0.2 * v, 'square', 0.09); this.tone(1040, 1040, 0.2, 0.2 * v, 'square', 0.18); break;
       case 'hurt': this.tone(300, 120, 0.2, 0.22 * v, 'sawtooth'); this.noise(0.1, 'lowpass', 600, 0.25 * v); break;
       case 'shoot': this.noise(0.12, 'bandpass', 1800, 0.25 * v, 2, 600); this.tone(320, 140, 0.1, 0.08 * v, 'triangle'); break;
       case 'death': this.tone(260, 50, 0.7, 0.3 * v, 'sawtooth'); this.noise(0.4, 'lowpass', 400, 0.3 * v); break;
@@ -5073,6 +5222,7 @@ class Input {
     window.addEventListener('keydown', (e) => {
       if (this.locked && (e.code === 'Space' || e.code === 'Tab' || e.code.startsWith('Arrow') || e.code === 'F3')) e.preventDefault();
       if (e.code === 'F3' || e.code === 'Tab') e.preventDefault();
+      if (e.target && e.target.tagName === 'INPUT') return;                       // typing in a text box (chat, join code)
       if (e.repeat) return;
       this.keys.add(e.code);
       if (e.code === 'KeyW') { const now = performance.now(); if (now - (this.lastW || 0) < 300) this.sprintLatch = true; this.lastW = now; }      // double-tap W = sprint
@@ -5354,6 +5504,20 @@ class UI {
     if (visible) { this.setWidth('vaultFill', progress * 100); this.$('vaultFill').className = cls || ''; el.querySelector('.label').textContent = label; }
   }
   setHint(text) { this.setText('hint', text); }
+  hitMarker(kind) { const el = this.$('hitmarker'); el.className = ''; void el.offsetWidth; el.className = 'on ' + (kind || ''); }
+  dirIndicator(angle) { const d = document.createElement('div'); d.className = 'dd'; d.style.transform = `rotate(${angle}rad)`; this.$('dmgdir').appendChild(d); setTimeout(() => d.remove(), 950); }
+  updateFloaters(list) {
+    const box = this.$('floaters');
+    while (box.children.length < list.length) { const d = document.createElement('div'); d.className = 'fl'; box.appendChild(d); }
+    for (let i = 0; i < box.children.length; i++) {
+      const el = box.children[i], n = list[i];
+      if (!n) { el.style.display = 'none'; continue; }
+      el.style.display = 'block'; el.style.opacity = n.alpha.toFixed(2);
+      el.style.transform = `translate(-50%,-50%) translate(${n.x.toFixed(0)}px,${n.y.toFixed(0)}px) scale(${n.scale.toFixed(2)})`;
+      if (el._t !== n.text) { el._t = n.text; el.textContent = n.text; }
+      el.className = 'fl ' + (n.cls || '');
+    }
+  }
   setCharge(v) { const el = this.$('charge'); el.classList.toggle('hidden', v <= 0); if (v > 0) this.setWidth('chargeFill', v * 100); }
   damageFlash(strength) { const fx = this.$('fx'); fx.style.setProperty('--hurt', clamp(strength, 0, 1).toFixed(2)); }
   setScreenTint(kind) { const fx = this.$('fx'); if (this.cache.tint !== kind) { this.cache.tint = kind; fx.dataset.tint = kind; } }
@@ -5368,7 +5532,7 @@ class UI {
     for (let i = 0; i < box.children.length; i++) {
       const el = box.children[i], n = list[i];
       if (!n) { el.style.display = 'none'; continue; }
-      el.style.display = 'block';
+      el.style.display = 'block'; el.classList.toggle('hot', !!n.hot);
       el.style.transform = `translate(-50%,-100%) translate(${n.x.toFixed(0)}px,${n.y.toFixed(0)}px) scale(${n.scale.toFixed(2)})`;
       const html = `${n.say ? '<span class="say">' + esc(n.say) + '</span>' : ''}<span class="nn" style="--c:${n.color}">${esc(n.name)}${n.ally ? ' <em>ALLY</em>' : ''}${n.bounty ? ' <em class="bty">$' + n.bounty + '</em>' : ''}</span>${n.title ? '<span class="ttlTag">' + esc(n.title) + '</span>' : ''}<span class="nb"><i style="width:${n.hp}%"></i></span>`;
       if (el._h !== html) { el._h = html; el.innerHTML = html; }
@@ -5559,7 +5723,7 @@ class Game {
     this.lobby.bots = clamp(this.lobby.bots | 0, 1, 5);
     this.kind = 'single';              // single | host | client
     this.host = null; this.client = null; this.clientLobby = null; this.ai = []; this.lockerTab = 'skin'; this.emoteSlot = 0;
-    this.bubbles = new Map(); this.trailClock = 0; this.netNotice = '';
+    this.chatLog = []; this.chatMuted = new Set(); this.chatOpen = false; this.bubbles = new Map(); this.trailClock = 0; this.netNotice = '';
     this.hotbar = Storage.load('mpw.hotbar', { slots: DEFAULT_HOTBAR }).slots;
     if (!Array.isArray(this.hotbar) || this.hotbar.length !== 9 || this.hotbar.some((h) => h && !ITEMS[h])) this.hotbar = DEFAULT_HOTBAR.slice();
     this.selected = 0;
@@ -5567,6 +5731,7 @@ class Game {
     this.backPanel = 'main';
     this.target = null; this.entityTarget = null; this.mining = null; this.charge = 0; this.leftWas = false; this.rightWas = false;
     this.accumulator = 0; this.lastTime = 0; this.fps = 0; this.fpsFrames = 0; this.fpsClock = 0; this.hudClock = 0; this.time = 0;
+    this.floats = []; this.flashT = new Map(); this.hotT = new Map(); this.kick = 0; this.blockAmt = 0; this.blockSent = false; this.heldSent = null; this.equip = 1; this.lastDmgEvt = null;
     this.debugVisible = false; this.shake = 0; this.hurt = 0; this.dark = 0; this.hints = []; this.hintClock = 0; this.stepSound = 0;
     this.spectateIndex = -1; this.replay = null; this.pendingHighlight = null; this.lastHighlight = null; this.highlightCool = 0; this.pendingKillcam = null;
     this.killDeathTimes = []; this.resultsShown = false; this.statsSaved = false; this.scoreboardHeld = false;
@@ -5611,13 +5776,160 @@ class Game {
     if (this.chunks) { this.chunks.chunks.forEach((c) => { c.dirty = true; }); this.chunks.buildAll(); }
   }
 
+
+
+  /* ------------------------------ tutorial (optional, started from the main menu only) ------------------------------ */
+  startTutorial() {
+    this.kind = 'single'; this.chatLog = []; this.renderChat();
+    const L = this.lobby, ai = this.ai.length ? this.ai : (this.rerollAI(), this.ai);
+    const roster = [{ id: 'p0', name: L.name, classId: 'builder', isBot: false, look: this.myLook() }, { name: 'DUMMY', classId: 'fighter', isBot: true, look: ai[0] ? ai[0].look : randomLook() }];
+    this.launch(() => this.localServer.startMatch({ mode: 'sandbox', seed: 11, mapId: 'plains', roster }));
+    const p = this.player, b = this.server.players.find((q) => q !== p);
+    if (b) { b.bot = null; b.teleport(p.pos.x + 5, p.pos.y + 1, p.pos.z); }          // a harmless practice dummy
+    this.hotbar[0] = 'pickaxe'; this.hotbar[1] = 'sword';
+    this.tut = { i: 0, start: { x: p.pos.x, z: p.pos.z }, flags: {}, done: false, hidden: false, clock: 0 };
+    this.renderTutorial();
+  }
+  tutSteps() {
+    const me = this.player;
+    return [
+      { t: 'Look and walk', d: 'Move with W A S D and look with the mouse. Walk about 6 blocks.', ok: () => Math.hypot(me.pos.x - this.tut.start.x, me.pos.z - this.tut.start.z) > 6 },
+      { t: 'Jump', d: 'Press SPACE to jump.', ok: () => this.tut.flags.jump },
+      { t: 'Sprint', d: 'Double-tap W (or hold CTRL) while moving to sprint. Sprinting makes your hits knock enemies back further.', ok: () => me.sprinting },
+      { t: 'Break a block', d: 'Select the pickaxe (1), aim at a block and HOLD left click.', ok: () => this.tut.flags.broke },
+      { t: 'Place a block', d: 'Pick a block slot (4-9) and RIGHT CLICK on a surface.', ok: () => this.tut.flags.placed },
+      { t: 'Place a machine', d: 'Press E for the inventory, click Arrow Turret, Land Mine or Spike Trap, then place it. Machines work on their own against enemies.', ok: () => this.tut.flags.machine },
+      { t: 'Hit the dummy', d: 'Select the sword (2) and left click the DUMMY. Wait for the charge bar: a full swing hurts more and a hit while falling is a critical.', ok: () => this.tut.flags.hit },
+      { t: 'Block', d: 'With the sword selected, HOLD right click to block. Blocking cuts front damage a lot (up to 2.5 s, then it cools down).', ok: () => me.blocking },
+      { t: 'Use chat', d: 'Press ENTER, type a message and press ENTER again. (/help lists commands.)', ok: () => this.tut.flags.chat },
+    ];
+  }
+  renderTutorial() {
+    const box = this.ui.$('tutorial'), t = this.tut;
+    if (!t || t.hidden) { box.classList.add('hidden'); return; }
+    const steps = this.tutSteps(); box.classList.remove('hidden');
+    const rows = steps.map((st, i) => `<div class="ts ${i < t.i ? 'done' : i === t.i && !t.done ? 'cur' : ''}"><span>${i < t.i ? '&#10003;' : i + 1}</span>${esc(st.t)}</div>`).join('');
+    const cur = steps[t.i];
+    box.innerHTML = `<h4>TUTORIAL <small>(optional)</small></h4>${rows}` + (t.done ? '<p class="tdesc">All done! Keep experimenting here, or press Esc and LEAVE MATCH when you are ready to play.</p>' : `<p class="tdesc">${esc(cur.d)}</p>`) +
+      `<div class="tkeys">${t.done ? '' : '<button class="btn tiny" data-tut="skip">SKIP STEP [K]</button> '}<button class="btn tiny" data-tut="close">${t.done ? 'CLOSE [L]' : 'HIDE TUTORIAL [L]'}</button></div>`;
+  }
+  tutAdvance() {
+    const t = this.tut; t.i++; this.audio.play('chime', null, 0.5);
+    if (t.i >= this.tutSteps().length) { t.done = true; Storage.save('mpw.tutorial', { done: true }); this.ui.banner('TUTORIAL COMPLETE', 'Nice work! Go play a real match whenever you like.', '', 3500); }
+    this.renderTutorial();
+  }
+  tutorialTick(dt) {
+    const t = this.tut; if (!t || t.done || t.hidden) return;
+    const me = this.player; if (!me) return;
+    if (!me.onGround && me.vel.y > 3) t.flags.jump = true;
+    t.clock -= dt; if (t.clock > 0) return; t.clock = 0.15;
+    const st = this.tutSteps()[t.i]; if (st && st.ok()) this.tutAdvance();
+  }
+  tutKey(code) {
+    const t = this.tut; if (!t) return false;
+    if (code === 'KeyL') { t.hidden = !t.hidden; this.renderTutorial(); if (t.hidden) this.ui.toast('Tutorial hidden. Press L to show it again.', '', 2500); return true; }
+    if (code === 'KeyK' && !t.done && !t.hidden) { this.tutAdvance(); return true; }
+    return false;
+  }
+  tutEvent(e) {
+    const t = this.tut; if (!t || !this.player || e.by !== this.player.id) return;
+    if (e.type === 'blockBroken') t.flags.broke = true;
+    else if (e.type === 'blockPlaced') { t.flags.placed = true; const d = e.block; if (d && ['turret', 'cannon', 'mine', 'spikes', 'flamer', 'jumppad', 'conveyor', 'sprinkler', 'healer', 'dropper'].includes(d.type)) t.flags.machine = true; }
+    else if (e.type === 'hit') t.flags.hit = true;
+  }
+
+  /* ------------------------------ chat ------------------------------ */
+  chatColor(id) {
+    const q = this.server && this.server.playerById ? this.server.playerById(id) : null; if (q && q.color) return q.color;
+    const m = this.kind === 'host' && this.host ? this.host.lobbyMessage() : this.clientLobby; const i = m ? m.roster.findIndex((r) => r.id === id) : -1;
+    return ['#ff6b5a', '#58a6ff', '#6bd36b', '#ffd23f', '#c78bff', '#ff9a3c'][i >= 0 ? i % 6 : 0];
+  }
+  myChatId() { return this.kind === 'client' && this.client && this.client.id ? this.client.id : 'p0'; }
+  onChatMsg(m) {
+    if (!m || typeof m.x !== 'string') return;
+    if (m.id && this.chatMuted.has(m.id)) return;
+    if (this.tut && m.id && m.id === this.myChatId() && !m.sys) this.tut.flags.chat = true;
+    this.chatLog.push({ id: m.id, name: m.n, text: m.x.slice(0, CHAT.MAX), team: !!m.tm, me: !!m.me, sys: !!m.sys, color: m.sys ? '#ffd23f' : this.chatColor(m.id) });
+    if (this.chatLog.length > 60) this.chatLog.shift();
+    this.renderChat();
+    if (!m.sys && m.id !== this.myChatId()) this.audio.play('click', null, 0.25);
+  }
+  sysChat(text) { this.onChatMsg({ sys: 1, x: text }); }
+  renderChat() {
+    const html = (n) => this.chatLog.slice(-n).map((c) => {
+      if (c.sys) return `<div class="cl sys">${esc(c.text)}</div>`;
+      const who = `<b class="chatname" data-id="${esc(c.id)}" style="color:${c.color}" title="Click to mute / unmute">${esc(c.name)}</b>`;
+      return `<div class="cl ${c.team ? 'team' : ''}">${c.team ? '<i>[TEAM]</i> ' : ''}${c.me ? '* ' + who + ' ' + esc(c.text) : who + ': ' + esc(c.text)}</div>`;
+    }).join('');
+    const hud = this.ui.$('chatLog'), lob = this.ui.$('lobbyChatLog');
+    if (hud) hud.innerHTML = html(10);
+    if (lob) { lob.innerHTML = html(40); lob.scrollTop = lob.scrollHeight; }
+  }
+  toggleMute(id) {
+    if (!id || id === this.myChatId()) return;
+    const name = this.chatNameOf(id);
+    if (this.chatMuted.has(id)) { this.chatMuted.delete(id); this.sysChat('Unmuted ' + name + '.'); } else { this.chatMuted.add(id); this.sysChat('Muted ' + name + ' (their messages are hidden for you).'); }
+  }
+  chatNameOf(id) {
+    const q = this.server && this.server.playerById ? this.server.playerById(id) : null; if (q) return q.name;
+    const m = this.kind === 'host' && this.host ? this.host.lobbyMessage() : this.clientLobby; const r = m && m.roster.find((x) => x.id === id); return r ? r.name : id;
+  }
+  /** Handles /commands, then sends (host relays to everyone). Single-player just echoes locally. */
+  submitChat(raw) {
+    let text = chatClean(raw); if (!text) return;
+    let team = false, me = false;
+    if (text[0] === '/') {
+      const [cmd, ...rest] = text.slice(1).split(' '), arg = rest.join(' ').trim(), c = cmd.toLowerCase();
+      if (c === 'help' || c === '?') { this.sysChat('Commands: /team (or /t) <msg>, /all <msg>, /me <action>, /mute <name>, /unmute <name>, /mutes. Click a name to mute them.'); return; }
+      if (c === 'mute' || c === 'unmute') {
+        const m = this.kind === 'host' && this.host ? this.host.lobbyMessage() : this.clientLobby;
+        const ids = new Set([...(m ? m.roster.map((r) => [r.id, r.name]) : []), ...(this.server && this.server.players ? this.server.players.map((q) => [q.id, q.name]) : [])].filter(([id, n]) => id !== this.myChatId() && String(n).toLowerCase() === arg.toLowerCase()).map(([id]) => id));
+        if (!ids.size) { this.sysChat('No player called "' + arg + '".'); return; }
+        for (const id of ids) { if (this.chatMuted.has(id) === (c === 'unmute')) this.toggleMute(id); }
+        return;
+      }
+      if (c === 'mutes') { this.sysChat(this.chatMuted.size ? 'Muted: ' + Array.from(this.chatMuted).map((id) => this.chatNameOf(id)).join(', ') : 'Nobody is muted.'); return; }
+      if (c === 'team' || c === 't') { team = true; text = arg; } else if (c === 'all' || c === 'a') text = arg; else if (c === 'me') { me = true; text = arg; } else { this.sysChat('Unknown command. Type /help.'); return; }
+      if (!text) return;
+    }
+    if (this.kind === 'host' && this.host) { if (!chatAllowed(this)) { this.sysChat('Slow down: you are sending messages too fast.'); return; } this.host.sendChat(text, team, me); }
+    else if (this.kind === 'client' && this.client) this.client.send({ t: 'chat', x: text, tm: team ? 1 : 0, me: me ? 1 : 0 });
+    else { if (!chatAllowed(this)) { this.sysChat('Slow down: you are sending messages too fast.'); return; } this.onChatMsg({ id: 'p0', n: this.lobby.name, x: chatFilter(text), tm: 0, me: me ? 1 : 0 }); }
+  }
+  openChat(prefill) {
+    if (this.chatOpen) return;
+    this.chatOpen = true; this.input.releaseAll();
+    const box = this.ui.$('chat'), inp = this.ui.$('chatIn'); box.classList.add('open'); inp.value = prefill || '';
+    try { document.exitPointerLock(); } catch (e) { /* ignore */ }
+    setTimeout(() => inp.focus(), 0);
+  }
+  closeChat() {
+    if (!this.chatOpen) return;
+    this.chatOpen = false; const inp = this.ui.$('chatIn'); inp.blur(); this.ui.$('chat').classList.remove('open');
+    if (this.state === 'playing') { try { const pr = this.canvas.requestPointerLock(); if (pr && pr.catch) pr.catch(() => { this.state = 'paused'; this.ui.showOverlay('pause'); }); } catch (e) { /* ignore */ } }
+  }
+  bindChat() {
+    const $ = this.ui.$;
+    $('chatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { this.submitChat($('chatIn').value); $('chatIn').value = ''; this.closeChat(); } else if (e.key === 'Escape') { e.preventDefault(); this.closeChat(); } e.stopPropagation(); });
+    $('lobbyChatIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { this.submitChat($('lobbyChatIn').value); $('lobbyChatIn').value = ''; } e.stopPropagation(); });
+    for (const id of ['chatLog', 'lobbyChatLog']) $(id).addEventListener('click', (e) => { const t = e.target.closest && e.target.closest('.chatname'); if (t) this.toggleMute(t.dataset.id); });
+  }
+
   /* ---------------------------- menu wiring ---------------------------- */
   bindUI() {
     const ui = this.ui, $ = ui.$, click = (id, fn) => $(id).addEventListener('click', () => { this.audio.unlock(); this.audio.play('click'); fn(); });
+    this.bindChat();
     ui.buildHotbar(9, (i) => this.selectSlot(i));
     ui.buildInventory((item) => { this.hotbar[this.selected] = item; this.audio.play('click'); this.saveCareer(); });
+    click('btnTutorial', () => this.startTutorial());
+    $('tutorial').addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-tut]'); if (b) this.tutKey(b.dataset.tut === 'skip' ? 'KeyK' : 'KeyL'); });
     click('btnPlay', () => { this.backPanel = 'main'; this.openLobby('single'); });
     click('btnMulti', () => { this.backPanel = 'main'; this.setNet(''); ui.showPanel('multi'); $('joinCode').focus(); });
+    click('btnNetTest', async () => {
+      const box = $('netDiag'); box.innerHTML = ''; this.setNet('Testing...');
+      await netDiagnose((r) => { const d = document.createElement('div'); d.className = r.ok ? 'ok' : 'bad'; d.innerHTML = (r.ok ? '&#10003; ' : '&#10007; ') + esc(r.label) + (r.detail ? '<small>' + esc(r.detail) + '</small>' : ''); box.appendChild(d); });
+      this.setNet('Test finished.');
+    });
     click('btnHost', () => this.hostGame());
     click('btnJoin', () => this.joinGame($('joinCode').value));
     $('joinCode').addEventListener('input', () => { $('joinCode').value = cleanCode($('joinCode').value); });
@@ -5676,7 +5988,7 @@ class Game {
       } else {
         this.input.releaseAll();
         this.saveCareer();
-        if (this.state === 'playing') { this.state = 'paused'; ui.showOverlay('pause'); }
+        if (this.state === 'playing' && !this.chatOpen) { this.state = 'paused'; ui.showOverlay('pause'); }
       }
     });
     document.addEventListener('pointerlockerror', () => { if (this.state === 'paused' || this.state === 'menu') ui.showOverlay('pause'); });
@@ -5727,7 +6039,8 @@ class Game {
     if (kind === 'single' && (!this.ai.length || this.freshLobby !== false)) { this.rerollAI(); this.freshLobby = false; }
     this.myReady = false;
     this.ui.showHud(false); this.ui.$('results').classList.add('hidden');
-    this.ui.showOverlay('lobby'); this.refreshLobby();
+    this.ui.$('lobbyChat').classList.toggle('hidden', kind === 'single');
+    this.ui.showOverlay('lobby'); this.refreshLobby(); this.renderChat();
   }
   /** Everything the lobby screen needs, for all three kinds of session. */
   lobbyView() {
@@ -5767,7 +6080,7 @@ class Game {
   toMenu() {
     this.releaseLock();
     this.clearReplay();
-    this.leaveSession(true);
+    this.leaveSession(true); this.tut = null; this.ui.$('tutorial').classList.add('hidden');
     this.state = 'menu'; this.ui.showHud(false); this.ui.setPanelOpen('inventory', false); this.ui.setPanelOpen('diplomacy', false);
     this.demoMatch(); this.ui.renderProfileBar(this.career); this.ui.showOverlay('main');
   }
@@ -5785,6 +6098,7 @@ class Game {
     if (this.chunks) { this.chunks.chunks.forEach((c) => { c.dirty = true; }); this.chunks.buildAll(); }
     this.particles.items.length = 0; this.bubbles.clear();
     const p = this.player;
+    this.floats.length = 0; this.flashT.clear(); this.hotT.clear(); this.kick = 0; this.blockAmt = 0; this.blockSent = false; this.heldSent = null; this.equip = 0;
     this.selected = 0; this.mining = null; this.charge = 0; this.hurt = 0; this.shake = 0; this.dark = 0;
     this.spectateIndex = -1; this.lastHighlight = null; this.pendingHighlight = null; this.pendingKillcam = null; this.highlightCool = 15;
     this.resultsShown = false; this.statsSaved = false; this.server.replayAvailable = false;
@@ -5819,16 +6133,16 @@ class Game {
   /* ---------------------------- multiplayer flows ---------------------------- */
   async hostGame() {
     if (this.busyNet) return; this.busyNet = true;
-    this.setNet('Creating a game...');
+    this.setNet('Creating a game...'); this.chatLog = []; this.chatMuted.clear();
     try {
       this.kind = 'host';
-      const hs = new HostSession(this.localServer, { onLobby: () => { if (this.kind === 'host' && this.ui.$('panelLobby') && !this.ui.$('panelLobby').classList.contains('hidden')) this.refreshLobby(); }, onJoin: (peer) => this.ui.toast(esc(peer.name) + ' joined', 'good', 2500), onLeave: (peer) => { if (this.state === 'playing' || this.state === 'paused') this.ui.toast(esc(peer.name) + ' left (AI takes over)', 'warn', 3500); } });
+      const hs = new HostSession(this.localServer, { onChat: (m) => this.onChatMsg(m), onLobby: () => { if (this.kind === 'host' && this.ui.$('panelLobby') && !this.ui.$('panelLobby').classList.contains('hidden')) this.refreshLobby(); }, onJoin: (peer) => this.ui.toast(esc(peer.name) + ' joined', 'good', 2500), onLeave: (peer) => { if (this.state === 'playing' || this.state === 'paused') this.ui.toast(esc(peer.name) + ' left (AI takes over)', 'warn', 3500); } });
       hs.hostInfo = { name: this.lobby.name, classId: this.lobby.classId, look: this.myLook() };
-      await hs.open();
+      const opened = await hs.open(); const onlineErr = opened && opened.errors && opened.errors.online;
       this.host = hs;
       hs.cfg.mode = this.lobby.mode; hs.cfg.mapId = this.lobby.mapId; hs.cfg.bots = this.lobby.bots;
       this.openLobby('host');
-      if (!hs.providers.includes('online')) this.ui.toast('Online service unreachable: friends can join from this computer only. Check your connection and try again to host online.', 'warn', 7000);
+      if (!hs.providers.includes('online')) this.ui.toast('Online hosting failed, so only tabs on this computer can join. ' + (onlineErr && onlineErr.message ? onlineErr.message : '') + ' Use TEST CONNECTION on the Multiplayer screen.', 'warn', 9000);
     } catch (err) { this.kind = 'single'; this.setNet(err.message || 'Could not create a game.', 'bad'); }
     this.busyNet = false;
   }
@@ -5836,12 +6150,13 @@ class Game {
     if (this.busyNet) return;
     const code = cleanCode(rawCode);
     if (code.length < 4) { this.setNet('Enter the game code your friend gave you.', 'bad'); return; }
-    this.busyNet = true; this.setNet('Connecting to ' + code + '...');
+    this.busyNet = true; this.setNet('Connecting to ' + code + '...'); this.chatLog = []; this.chatMuted.clear();
     let ch;
     try { ch = await netConnect(code); } catch (err) { this.setNet(err.message, 'bad'); this.busyNet = false; return; }
     const cs = new ClientSession(ch);
     this.client = cs; this.kind = 'client'; this.clientLobby = null; this.myReady = false;
     cs.on.lobby = (m) => { this.clientLobby = m; if (this.state === 'menu') { if (this.ui.$('panelLobby').classList.contains('hidden') && this.netJoining) { this.netJoining = false; this.openLobby('client'); } else this.refreshLobby(); } };
+    cs.on.chat = (m) => this.onChatMsg(m);
     cs.on.start = (m) => this.beginClientMatch(m);
     cs.on.tick = (m) => { if (this.server.applyTick) this.server.applyTick(m); };
     cs.on.world = (m) => { if (this.server.loadWorld) { this.server.loadWorld(m); if (this.chunks) { this.chunks.chunks.forEach((c) => { c.dirty = true; }); this.chunks.buildAll(); } } };
@@ -5893,7 +6208,7 @@ class Game {
     this.audio.unlock();
     try { const pr = this.canvas.requestPointerLock(); if (pr && pr.catch) pr.catch(() => {}); } catch (e) { /* handled by pointerlockerror */ }
   }
-  selectSlot(i) { this.selected = ((i % 9) + 9) % 9; this.audio.play('click', null, 0.4); }
+  selectSlot(i) { const old = this.selected; this.selected = ((i % 9) + 9) % 9; if (old !== this.selected) this.equip = 0; this.audio.play('click', null, 0.4); }
   setPanel(name, silent) {
     const inv = name === 'inventory', dip = name === 'diplomacy';
     this.ui.setPanelOpen('inventory', inv); this.ui.setPanelOpen('diplomacy', dip);
@@ -5913,6 +6228,8 @@ class Game {
       return;
     }
     if (this.state !== 'playing') return;
+    if (this.tut && this.tutKey(e.code)) return;
+    if (e.code === 'Enter' || e.code === 'Slash') { e.preventDefault(); this.openChat(e.code === 'Slash' ? '/' : ''); return; }
     if (e.code === 'Tab') { this.scoreboardHeld = true; this.ui.renderScoreboard(s, p); this.ui.$('scoreboard').classList.remove('hidden'); return; }
     if (e.code.startsWith('Digit')) { const n = parseInt(e.code.slice(5), 10); if (n >= 1 && n <= 9) this.selectSlot(n - 1); return; }
     if (e.code === 'KeyM') { this.audio.toggleMute(); return; }
@@ -5951,6 +6268,7 @@ class Game {
   /* --------------------- what the server tells the client --------------------- */
   onServerEvent(e) {
     const P = this.particles, me = this.player;
+    if (this.tut) this.tutEvent(e);
     switch (e.type) {
       case 'blockBroken': P.burst(e.x + 0.5, e.y + 0.5, e.z + 0.5, e.block.color, 14); this.sfx('break', e.x, e.y, e.z, 40, e.block); break;
       case 'blockPlaced': P.burst(e.x + 0.5, e.y + 0.5, e.z + 0.5, e.block.color, 4, 1.4, 0.09); this.sfx('place', e.x, e.y, e.z, 30, e.block); break;
@@ -5968,12 +6286,34 @@ class Game {
       case 'ignite': this.sfx('sizzle', e.x, e.y, e.z, 25); break;
       case 'shoot': { const a = e.arrow; this.sfx('shoot', a.pos.x, a.pos.y, a.pos.z, 45); break; }
       case 'hit': {
-        const t = e.target; this.sfx('hit', t.pos.x, t.pos.y + 1, t.pos.z, 40);
+        const t = e.target, mine = me && (e.by === me.id || e.by === me.index);
+        const snd = e.blocked ? 'block' : { axe: 'chop', staff: 'thump', bow: 'twang', sword: 'slash' }[e.tool] || 'hit';
+        this.sfx(snd, t.pos.x, t.pos.y + 1, t.pos.z, 40);
+        if (!e.blocked) this.sfx('hit', t.pos.x, t.pos.y + 1, t.pos.z, 40);
+        if (e.crit) this.sfx('crit', t.pos.x, t.pos.y + 1, t.pos.z, 40);
         if (e.sprint) P.puff(t.pos.x, t.pos.y + 0.3, t.pos.z, [0.9, 0.9, 0.9], 6, 1.2, 0.3, 0.2, 0.5, false);
-        if (t === me) { this.hurt = Math.min(1, this.hurt + 0.35); this.audio.play('hurt', null, 0.8); }
+        if (mine && t !== me) {
+          this.ui.hitMarker(e.blocked ? 'block' : e.crit ? 'crit' : '');
+          const d = this.lastDmgEvt && this.lastDmgEvt.target === t ? this.lastDmgEvt.amount : 0;
+          this.addFloat(t, d, e.blocked ? 'blocked' : e.crit ? 'crit' : '');
+          if (t.index != null) this.hotT.set(t.index, this.time + 2.5);
+          if (e.crit) this.shake = Math.max(this.shake, 0.3);
+        }
+        if (t === me) { this.hurt = Math.min(1, this.hurt + 0.35); this.audio.play('hurt', null, 0.8); this.kick = Math.min(1, this.kick + 0.6 + (e.crit ? 0.3 : 0)); }
         break;
       }
-      case 'damage': if (e.target === me && e.src.kind !== 'melee' && e.src.kind !== 'arrow') { this.hurt = Math.min(1, this.hurt + clamp(e.amount / 40, 0.1, 0.6)); if (e.amount > 3) this.audio.play('hurt', null, 0.7); } break;
+      case 'blocked': { const t = e.target; if (t.pos) P.burst(t.pos.x, t.pos.y + 1.2, t.pos.z, [0.9, 0.9, 1], 8, 3, 0.08); if (t === me) this.ui.hitMarker('block'); break; }
+      case 'damage': {
+        const t = e.target;
+        this.lastDmgEvt = { target: t, amount: e.amount };
+        if (t.index != null) this.flashT.set(t.index, this.time + 0.25);
+        if (t === me && e.src && e.src.by != null && e.src.by >= 0 && e.src.by !== me.index) {
+          const a = this.server.players[e.src.by];
+          if (a) { const rel = angleDiff(me.yaw, Math.atan2(-(a.pos.x - me.pos.x), -(a.pos.z - me.pos.z))); this.ui.dirIndicator(-rel); }
+        }
+        if (e.target === me && e.src.kind !== 'melee' && e.src.kind !== 'arrow') { this.hurt = Math.min(1, this.hurt + clamp(e.amount / 40, 0.1, 0.6)); if (e.amount > 3) this.audio.play('hurt', null, 0.7); }
+        break;
+      }
       case 'hardLanding': this.sfx('land', e.player.pos.x, e.player.pos.y, e.player.pos.z, 35); break;
       case 'groundImpact': {
         const v = this.vol(e.x, e.y, e.z, 80); this.audio.play('crash', null, v);
@@ -6071,6 +6411,7 @@ class Game {
     if (this.killDeathTimes.length >= 2) this.noteHighlight(v.pos.x, v.pos.y, v.pos.z, 'DOUBLE KILL', 60);
     else if (e.tnt && k) this.noteHighlight(v.pos.x, v.pos.y, v.pos.z, 'TNT KILL', 45);
     if (k === me && v !== me) {
+      U.hitMarker('kill'); this.audio.play('kill', null, 0.8);
       U.banner('ELIMINATED ' + v.name, '+500' + (e.bounty ? ' +$' + e.bounty + ' bounty' : ''), 'good', 1800);
       if (e.loot) U.toast('LOOT: ' + Object.entries(e.loot).map(([r, n]) => '+' + n + ' ' + RESOURCES[r].label.toLowerCase()).join(', '), 'good', 3500);
     }
@@ -6096,6 +6437,11 @@ class Game {
     const r = e.reason, it = e.item && ITEMS[e.item], phase = this.server.phase;
     const msg = { 'no-resource': it && it.res ? 'Out of ' + RESOURCES[it.res].label.toLowerCase() + '!' : 'Not enough resources.', 'not-allowed': phase === 'build' ? 'Build phase: you can only edit your own land.' : 'You cannot do that right now.', 'no-support': 'Needs something to attach to.', 'no-floor': 'Needs solid ground below it.', 'player-in-way': 'Someone is in the way.' }[r];
     if (msg && (e.action === 'place' || e.action === 'break' || e.action === 'ignite')) this.ui.toast(msg, 'bad', 1500);
+  }
+  addFloat(t, amount, cls) {
+    const txt = cls === 'blocked' ? 'BLOCKED ' + Math.round(amount) : String(Math.max(1, Math.round(amount)));
+    this.floats.push({ x: t.pos.x + (Math.random() - 0.5) * 0.5, y: t.pos.y + 2.1, z: t.pos.z + (Math.random() - 0.5) * 0.5, text: txt, cls, t0: this.time });
+    if (this.floats.length > 24) this.floats.shift();
   }
   machineFx(e) {
     const P = this.particles, x = e.x + 0.5, y = e.y + 0.5, z = e.z + 0.5;
@@ -6200,7 +6546,7 @@ class Game {
       if (p.impactSpeed > 9) this.audio.play('land', null, clamp(p.impactSpeed / 20, 0.3, 1));
       if (p.stepDistance > (p.crouching ? 1.6 : 2.3)) { p.stepDistance = 0; this.audio.play('step', null, 0.9); }
       this.updateInteraction(dt);
-    } else { this.mining = null; this.target = null; this.entityTarget = null; this.charge = 0; }
+    } else { this.mining = null; this.target = null; this.entityTarget = null; this.charge = 0; if (this.blockSent) { this.blockSent = false; s.handle(p.id, { type: 'block', on: false }); } }
     this.career.playSeconds += dt;
     this.highlightCool = Math.max(0, this.highlightCool - dt);
     if (this.pendingHighlight && s.clock >= this.pendingHighlight.at) { const h = this.pendingHighlight; this.pendingHighlight = null; if (!this.replay && this.state === 'playing') { this.lastHighlight = { x: h.x, y: h.y, z: h.z, label: h.label, t: s.clock - 1.4 }; this.playHighlight(false); } }
@@ -6222,6 +6568,12 @@ class Game {
     for (const m of s.mobs) if (m.alive) consider(m);
     this.entityTarget = ent;
     if (ent) this.target = null;
+    const hid = item ? item.id : null;
+    if (hid && this.heldSent !== hid) { this.heldSent = hid; s.handle(p.id, { type: 'hold', item: hid }); }
+    const meleeHeld = !!(item && item.def.kind === 'tool' && hid !== 'bow' && hid !== 'lighter');
+    const overInteractive = !!(this.target && INTERACTIVE.has(w.def(this.target.x, this.target.y, this.target.z).type));
+    const wantBlock = meleeHeld && inp.mouse.right && !overInteractive;
+    if (wantBlock !== this.blockSent) { this.blockSent = wantBlock; s.handle(p.id, { type: 'block', on: wantBlock }); }
     const left = inp.mouse.left, right = inp.mouse.right, leftEdge = left && !this.leftWas, rightEdge = right && !this.rightWas;
     this.leftWas = left; this.rightWas = right;
     const tgt = this.target;
@@ -6301,10 +6653,13 @@ class Game {
     if (this.replay) { this.replay.update(dt); if (this.replay.done) this.endReplay(); }
     this.shake = Math.max(0, this.shake - dt * 2.2); this.hurt = Math.max(0, this.hurt - dt * 1.3);
     this.dark = lerp(this.dark, s.darkness, clamp(dt * 1.5, 0, 1));
+    this.kick = Math.max(0, this.kick - dt * 5); this.equip = Math.min(1, this.equip + dt * 5.5);
+    this.blockAmt = lerp(this.blockAmt, p && p.blocking ? 1 : 0, clamp(dt * 14, 0, 1));
     this.fovAdd = lerp(this.fovAdd || 0, this.state === 'playing' && p && p.sprinting ? 7 : 0, clamp(dt * 8, 0, 1));
     if (this.state === 'playing' || this.state === 'panel') {
       this.hudClock -= dt;
       if (this.hudClock <= 0) { this.hudClock = 0.2; this.updateHud(); }
+      if (this.tut && this.state === 'playing') this.tutorialTick(dt);
       if (this.scoreboardHeld && Math.floor(this.time * 2) !== this.sbTick) { this.sbTick = Math.floor(this.time * 2); this.ui.renderScoreboard(s, p); }
       this.ui.refreshHotbar(this.hotbar, this.selected, s, p);
       if (this.state === 'panel') this.ui.refreshInventoryRes(s, p);
@@ -6397,6 +6752,7 @@ class Game {
   mainScene(alpha) {
     const s = this.server, p = this.player, srv = this.server;
     const snap = s.snapshot(alpha);
+    for (const q of snap.players) q.flash = clamp(((this.flashT.get(q.index) || 0) - this.time) / 0.25, 0, 1);
     let cam, selfIndex = p.index, held = null;
     if (!p.alive && s.mode !== 'sandbox' && s.phase !== 'idle') {
       let tg = s.players[this.spectateIndex];
@@ -6411,9 +6767,10 @@ class Game {
     }
     if (!cam) {
       const e = p.eyePosition(alpha), dir = p.lookDirection(), sh = this.shake * 0.12;
+      if (this.kick > 0) { dir.y += this.kick * 0.05; const l = Math.hypot(dir.x, dir.y, dir.z); dir.x /= l; dir.y /= l; dir.z /= l; }
       cam = { x: e.x + (Math.random() - 0.5) * sh, y: e.y + (Math.random() - 0.5) * sh, z: e.z + (Math.random() - 0.5) * sh, dir, fov: this.settings.fov + (this.fovAdd || 0) };
       const it = this.currentItem();
-      if (p.alive && it) held = it.def.kind === 'tool' ? { kind: 'tool', tile: TILE['ICON_' + it.id.toUpperCase()] } : { kind: 'block', id: BlockRegistry.byType(it.def.block).id, meta: it.id === 'piston' ? 12 : 0 };
+      if (p.alive && it) held = it.def.kind === 'tool' ? { kind: 'tool', id: it.id, tile: TILE['ICON_' + it.id.toUpperCase()], block: this.blockAmt, charge: it.id === 'bow' ? this.charge : 0, equip: this.equip } : { kind: 'block', id: BlockRegistry.byType(it.def.block).id, meta: it.id === 'piston' ? 12 : 0, equip: this.equip };
     }
     this.cam = cam;
     const m = srv.map ? srv.map.vault : null;
@@ -6463,10 +6820,21 @@ class Game {
         if (s.world.lineBlocked(cam.x, cam.y, cam.z, q.pos.x, hy - 0.4, q.pos.z)) continue;
         const pr = Mat4.project(vp, q.pos.x, hy, q.pos.z);
         if (!pr || Math.abs(pr.x) > 1.1 || Math.abs(pr.y) > 1.1) continue;
-        plates.push({ x: (pr.x * 0.5 + 0.5) * cw, y: (1 - (pr.y * 0.5 + 0.5)) * ch, scale: clamp(1.2 - d / 90, 0.6, 1.1), name: q.name, color: q.color, hp: Math.round(q.health / q.maxHealth * 100), ally: s.areAllies(q, this.player), bounty: q.bounty, title: q.look && TITLES[q.look.title] ? TITLES[q.look.title].name : '', say: (this.bubbles.get(q.id) || {}).until > this.time ? this.bubbles.get(q.id).text : '' });
+        plates.push({ x: (pr.x * 0.5 + 0.5) * cw, y: (1 - (pr.y * 0.5 + 0.5)) * ch, scale: clamp(1.2 - d / 90, 0.6, 1.1), name: q.name, color: q.color, hp: Math.round(q.health / q.maxHealth * 100), ally: s.areAllies(q, this.player), bounty: q.bounty, hot: (this.hotT.get(q.index) || 0) > this.time, title: q.look && TITLES[q.look.title] ? TITLES[q.look.title].name : '', say: (this.bubbles.get(q.id) || {}).until > this.time ? this.bubbles.get(q.id).text : '' });
       }
     }
     this.ui.updateNameplates(plates);
+    const fl = [];
+    if ((this.state === 'playing' || this.state === 'panel') && r.lastVP) {
+      const vp = r.lastVP, cw = this.canvas.clientWidth, ch = this.canvas.clientHeight;
+      this.floats = this.floats.filter((f) => this.time - f.t0 < 0.95);
+      for (const f of this.floats) {
+        const age = this.time - f.t0, pr = Mat4.project(vp, f.x, f.y + age * 1.3, f.z);
+        if (!pr || Math.abs(pr.x) > 1.1 || Math.abs(pr.y) > 1.1) continue;
+        fl.push({ x: (pr.x * 0.5 + 0.5) * cw, y: (1 - (pr.y * 0.5 + 0.5)) * ch, alpha: clamp(1.6 - age * 1.6, 0, 1), scale: age < 0.12 ? 0.6 + age * 5 : 1, text: f.text, cls: f.cls });
+      }
+    }
+    this.ui.updateFloaters(fl);
   }
 }
 
