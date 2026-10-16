@@ -385,3 +385,8 @@ body.killcam #crosshair, body.killcam #hotbar { display: none !important; }
 
 .diffwrap { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .diffwrap .lbl { font-size: 12px; letter-spacing: 1px; opacity: .8; }
+
+/* ---------- admin panel ---------- */
+#panelAdmin .adm-t { display: flex; gap: 8px; margin: 10px 0; font-size: 14px; }
+#panelAdmin .adm-side .btn.tiny { margin: 4px 4px 4px 0; }
+#panelAdmin h3 { margin-top: 18px; }
