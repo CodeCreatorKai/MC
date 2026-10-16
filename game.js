@@ -370,6 +370,119 @@ class World {
 }
 
 /* ============================ 5. TEXTURES ============================== */
+/**
+ * Weapon pixel art, 16x16, drawn diagonally like Minecraft items (grip bottom-left, tip top-right).
+ * Shapes are written in diagonal coordinates: N runs along the weapon (0 at the grip end, 26 at the tip),
+ * M runs across it (negative = upper-left side). Pixels only exist where N and M have the same parity, so
+ * |M| <= 1 is the classic two-pixel-wide diagonal blade. Each skin bends the shape (shards, flames, a curved
+ * edge, a lightning zig-zag...) and every sprite gets a dark outline so it reads clearly at any size.
+ */
+function weaponSprite(tool, skinId) {
+  const S = WEAPON_SKINS[skinId] || WEAPON_SKINS.default, P = S.pal, g = [];
+  for (let y = 0; y < 16; y++) g.push(new Array(16).fill(null));
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const hue = (h, l) => { const f = (n) => { const k = (n + h * 12) % 12; return 255 * (l - 0.5 * Math.max(-1, Math.min(k - 3, 9 - k, 1))); }; return [f(0), f(8), f(4)]; };
+  /** Blade colour: upper side light, lower side dark; fire skins glow hotter toward the tip, the admin skin cycles hues. */
+  const metal = (M, t) => {
+    let c = M < 0 ? P.hi : M > 0 ? P.lo : P.mid;
+    if (S.fire) c = M < 0 ? lerp(P.mid, P.hi, t) : M > 0 ? lerp(P.lo, P.mid, t * 0.6) : lerp(P.lo, P.hi, t * 0.8);
+    if (S.rainbow) c = hue(t * 0.85, M < 0 ? 0.78 : M > 0 ? 0.42 : 0.6);
+    if (skinId === 'frost' && t > 0.75 && M <= 0) c = P.hi;
+    return c;
+  };
+  const cells = [];   // [N, M, colour]
+  const at = (N, M, c) => cells.push([N, M, c]);
+  const band = (n0, n1, m0, m1, colFn) => { for (let N = n0; N <= n1; N++) for (let M = m0; M <= m1; M++) if (((N + M) & 1) === 0) at(N, M, colFn(N, M)); };
+  const grip = (n0, n1) => band(n0, n1, 0, 0, (N) => ((N >> 1) & 1 ? P.h2 : P.h1));
+  const sk = skinId;
+
+  if (tool === 'sword') {
+    band(0, 1, -1, 1, () => P.gd);                                         // pommel
+    if (P.gem) at(0, 0, P.gem);
+    grip(2, 7);
+    const G = sk === 'titan' ? 4 : sk === 'phantom' ? 2 : 3;               // cross-guard
+    band(8, 9, -G, G, (N, M) => (Math.abs(M) >= G - 1 ? (sk === 'blood' || sk === 'frost' ? P.gem || P.gd : P.lo) : P.gd));
+    if (sk === 'blood') { at(8, -G - 2, P.gd); at(8, G + 2, P.gd); }       // bat-wing guard tips
+    if (P.gem && sk !== 'phantom') at(8, 0, P.gem);
+    const tip = sk === 'titan' ? 23 : 25;
+    for (let N = 10; N <= tip; N++) {
+      const t = (N - 10) / (tip - 10);
+      let lo = -1, hi = 1;
+      if (sk === 'titan') { lo = -2; hi = 2; if (N > 21) { lo = -1; hi = 1; } }
+      else if (sk === 'phantom') { lo = -1; hi = 0; }
+      else if (sk === 'blood') { lo = -1; hi = N < 14 ? 1 : N < 22 ? 2 : 1; }                  // crescent edge
+      else if (sk === 'volt') { const z = ((N - 10) >> 2) & 1 ? -2 : 0; lo = -1 + z; hi = 1 + z; }   // lightning zig-zag
+      if (N >= tip - 1) { lo = Math.max(lo, -1); hi = Math.min(hi, sk === 'blood' ? 2 : 1); }
+      if (N === tip) { lo = hi = sk === 'blood' ? 1 : 0; if (sk === 'titan') { lo = -1; hi = 1; } }
+      for (let M = lo; M <= hi; M++) if (((N + M) & 1) === 0) at(N, M, metal(M - (sk === 'volt' && ((N - 10) >> 2) & 1 ? -2 : 0) - (sk === 'blood' && M > 0 && N > 14 ? 1 : 0), t));
+    }
+    if (sk === 'frost') for (const [N, M] of [[14, -2], [20, -2], [16, 2], [22, 2], [13, -3], [19, -3]]) at(N, M, P.hi);              // ice shards
+    if (sk === 'inferno') for (const [N, M] of [[12, -2], [16, -2], [20, -2], [13, -3], [17, -3], [21, -3], [24, -2], [26, 0]]) at(N, M, N > 18 ? P.hi : P.mid);   // flame tongues
+    if (sk === 'phantom') for (const [N, M] of [[15, -3], [21, 3], [24, -2], [12, 2]]) at(N, M, P.gem);                              // spectral sparks
+    if (sk === 'volt') { at(26, 0, P.hi); at(9, -5, P.gem); at(9, 5, P.gem); }
+    if (sk === 'admin') for (const [N, M] of [[14, -3], [19, 3], [23, -3], [26, 0]]) at(N, M, P.gem);
+  } else if (tool === 'axe' || tool === 'pickaxe') {
+    const top = tool === 'axe' ? 21 : 19;
+    grip(tool === 'axe' ? 3 : 1, top);
+    if (tool === 'axe') {
+      // head on the upper-left side of the handle top; its edge (furthest out) is the bright cutting edge
+      const depth = sk === 'titan' ? 5 : sk === 'phantom' ? 6 : sk === 'blood' ? 5 : 4;
+      for (let M = -1; M >= -depth; M--) {
+        const k = -M; let n0 = 17 - k, n1 = 20 + Math.ceil(k / 2);                                                         // flares out toward the edge
+        if (sk === 'blood') { n0 = 17 - k - (k >= depth - 1 ? 2 : 0); n1 = 20 + k + (k >= depth - 1 ? 1 : 0); }                // wide crescent with horns
+        if (sk === 'phantom') { n0 = 17 - k - Math.max(0, k - 3) * 2; n1 = 20 + (k < 4 ? 1 : 0); }                             // scythe hook sweeping down
+        if (sk === 'volt' && k >= 3) { n0 += 2; n1 += 1; }                                                                      // notched bolt
+        if (sk === 'titan') { n0 = 16 - k; n1 = 21 + k; }
+        band(n0, n1, M, M, (N) => (k >= depth - 1 ? (sk === 'inferno' ? lerp(P.mid, P.hi, 0.7) : P.hi) : k <= 1 ? P.lo : metal(0, (N - 14) / 8)));
+      }
+      if (sk === 'titan') for (let M = 1; M <= 4; M++) band(17 - M, 20 + M, M, M, () => (M >= 3 ? P.hi : P.lo));                       // double-bit
+      else band(18, 20, 1, 2, () => P.lo);                                                                                      // back spike
+      if (sk === 'frost') for (const [N, M] of [[12, -5], [24, -5], [13, -6], [22, -6]]) at(N, M, P.hi);
+      if (sk === 'inferno') for (const [N, M] of [[13, -5], [15, -7], [18, -6], [21, -7], [23, -5]]) at(N, M, P.hi);
+      if (P.gem) at(20, 0, P.gem);
+    } else {
+      // pickaxe head: an arc across the handle top
+      const span = sk === 'titan' ? 7 : sk === 'phantom' ? 8 : 7;
+      for (let M = -span; M <= span; M++) {
+        const a = Math.abs(M), bend = Math.round(a * a / (sk === 'blood' ? 9 : 14)), thick = sk === 'titan' ? (a < 6 ? 2 : 1) : a < span - 1 ? 1 : 0;
+        const n1 = 21 - bend, n0 = n1 - thick;
+        band(n0, n1, M, M, (N) => (a >= span - 1 ? P.hi : N === n1 ? P.mid : P.lo));
+      }
+      if (sk === 'frost') { at(14, -8, P.hi); at(14, 8, P.hi); }
+      if (sk === 'inferno') for (const [N, M] of [[14, -7], [13, -8], [14, 7], [13, 8], [22, 0]]) at(N, M, P.hi);
+      if (sk === 'volt') { at(23, -1, P.gem); at(24, 0, P.hi); at(23, 1, P.gem); }
+      if (P.gem) at(21, 0, P.gem);
+    }
+    if (sk === 'admin' || sk === 'phantom') at(1, 1, P.gem);
+  } else if (tool === 'bow') {
+    // limb arc on the upper-left, string straight along M = +3
+    const thick = sk === 'titan' ? 2 : 1;
+    for (let N = 2; N <= 24; N++) {
+      const u = (N - 13) / 11, c = 3 - 9 * (1 - u * u);
+      for (let M = Math.round(c) - thick; M <= Math.round(c) + 1; M++) if (((N + M) & 1) === 0) {
+        const tip = Math.abs(N - 13) > 8, grp = Math.abs(N - 13) <= 1;
+        at(N, M, grp ? P.gd : tip ? (S.rainbow ? hue(N / 24, 0.6) : P.lo) : sk === 'default' ? (M < c ? P.h1 : P.h2) : M < c ? P.mid : P.lo);
+      }
+    }
+    for (let N = 4; N <= 22; N++) if ((N & 1) === 1) at(N, 3, sk === 'volt' || sk === 'phantom' || sk === 'admin' ? P.gem : [236, 236, 236]);
+    if (sk === 'frost') for (const [N, M] of [[2, 1], [24, 1], [5, -4], [21, -4]]) at(N, M, P.hi);
+    if (sk === 'inferno') for (const [N, M] of [[1, 1], [25, 1], [2, -1], [24, -1], [13, -9]]) at(N, M, P.hi);
+    if (sk === 'blood') for (const [N, M] of [[9, -8], [17, -8], [6, -7], [20, -7]]) at(N, M, P.lo);
+    if (sk === 'titan') { at(13, -9, P.gem); at(7, -7, P.gd); at(19, -7, P.gd); }
+  }
+  const shift = tool === 'axe' ? -3 : 0;                                // the axe head is big: slide the whole drawing toward the grip
+  for (const [N0, M, c] of cells) {
+    const N = N0 + shift, x = Math.floor(1.5 + (N + M) / 2), y = Math.floor(14.5 + (M - N) / 2);
+    if (x >= 0 && x < 16 && y >= 0 && y < 16) g[y][x] = c;
+  }
+  const out = g.map((r) => r.slice());                                   // dark outline around the shape
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    if (g[y][x]) continue;
+    if ((x > 0 && g[y][x - 1]) || (x < 15 && g[y][x + 1]) || (y > 0 && g[y - 1][x]) || (y < 15 && g[y + 1][x])) out[y][x] = P.ol;
+  }
+  return out;
+}
+
 /** Procedural 16x16 pixel-art tiles packed in an 8x8 atlas. Everything here is original. */
 function generateAtlas() {
   const { TILES, TILE_PX } = CONFIG.ATLAS;
@@ -522,10 +635,9 @@ function generateAtlas() {
   icon(TILE.ICON_LIGHTER, [
     '................', '................', '.......ff.......', '......ffff......', '......ffyf......', '.....ssssss.....', '.....sddddss....', '.....sdddds.....',
     '.....sdddds.....', '.....sdddds.....', '.....sdddds.....', '.....sddddss....', '.....ssssss.....', '................', '................', '................'], { f: [255, 150, 40], y: [255, 230, 120], s: [190, 190, 200], d: [110, 110, 124] });
-  for (const tool of WEAPON_TOOLS) for (const sk of WEAPON_SKIN_ORDER) {                // weapon skins: the same drawings, recoloured
-    if (sk === 'default') continue;
-    const S = WEAPON_SKINS[sk], rows = iconRows[TILE['ICON_' + tool.toUpperCase()]];
-    icon(weaponTile(tool, sk), rows, tool === 'bow' ? { b: S.steel, s: [240, 240, 240], a: S.dark } : { s: S.steel, d: S.dark, w: S.handle, g: [230, 190, 60] });
+  for (const tool of WEAPON_TOOLS) for (const sk of WEAPON_SKIN_ORDER) {                // weapons: every skin is its own drawing
+    const spr = weaponSprite(tool, sk);
+    paint(weaponTile(tool, sk), 7, (x, y) => spr[y][x] || undefined);
   }
   return canvas;
 }
@@ -681,7 +793,7 @@ class Body {
     this.impactSpeed = 0; this.jumped = false;
     this.halfWidth = CONFIG.PLAYER.WIDTH / 2;
     this.height = CONFIG.PLAYER.HEIGHT;
-    this.burnTime = 0;
+    this.burnTime = 0; this.chillT = 0;
   }
   teleport(x, y, z) {
     this.pos.x = this.prev.x = x; this.pos.y = this.prev.y = y; this.pos.z = this.prev.z = z;
@@ -845,7 +957,8 @@ class Player extends Body {
     const wx = f * -Math.sin(this.yaw) + s * Math.cos(this.yaw);
     const wz = f * -Math.cos(this.yaw) + s * -Math.sin(this.yaw);
     this.sprinting = !!controls.sprint && f > 0 && !this.crouching && !this.blocking && !this.inWater && !this.inLava;
-    const speed = (this.crouching ? P.CROUCH : P.WALK) * this.mods.speed * (this.sprinting ? 1.3 : 1) * (this.blocking ? 0.6 : 1);
+    const speed = (this.crouching ? P.CROUCH : P.WALK) * this.mods.speed * (this.sprinting ? 1.3 : 1) * (this.blocking ? 0.6 : 1) * (weaponBoost(this.look, this.held).move || 1) * (this.chillT > 0 ? 0.6 : 1);
+    if (this.chillT > 0) this.chillT -= dt;
     const px = this.pos.x, pz = this.pos.z;
 
     this.simulate(dt, wx, wz, speed, !!controls.jump, P.JUMP * this.mods.jump, world, env);
@@ -1533,14 +1646,14 @@ const ITEMS = {
 };
 const ITEM_ORDER = Object.keys(ITEMS);
 
-/** Combat numbers follow Minecraft's feel (scaled to 100 HP): sword 4 hits, axe heavy and slow, sprint hits knock back harder, crits while falling.
+/** Combat numbers follow Minecraft's feel (scaled to 100 HP): sword about 7 hits, axe heavy and slow; slowed down so fights last several seconds, sprint hits knock back harder, crits while falling.
  *  cd = seconds for a full attack charge, kb = horizontal knockback speed (blocks/s). */
 const TOOLS = {
-  pickaxe: { dmg: 14, cd: 0.83, reach: 3.2, kb: 7,  mine: 2.6 },
-  sword:   { dmg: 24, cd: 0.625, reach: 3.3, kb: 7,  mine: 1.2 },
-  axe:     { dmg: 32, cd: 1.0,  reach: 3.1, kb: 7,  mine: 1.0, woodMine: 2.5 },
-  staff:   { dmg: 5,  cd: 0.7,  reach: 3.4, kb: 18, mine: 1.0 },
-  bow:     { dmg: 28, cd: 0.6,  draw: 1.0, speed: 34, mine: 1.0 },   // full draw takes 1 s, like Minecraft
+  pickaxe: { dmg: 9,  cd: 1.0,  reach: 3.2, kb: 7,  mine: 2.6 },
+  sword:   { dmg: 15, cd: 0.8,   reach: 3.3, kb: 7,  mine: 1.2 },
+  axe:     { dmg: 21, cd: 1.25, reach: 3.1, kb: 7,  mine: 1.0, woodMine: 2.5 },
+  staff:   { dmg: 4,  cd: 0.9,  reach: 3.4, kb: 18, mine: 1.0 },
+  bow:     { dmg: 18, cd: 0.9,  draw: 1.2, speed: 26, mine: 1.0 },   // full draw takes 1 s, like Minecraft
   lighter: { mine: 1.0 },
 };
 /** Seconds to break `def` by hand/tool (used by both the client progress bar and bots). */
@@ -2155,40 +2268,73 @@ const COSMETICS = {
   },
 };
 /**
- * Weapon skins: bought with coins (earned by playing), one tool at a time. Unlike the other cosmetics these give a SMALL boost
- * to that weapon. Admin skins only appear for admins (code LN1).
- * boost: dmg = melee damage x, speed = swing cooldown x (lower is faster), mine = mining speed x, draw = bow draw time x, arrow = arrow damage x.
+ * Weapon skins: bought with coins (earned by playing), one tool at a time. Each collection has its own look AND its own
+ * playstyle: a perk paired with a drawback, so no skin is simply "better". Admin skins only appear for admins (code LN1).
+ * perk fields (all optional, per tool):
+ *   dmg  melee damage x        speed  swing cooldown x (lower = faster)   mine  mining speed x     move  walk speed x while held
+ *   kb   knockback x           chill  s of 40% slow on hit                burn  s of fire on hit   leech share of damage healed
+ *   backstab  damage x from behind   draw  bow draw time x   arrow  arrow damage x   arrowSpeed  arrow speed x   grav  arrow drop x
+ * pal = colours for the pixel art (hi/mid/lo blade, h1/h2 grip, gd guard, gem, fx particles, ol outline).
  */
 const WEAPON_TOOLS = ['sword', 'axe', 'pickaxe', 'bow'];
 const WEAPON_SKINS = {
-  default: { name: 'Standard', cost: 0, level: 1, boost: {} },
-  iron:    { name: 'Iron',    cost: 200,  level: 2,  steel: [232, 234, 242], dark: [140, 144, 160], handle: [120, 90, 60],
-    boost: { sword: { dmg: 1.04 }, axe: { dmg: 1.04 }, pickaxe: { mine: 1.1 }, bow: { draw: 0.95 } } },
-  gold:    { name: 'Gold',    cost: 450,  level: 4,  steel: [255, 214, 70], dark: [196, 146, 30], handle: [110, 70, 35],
-    boost: { sword: { speed: 0.94 }, axe: { speed: 0.94 }, pickaxe: { mine: 1.15 }, bow: { arrow: 1.06 } } },
-  diamond: { name: 'Diamond', cost: 900,  level: 7,  steel: [120, 236, 240], dark: [36, 166, 180], handle: [90, 60, 40],
-    boost: { sword: { dmg: 1.08 }, axe: { dmg: 1.08 }, pickaxe: { mine: 1.25 }, bow: { draw: 0.9, arrow: 1.05 } } },
-  ember:   { name: 'Ember',   cost: 1500, level: 10, steel: [255, 124, 40], dark: [176, 36, 20], handle: [50, 30, 30],
-    boost: { sword: { dmg: 1.1, speed: 0.95 }, axe: { dmg: 1.1, speed: 0.95 }, pickaxe: { mine: 1.3 }, bow: { draw: 0.88, arrow: 1.08 } } },
-  admin:   { name: 'Admin',   cost: 0,    level: 1,  admin: true, steel: [255, 70, 225], dark: [110, 0, 150], handle: [28, 28, 32],
-    boost: { sword: { dmg: 1.5, speed: 0.7 }, axe: { dmg: 1.5, speed: 0.7 }, pickaxe: { mine: 3 }, bow: { draw: 0.5, arrow: 1.5 } } },
+  default: { name: 'Standard', cost: 0, level: 1, tag: 'Plain steel. No perk, no drawback.', perk: {},
+    pal: { hi: [240, 242, 250], mid: [196, 200, 212], lo: [128, 132, 148], h1: [134, 94, 56], h2: [96, 64, 38], gd: [150, 150, 162], ol: [34, 34, 42] } },
+  frost: { name: 'Glacier', cost: 500, level: 2, tag: 'Ice crystal. Hits freeze enemies in place.',
+    perk: { sword: { chill: 1.6, dmg: 0.9 }, axe: { chill: 2.2, dmg: 0.9 }, pickaxe: { chill: 1.4, dmg: 0.9, mine: 1.1 }, bow: { chill: 2, arrow: 0.9 } },
+    pal: { hi: [240, 252, 255], mid: [150, 215, 250], lo: [70, 140, 210], h1: [210, 235, 250], h2: [120, 170, 210], gd: [180, 230, 255], gem: [255, 255, 255], fx: [0.7, 0.9, 1], ol: [18, 48, 92] } },
+  inferno: { name: 'Inferno', cost: 600, level: 3, tag: 'Living flame. Sets enemies on fire, but swings slower.', fire: true,
+    perk: { sword: { burn: 3, speed: 1.12 }, axe: { burn: 3.5, speed: 1.12 }, pickaxe: { burn: 2, mine: 1.2, speed: 1.1 }, bow: { burn: 4, draw: 1.15 } },
+    pal: { hi: [255, 236, 120], mid: [255, 140, 40], lo: [190, 40, 20], h1: [74, 42, 30], h2: [42, 22, 18], gd: [64, 40, 40], gem: [255, 220, 90], fx: [1, 0.55, 0.12], ol: [52, 10, 4] } },
+  blood: { name: 'Bloodmoon', cost: 700, level: 4, tag: 'Cursed crimson. Heals you on every hit, hits a bit softer.',
+    perk: { sword: { leech: 0.3, dmg: 0.9 }, axe: { leech: 0.25, dmg: 0.92 }, pickaxe: { leech: 0.3, mine: 0.9 }, bow: { leech: 0.25, arrow: 0.9 } },
+    pal: { hi: [255, 120, 128], mid: [204, 32, 54], lo: [112, 10, 30], h1: [48, 36, 48], h2: [26, 20, 30], gd: [74, 62, 80], gem: [255, 60, 84], fx: [0.9, 0.08, 0.15], ol: [30, 0, 10] } },
+  volt: { name: 'Voltage', cost: 700, level: 5, tag: 'Neon lightning. Run faster with it out, hits lighter.',
+    perk: { sword: { move: 1.15, speed: 0.9, dmg: 0.85 }, axe: { move: 1.12, speed: 0.92, dmg: 0.88 }, pickaxe: { move: 1.15, mine: 1.15, dmg: 0.85 }, bow: { arrowSpeed: 1.4, draw: 0.9, arrow: 0.85 } },
+    pal: { hi: [255, 255, 190], mid: [255, 230, 60], lo: [40, 190, 255], h1: [54, 54, 74], h2: [30, 30, 44], gd: [40, 200, 255], gem: [150, 255, 255], fx: [0.55, 1, 1], ol: [16, 16, 40] } },
+  titan: { name: 'Titan', cost: 800, level: 6, tag: 'Heavy bronze. Huge hits and knockback, but slow.',
+    perk: { sword: { dmg: 1.15, kb: 1.7, speed: 1.15, move: 0.92 }, axe: { dmg: 1.2, kb: 1.8, speed: 1.2, move: 0.9 }, pickaxe: { mine: 1.4, speed: 1.1, move: 0.9 }, bow: { arrow: 1.25, kb: 2.2, draw: 1.3 } },
+    pal: { hi: [200, 200, 210], mid: [146, 146, 156], lo: [92, 92, 102], h1: [156, 108, 52], h2: [112, 76, 36], gd: [226, 176, 62], gem: [255, 218, 86], fx: [1, 0.85, 0.35], ol: [30, 28, 30] } },
+  phantom: { name: 'Phantom', cost: 900, level: 8, tag: 'Spectral blade. Deadly from behind, weaker head-on.',
+    perk: { sword: { backstab: 1.6, dmg: 0.92 }, axe: { backstab: 1.5, dmg: 0.92 }, pickaxe: { mine: 1.1, move: 1.08, dmg: 0.9 }, bow: { grav: 0.35, arrow: 0.92 } },
+    pal: { hi: [246, 236, 255], mid: [190, 160, 255], lo: [120, 80, 210], h1: [54, 42, 74], h2: [30, 24, 46], gd: [150, 120, 220], gem: [240, 220, 255], fx: [0.8, 0.65, 1], ol: [30, 14, 62] } },
+  admin: { name: 'Admin', cost: 0, level: 1, admin: true, tag: 'Every perk at once. Admins only.', rainbow: true,
+    perk: { sword: { dmg: 1.5, speed: 0.7, chill: 1.5, burn: 3, leech: 0.3, kb: 1.5, move: 1.15 }, axe: { dmg: 1.5, speed: 0.7, chill: 1.5, burn: 3, leech: 0.3, kb: 1.5 },
+      pickaxe: { mine: 3, move: 1.15 }, bow: { draw: 0.5, arrow: 1.5, arrowSpeed: 1.3, burn: 3, chill: 1.5 } },
+    pal: { hi: [255, 190, 250], mid: [255, 70, 225], lo: [130, 0, 170], h1: [34, 34, 38], h2: [16, 16, 20], gd: [34, 34, 38], gem: [255, 255, 255], fx: [1, 0.45, 0.95], ol: [10, 0, 22] } },
 };
 const WEAPON_SKIN_ORDER = Object.keys(WEAPON_SKINS);
-/** The boost a look's equipped skin gives `tool` ({} when none). */
-function weaponBoost(look, tool) { const id = look && look.weapons && look.weapons[tool], sk = WEAPON_SKINS[id]; return (sk && sk.boost[tool]) || {}; }
+const OLD_WEAPON_SKINS = { iron: 'frost', gold: 'volt', diamond: 'phantom', ember: 'inferno' };     // skins bought before the redesign carry over
+const weaponSkinId = (id) => (WEAPON_SKINS[id] ? id : OLD_WEAPON_SKINS[id] || null);
+/** The perk a look's equipped skin gives `tool` ({} when none). */
+function weaponBoost(look, tool) { const id = look && look.weapons && look.weapons[tool], sk = WEAPON_SKINS[id]; return (sk && sk.perk[tool]) || {}; }
 /** Atlas tile for a tool drawn in a skin (the plain icon for the standard skin). */
 function weaponTile(tool, skin) {
   const ti = WEAPON_TOOLS.indexOf(tool), si = WEAPON_SKIN_ORDER.indexOf(skin);
   return ti >= 0 && si > 0 ? 100 + ti * 8 + si : TILE['ICON_' + String(tool).toUpperCase()];
 }
-function boostText(b) {
-  const pct = (v, inv) => Math.round(Math.abs((inv ? 1 / v : v) - 1) * 100) + '%', out = [];
-  if (b.dmg) out.push('+' + pct(b.dmg) + ' damage'); if (b.speed) out.push('+' + pct(b.speed, true) + ' swing speed');
-  if (b.mine) out.push('+' + pct(b.mine) + ' mining speed'); if (b.draw) out.push('+' + pct(b.draw, true) + ' draw speed'); if (b.arrow) out.push('+' + pct(b.arrow) + ' arrow damage');
-  return out.join(', ') || 'No boost';
+/** Perk list as [text, good] pairs, for the Locker. */
+function perkLines(b) {
+  const pct = (v) => Math.round(Math.abs(v - 1) * 100) + '%', out = [];
+  const up = (v, good, bad) => out.push(v > 1 ? [good + ' +' + pct(v), true] : [bad + ' -' + pct(v), false]);
+  if (b.chill) out.push(['Hits slow enemies for ' + b.chill + 's', true]);
+  if (b.burn) out.push(['Hits set enemies on fire (' + b.burn + 's)', true]);
+  if (b.leech) out.push(['Heal ' + Math.round(b.leech * 100) + '% of damage dealt', true]);
+  if (b.backstab) out.push(['+' + pct(b.backstab) + ' damage from behind', true]);
+  if (b.grav) out.push(['Arrows fly almost straight', true]);
+  if (b.arrowSpeed) up(b.arrowSpeed, 'Arrow speed', 'Arrow speed');
+  if (b.kb) up(b.kb, 'Knockback', 'Knockback');
+  if (b.dmg) up(b.dmg, 'Damage', 'Damage');
+  if (b.arrow) up(b.arrow, 'Arrow damage', 'Arrow damage');
+  if (b.speed) out.push(b.speed < 1 ? ['Swing speed +' + pct(1 / b.speed), true] : ['Swing speed -' + pct(1 / b.speed), false]);
+  if (b.draw) out.push(b.draw < 1 ? ['Draw speed +' + pct(1 / b.draw), true] : ['Draw speed -' + pct(1 / b.draw), false]);
+  if (b.mine) up(b.mine, 'Mining speed', 'Mining speed');
+  if (b.move) up(b.move, 'Move speed while held', 'Move speed while held');
+  return out.filter((l) => l[1]).concat(out.filter((l) => !l[1]));       // perks first, then drawbacks
 }
 const COSMETIC_SLOTS = ['skin', 'trail', 'kill', 'banner'];
 /** Admin panel: opened by typing this as a join code. Anyone who reads game.js can see it, so it is a fun extra, not security. */
+const GAME_VERSION = '2.3 (Oct 15)';   // shown on the main menu so players can tell an old cached copy apart
 const ADMIN_CODE = 'LN1';
 const ADMIN_DEFAULTS = { speed: 1, jump: 1, damage: 1, mine: 1, health: 100, regen: 1, draw: 1, god: false, infinite: false };
 const ADMIN_SLIDERS = [                                         // [key, label, min, max, step, format]
@@ -2217,7 +2363,7 @@ const TITLE_ORDER = Object.keys(TITLES);
 
 const DEFAULT_WEAPONS = () => ({ sword: 'default', axe: 'default', pickaxe: 'default', bow: 'default' });
 const DEFAULT_PROFILE = () => ({ owned: { skin: ['default'], trail: ['none'], kill: ['none'], banner: ['solid'], emote: DEFAULT_EMOTES.slice(), weapon: [] }, equipped: { skin: 'default', trail: 'none', kill: 'none', banner: 'solid', title: 'rookie', emotes: DEFAULT_EMOTES.slice(), bannerColor: 0, weapons: DEFAULT_WEAPONS() } });
-const validWeaponKey = (k) => { const [t, sk] = String(k).split(':'); return WEAPON_TOOLS.includes(t) && !!WEAPON_SKINS[sk]; };
+const fixWeaponKey = (k) => { const [t, sk] = String(k).split(':'), id = weaponSkinId(sk); return WEAPON_TOOLS.includes(t) && id && id !== 'default' ? t + ':' + id : null; };
 
 /** Validates (and repairs) a profile loaded from storage or received over the network. */
 function sanitizeProfile(pr) {
@@ -2232,8 +2378,8 @@ function sanitizeProfile(pr) {
   if (TITLES[eq.title]) d.equipped.title = eq.title;
   if (Array.isArray(eq.emotes)) d.equipped.emotes = [0, 1, 2, 3].map((i) => (COSMETICS.emote[eq.emotes[i]] && d.owned.emote.includes(eq.emotes[i]) ? eq.emotes[i] : DEFAULT_EMOTES[i]));
   d.equipped.bannerColor = clamp(eq.bannerColor | 0, 0, BANNER_COLORS.length - 1);
-  d.owned.weapon = pr.owned && Array.isArray(pr.owned.weapon) ? Array.from(new Set(pr.owned.weapon.filter(validWeaponKey))) : [];
-  for (const t of WEAPON_TOOLS) { const id = eq.weapons && eq.weapons[t]; if (WEAPON_SKINS[id] && (id === 'default' || d.owned.weapon.includes(t + ':' + id))) d.equipped.weapons[t] = id; }
+  d.owned.weapon = pr.owned && Array.isArray(pr.owned.weapon) ? Array.from(new Set(pr.owned.weapon.map(fixWeaponKey).filter(Boolean))) : [];
+  for (const t of WEAPON_TOOLS) { const id = weaponSkinId(eq.weapons && eq.weapons[t]); if (WEAPON_SKINS[id] && (id === 'default' || d.owned.weapon.includes(t + ':' + id))) d.equipped.weapons[t] = id; }
   return d;
 }
 /** The small public part of a profile that other players see. */
@@ -2247,13 +2393,13 @@ function sanitizeLook(l) {
   const out = { skin: COSMETICS.skin[l.skin] ? l.skin : d.skin, trail: COSMETICS.trail[l.trail] ? l.trail : d.trail, kill: COSMETICS.kill[l.kill] ? l.kill : d.kill, banner: COSMETICS.banner[l.banner] ? l.banner : d.banner, bannerColor: clamp(l.bannerColor | 0, 0, BANNER_COLORS.length - 1), title: TITLES[l.title] ? l.title : d.title };
   out.emotes = [0, 1, 2, 3].map((i) => (l.emotes && COSMETICS.emote[l.emotes[i]] ? l.emotes[i] : DEFAULT_EMOTES[i]));
   out.weapons = DEFAULT_WEAPONS();
-  for (const t of WEAPON_TOOLS) if (l.weapons && WEAPON_SKINS[l.weapons[t]]) out.weapons[t] = l.weapons[t];
+  for (const t of WEAPON_TOOLS) { const id = l.weapons && weaponSkinId(l.weapons[t]); if (id) out.weapons[t] = id; }
   return out;
 }
 /** Random cosmetics for bots, so the lobby looks lively and every match looks different. */
 function randomLook(rng = Math.random) {
   const pick = (slot) => { const ids = Object.keys(COSMETICS[slot]).filter((id) => !COSMETICS[slot][id].admin); return ids[Math.floor(rng() * ids.length)]; };
-  const weapons = {}; for (const t of WEAPON_TOOLS) weapons[t] = rng() < 0.55 ? 'default' : ['iron', 'iron', 'gold', 'diamond'][Math.floor(rng() * 4)];
+  const weapons = {}; for (const t of WEAPON_TOOLS) weapons[t] = rng() < 0.5 ? 'default' : ['frost', 'inferno', 'blood', 'volt', 'titan', 'phantom'][Math.floor(rng() * 6)];
   return sanitizeLook({ weapons, skin: rng() < 0.45 ? 'default' : pick('skin'), trail: rng() < 0.6 ? 'none' : pick('trail'), kill: pick('kill'), banner: pick('banner'), bannerColor: Math.floor(rng() * BANNER_COLORS.length), title: TITLE_ORDER[Math.floor(rng() * 4)], emotes: DEFAULT_EMOTES });
 }
 
@@ -2534,7 +2680,7 @@ class GameServer {
   }
   respawn(p, initial = false) {
     p.teleport(p.spawn.x, p.spawn.y, p.spawn.z);
-    p.health = p.maxHealth; p.alive = true; p.burnTime = 0; p.air = 10; p.sinceDamage = 99;
+    p.health = p.maxHealth; p.alive = true; p.burnTime = 0; p.chillT = 0; p.air = 10; p.sinceDamage = 99;
     p.invulnerable = initial ? 0 : 2.5; p.hurtT = 0; p.lastDmg = 0; p.blocking = false; p.blockCd = 0; p.respawnTimer = 0; p.lastHits.length = 0; p.lastCause = null;
     if (!initial) this.emit({ type: 'respawn', player: p });
   }
@@ -2730,29 +2876,44 @@ class GameServer {
     if (p.blocking) { p.blocking = false; p.blockCd = 0.3; }
     const strong = frac > 0.9, sprint = !!(p.controls && p.controls.sprint && p.controls.forward && !p.inWater);
     let dmg = t.dmg * p.mods.meleeDamage * (wb.dmg || 1) * (0.2 + 0.8 * frac * frac) * (p.bot && !p.proxy ? this.diff().botMelee : 1);
+    if (wb.backstab && target.yaw != null) {                            // Phantom: the victim is facing away from the attacker
+      const ax = p.pos.x - target.pos.x, az = p.pos.z - target.pos.z, l = Math.hypot(ax, az) || 1;
+      if ((ax * -Math.sin(target.yaw) + az * -Math.cos(target.yaw)) / l < -0.3) dmg *= wb.backstab;
+    }
     const crit = strong && !p.onGround && p.vel.y < -0.5 && !sprint && !p.inWater && !p.inLava;
     if (crit) dmg *= 1.5;
     target.lastBlocked = false;
     const dealt = this.damage(target, dmg, { kind: 'melee', by: p.index, direct: true });
     if (dealt !== null) {
       const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
-      const kb = (t.kb * (0.4 + 0.6 * frac) + (sprint && strong ? 6 : 0)) * (target.lastBlocked ? 0.4 : 1);
+      const kb = (t.kb * (0.4 + 0.6 * frac) * (wb.kb || 1) + (sprint && strong ? 4 : 0)) * (target.lastBlocked ? 0.4 : 1);
       target.vel.x = target.vel.x * 0.5 + fx * kb; target.vel.z = target.vel.z * 0.5 + fz * kb;
-      target.vel.y = Math.min(target.vel.y * 0.5 + 7.5, 7.5) + (sprint && strong ? 1.5 : 0);
+      target.vel.y = Math.min(target.vel.y * 0.5 + 6, 6) + (sprint && strong ? 1.5 : 0);
       target.onGround = false;
-      this.emit({ type: 'hit', target, by: p.id, tool, crit, sprint: sprint && strong, blocked: !!target.lastBlocked, charge: frac });
+      const perkFx = target.lastBlocked ? null : this.weaponPerks(p, target, wb, dealt, frac);
+      this.emit({ type: 'hit', target, by: p.id, tool, crit, sprint: sprint && strong, blocked: !!target.lastBlocked, charge: frac, skin: p.look && p.look.weapons ? p.look.weapons[tool] : null, fx: perkFx });
       if (crit) this.emit({ type: 'crit', target });
     }
     return { ok: true };
   }
 
+  /** On-hit skin perks (chill, burn, lifesteal). `frac` = attack charge, so spam-clicking does not freeze or ignite. Returns the effects for the client. */
+  weaponPerks(p, target, wb, dealt, frac) {
+    if (!wb || frac < 0.6) return null;
+    const fx = [];
+    if (wb.chill && target instanceof Player) { target.chillT = Math.max(target.chillT || 0, wb.chill); fx.push('chill'); }
+    if (wb.burn && !target.inWater) { target.burnTime = Math.max(target.burnTime || 0, wb.burn); target.burnCause = p.index; fx.push('burn'); }
+    if (wb.leech && dealt > 0 && p.alive) { p.health = Math.min(p.maxHealth, p.health + dealt * wb.leech); fx.push('leech'); }
+    return fx.length ? fx : null;
+  }
   diff() { return DIFFICULTIES[this.difficulty] || DIFFICULTIES.normal; }
   shoot(p, { charge = 1 }) {
     if (p.cooldowns.shoot > 0) return { ok: false, reason: 'cooldown' };
     const T = TOOLS.bow, ch = clamp(charge, 0.15, 1);
     p.cooldowns.shoot = T.cd; p.swing = 0.6; p.swingKind = 'bow'; p.held = 'bow';
-    const e = p.eyePosition(), d = p.lookDirection(), speed = T.speed * (0.5 + 0.5 * ch);
+    const wb = weaponBoost(p.look, 'bow'), e = p.eyePosition(), d = p.lookDirection(), speed = T.speed * (0.5 + 0.5 * ch) * (wb.arrowSpeed || 1);
     const a = new Arrow(this.nextId(), e.x + d.x * 0.6, e.y + d.y * 0.6, e.z + d.z * 0.6, d.x * speed, d.y * speed, d.z * speed, p.index, T.dmg * (0.4 + 0.6 * ch) * p.mods.meleeDamage * (weaponBoost(p.look, 'bow').arrow || 1) * (p.bot && !p.proxy ? this.diff().botBow : 1));
+    a.perk = wb; a.skin = p.look && p.look.weapons ? p.look.weapons.bow : null; a.charge = ch;
     this.arrows.push(a);
     this.emit({ type: 'shoot', by: p.id, arrow: a });
     return { ok: true };
@@ -3253,7 +3414,7 @@ class GameServer {
       if (!a.alive) continue;
       a.age += dt;
       if (a.stuck) { if (a.age > 12) a.alive = false; continue; }
-      a.vel.y -= 14 * dt;
+      a.vel.y -= 14 * dt * (a.perk && a.perk.grav || 1);
       const dx = a.vel.x * dt, dy = a.vel.y * dt, dz = a.vel.z * dt, n = Math.max(1, Math.ceil(Math.hypot(dx, dy, dz) / 0.35));
       for (let i = 0; i < n && !a.stuck && a.alive; i++) {
         a.pos.x += dx / n; a.pos.y += dy / n; a.pos.z += dz / n;
@@ -3264,7 +3425,11 @@ class GameServer {
           const bb = b.aabb(), m = 0.18;
           if (a.pos.x > bb.minX - m && a.pos.x < bb.maxX + m && a.pos.y > bb.minY - m && a.pos.y < bb.maxY + m && a.pos.z > bb.minZ - m && a.pos.z < bb.maxZ + m) {
             const dealt = this.damage(b, a.damage, { kind: 'arrow', by: a.owner, direct: true });
-            if (dealt !== null) { const s = Math.hypot(a.vel.x, a.vel.z) || 1; b.vel.x += a.vel.x / s * 3; b.vel.z += a.vel.z / s * 3; b.vel.y += 1.5; this.emit({ type: 'hit', target: b, by: a.owner, tool: 'bow' }); a.alive = false; }
+            if (dealt !== null) {
+              const s = Math.hypot(a.vel.x, a.vel.z) || 1, k = 3 * (a.perk && a.perk.kb || 1); b.vel.x += a.vel.x / s * k; b.vel.z += a.vel.z / s * k; b.vel.y += 1.5;
+              const fx = a.perk && !b.lastBlocked && this.players[a.owner] ? this.weaponPerks(this.players[a.owner], b, a.perk, dealt, a.charge || 1) : null;
+              this.emit({ type: 'hit', target: b, by: a.owner, tool: 'bow', skin: a.skin, fx }); a.alive = false;
+            }
             break;
           }
         }
@@ -3434,7 +3599,7 @@ class GameServer {
     const L = (b, k) => lerp(b.prev[k], b.pos[k], alpha);
     return {
       time: this.clock,
-      players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, moving: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround, held: p.held, sk: p.swingKind, blocking: p.blocking, sprinting: p.sprinting })),
+      players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, moving: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround, held: p.held, sk: p.swingKind, blocking: p.blocking, sprinting: p.sprinting, chilled: p.chillT > 0 })),
       tnts: this.tnts.map((t) => ({ x: L(t, 'x'), y: L(t, 'y'), z: L(t, 'z'), fuse: t.fuse })),
       groups: this.groups.map((g) => ({ g, off: g.off })),
       arrows: this.arrows.filter((a) => a.alive).map((a) => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z, yaw: a.yaw, pitch: a.pitch })),
@@ -3986,7 +4151,7 @@ class HostSession {
       v: { progress: s.vault.progress, team: s.vault.team, cooldown: s.vault.cooldown, capturing: s.vault.capturing, captured: s.vault.captured },
       p: s.players.map((p) => ({
         i: p.index, x: p.pos.x, y: p.pos.y, z: p.pos.z, yw: p.yaw, pt: p.pitch, hp: p.health, al: p.alive ? 1 : 0, cr: p.crouching ? 1 : 0, bu: p.burnTime > 0 ? 1 : 0,
-        wk: p.walkPhase, sw: p.swing, bo: p.bounty, tm: p.team, bot: p.isBot ? 1 : 0, mv: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround ? 1 : 0, hd: p.held, sk: p.swingKind, bk: p.blocking ? 1 : 0, sp: p.sprinting ? 1 : 0,
+        wk: p.walkPhase, sw: p.swing, bo: p.bounty, tm: p.team, bot: p.isBot ? 1 : 0, mv: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround ? 1 : 0, hd: p.held, sk: p.swingKind, bk: p.blocking ? 1 : 0, sp: p.sprinting ? 1 : 0, ci: p.chillT > 0 ? 1 : 0,
         st: [p.stats.score, p.stats.kills, p.stats.assists, p.stats.deaths, p.stats.damageDealt, p.stats.blocksDestroyed, p.stats.structuresDestroyed, p.stats.tntKills, p.stats.objectives],
       })),
       tn: s.tnts.filter((t) => t.alive).map((t) => [t.id, t.pos.x, t.pos.y, t.pos.z, t.fuse]),
@@ -4002,7 +4167,7 @@ class HostSession {
   makeMe(peer) {
     const p = this.server.playerById(peer.id);
     if (!p) return null;
-    return { x: p.pos.x, y: p.pos.y, z: p.pos.z, vx: p.vel.x, vy: p.vel.y, vz: p.vel.z, og: p.onGround ? 1 : 0, ack: p.ackSeq | 0, res: p.resources, cd: [p.cooldowns.attack, p.cooldowns.place, p.cooldowns.shoot], inv: p.invulnerable };
+    return { x: p.pos.x, y: p.pos.y, z: p.pos.z, vx: p.vel.x, vy: p.vel.y, vz: p.vel.z, og: p.onGround ? 1 : 0, ack: p.ackSeq | 0, res: p.resources, cd: [p.cooldowns.attack, p.cooldowns.place, p.cooldowns.shoot], inv: p.invulnerable, ch: p.chillT || 0 };
   }
 }
 
@@ -4160,7 +4325,7 @@ class NetServerView {
       if (!mineP) { p.prev.x = p.pos.x; p.prev.y = p.pos.y; p.prev.z = p.pos.z; p.pos.x = q.x; p.pos.y = q.y; p.pos.z = q.z; p.yaw = q.yw; p.pitch = q.pt; }
       if (p.alive && !q.al) p.alive = false; else if (!p.alive && q.al) { p.alive = true; if (mineP) { p.teleport(q.x, q.y, q.z); this.pending.length = 0; } }
       p.health = q.hp; p.crouching = !!q.cr; p.burnTime = q.bu ? 1 : 0; p.walkPhase = q.wk; p.swing = q.sw; p.bounty = q.bo; p.team = q.tm; p.isBot = !!q.bot;
-      p.moving = !!q.mv; p.held = q.hd || 'pickaxe'; p.swingKind = q.sk || 'sword'; p.sprinting = !!q.sp; if (!mineP) p.blocking = !!q.bk;
+      p.moving = !!q.mv; p.held = q.hd || 'pickaxe'; p.swingKind = q.sk || 'sword'; p.sprinting = !!q.sp; if (!mineP) { p.blocking = !!q.bk; p.chillT = q.ci ? 1 : 0; }
       const st = p.stats; [st.score, st.kills, st.assists, st.deaths, st.damageDealt, st.blocksDestroyed, st.structuresDestroyed, st.tntKills, st.objectives] = q.st;
     }
     // other bodies
@@ -4187,7 +4352,7 @@ class NetServerView {
   }
   reconcile(a) {
     const me = this.me;
-    me.resources = a.res; me.invulnerable = a.inv;
+    me.resources = a.res; me.invulnerable = a.inv; me.chillT = a.ch || 0;
     me.cooldowns.attack = Math.max(me.cooldowns.attack, a.cd[0]); me.cooldowns.place = Math.max(me.cooldowns.place, a.cd[1]); me.cooldowns.shoot = Math.max(me.cooldowns.shoot, a.cd[2]);
     while (this.pending.length && this.pending[0].seq <= a.ack) this.pending.shift();
     if (!me.alive) { me.pos.x = a.x; me.pos.y = a.y; me.pos.z = a.z; me.prev.x = a.x; me.prev.y = a.y; me.prev.z = a.z; return; }
@@ -4239,7 +4404,7 @@ class NetServerView {
     const L = (b, k) => (b === me ? lerp(b.prev[k], b.pos[k], alpha) : A(b, k));
     return {
       time: this.clock,
-      players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, held: p.held, sk: p.swingKind, blocking: p.blocking, sprinting: p.sprinting, moving: p === me ? Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround : !!p.moving })),
+      players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, held: p.held, sk: p.swingKind, blocking: p.blocking, sprinting: p.sprinting, chilled: p.chillT > 0, moving: p === me ? Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround : !!p.moving })),
       tnts: this.tnts.map((t) => ({ x: A(t, 'x'), y: A(t, 'y'), z: A(t, 'z'), fuse: t.fuse })),
       groups: this.groups.map((g) => ({ g, off: g.off })),
       arrows: this.arrows.map((a) => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z, yaw: a.yaw, pitch: a.pitch })),
@@ -4777,9 +4942,9 @@ class Bot {
       case 'melee': {
         if (!t) break;
         this.face(t.pos.x, t.pos.y + 1.2, t.pos.z, true);
-        this.strafeT -= dt; if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 0.5 + Math.random() * 0.8; }
-        if (this.dist(t) > 2.4) { c.forward = true; c.sprint = this.dist(t) > 2.8; } else if (this.dist(t) < 1.3) c.back = true;
-        if (this.strafe > 0) c.right = true; else c.left = true;
+        this.strafeT -= dt; if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 1.2 + Math.random() * 1.4; this.strafeOn = Math.random() < 0.55; }
+        if (this.dist(t) > 2.4) { c.forward = true; c.sprint = this.dist(t) > 4.5; } else if (this.dist(t) < 1.3) c.back = true;
+        if (this.strafeOn) { if (this.strafe > 0) c.right = true; else c.left = true; }
         const tool = Math.random() < 0.15 ? pickOf(['sword', 'axe', 'staff']) : this.meleeTool;
         if (p.held !== tool) s.handle(p.id, { type: 'hold', item: tool });
         this.blockT = (this.blockT || 0) - dt;
@@ -4797,14 +4962,14 @@ class Bot {
         const D = this.diff(), dist = this.dist(t);
         // one aiming error per arrow (re-rolled after each shot), not a fresh jitter every frame: this is what makes archers miss
         if (!this.aimErr) { const mag = D.aim * (0.4 + this.traits.sloppy) * (1 + dist / 18); this.aimErr = { x: (Math.random() - 0.5) * mag * 2, y: (Math.random() - 0.5) * mag, z: (Math.random() - 0.5) * mag * 2, lead: D.lead * (0.7 + Math.random() * 0.5) }; }
-        const E = this.aimErr, flight = dist / 28;
+        const E = this.aimErr, flight = dist / (TOOLS.bow.speed * 0.82);
         this.face(t.pos.x + t.vel.x * flight * E.lead + E.x, t.pos.y + 1.2 + dist * 0.035 + E.y, t.pos.z + t.vel.z * flight * E.lead + E.z, true);
         if (dist < 10 && this.traits.range > 0.45) c.back = true;                  // snipers keep their distance
         if (p.held !== 'bow') s.handle(p.id, { type: 'hold', item: 'bow' });
         this.shootWait = (this.shootWait || 0) - dt;
         if (this.shootWait <= 0) this.shootCharge += dt;
-        this.strafeT -= dt; if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 0.6 + Math.random(); }
-        if (this.strafe > 0) c.right = true; else c.left = true;
+        this.strafeT -= dt; if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 1.5 + Math.random() * 1.5; this.strafeOn = Math.random() < 0.5; }
+        if (this.strafeOn) { if (this.strafe > 0) c.right = true; else c.left = true; }
         if (this.shootCharge >= TOOLS.bow.draw * p.mods.bowDraw * (weaponBoost(p.look, 'bow').draw || 1) * D.draw && p.cooldowns.shoot <= 0) { s.handle(p.id, { type: 'shoot', charge: 1 }); this.shootCharge = 0; this.aimErr = null; this.shootWait = D.shootGap * (0.7 + Math.random() * 0.6); }
         break;
       }
@@ -5128,7 +5293,8 @@ class Renderer {
     for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
     gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     this.stats = { drawnChunks: 0, triangles: 0, totalChunks: 0 };
-    this.blockMeshes = new Map(); this.iconQuads = new Map(); this.groupMeshes = new WeakMap();
+    this.blockMeshes = new Map(); this.iconQuads = new Map(); this.groupMeshes = new WeakMap(); this.voxMeshes = new Map(); this.heldQueue = [];
+    this.atlasPx = atlasCanvas.getContext('2d').getImageData(0, 0, atlasCanvas.width, atlasCanvas.height).data;
     this.scratch = Mat4.identity(); this.nm = new Float32Array(9); this.lastVP = Mat4.identity();
     this.resize();
   }
@@ -5186,6 +5352,29 @@ class Renderer {
       gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
       m = { buf, count: 12 }; this.iconQuads.set(tile, m);
     }
+    return m;
+  }
+  /** An icon tile turned into a 3D pixel model: one cube per opaque pixel, one pixel thick (like Minecraft's held items). */
+  iconVoxel(tile) {
+    let m = this.voxMeshes.get(tile);
+    if (m) return m;
+    const T = CONFIG.ATLAS.TILES, PX = CONFIG.ATLAS.TILE_PX, W = T * PX, tx = (tile % T) * PX, ty = Math.floor(tile / T) * PX, d = this.atlasPx;
+    const solid = (x, y) => x >= 0 && y >= 0 && x < PX && y < PX && d[((ty + y) * W + tx + x) * 4 + 3] > 127;
+    const out = [], s = 1 / PX, h = s * 0.5;
+    const quad = (q, u, v, sh) => { for (const i of [0, 1, 2, 0, 2, 3]) out.push(q[i][0], q[i][1], q[i][2], u, v, sh); };
+    for (let y = 0; y < PX; y++) for (let x = 0; x < PX; x++) {
+      if (!solid(x, y)) continue;
+      const x0 = x * s - 0.5, x1 = x0 + s, y1 = 0.5 - y * s, y0 = y1 - s, u = (tx + x + 0.5) / W, v = (ty + y + 0.5) / W;
+      quad([[x0, y0, h], [x1, y0, h], [x1, y1, h], [x0, y1, h]], u, v, 1);
+      quad([[x1, y0, -h], [x0, y0, -h], [x0, y1, -h], [x1, y1, -h]], u, v, 0.8);
+      if (!solid(x, y - 1)) quad([[x0, y1, h], [x1, y1, h], [x1, y1, -h], [x0, y1, -h]], u, v, 0.92);
+      if (!solid(x, y + 1)) quad([[x0, y0, -h], [x1, y0, -h], [x1, y0, h], [x0, y0, h]], u, v, 0.6);
+      if (!solid(x - 1, y)) quad([[x0, y0, -h], [x0, y0, h], [x0, y1, h], [x0, y1, -h]], u, v, 0.72);
+      if (!solid(x + 1, y)) quad([[x1, y0, h], [x1, y0, -h], [x1, y1, -h], [x1, y1, h]], u, v, 0.84);
+    }
+    const gl = this.gl, buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(out), gl.STATIC_DRAW);
+    m = { buf, count: out.length / VERTEX_FLOATS }; this.voxMeshes.set(tile, m);
     return m;
   }
   groupMesh(g) {
@@ -5258,26 +5447,30 @@ class Renderer {
     this.part(base, 0.1, 1.5, -0.235, 0, 0, 0.1, 0.1, 0.03, [0.02, 0.02, 0.02]);
     this.part(base, 0, 1.4, -0.235, 0, 0, 0.12, 0.16, 0.03, [0.02, 0.02, 0.02]);
   }
-  /** A tool held in the right/left hand, drawn from boxes. `arm` = rotation of the arm it hangs from, `px` = shoulder x. */
-  heldProp(base, id, px, py, arm, thrust, tint, look) {
-    const P = (dx, cy, w, h, d, c) => this.part(base, px + dx, py, 0, arm, cy - thrust, w, h, d, tint(c));
-    const sk = WEAPON_SKINS[look && look.weapons && look.weapons[id]], c255 = (c) => [c[0] / 255, c[1] / 255, c[2] / 255];
-    let wood = [0.45, 0.31, 0.16], iron = [0.78, 0.8, 0.86], dark = [0.3, 0.3, 0.34];
-    if (sk && sk.steel) { iron = c255(sk.steel); dark = c255(sk.dark); if (id === 'bow') wood = c255(sk.steel); }
-    switch (id) {
-      case 'sword': P(0, -0.68, 0.06, 0.16, 0.06, wood); P(0, -0.78, 0.22, 0.05, 0.08, dark); P(0, -1.12, 0.08, 0.62, 0.04, iron); break;
-      case 'axe': P(0, -0.95, 0.06, 0.72, 0.06, wood); P(0.1, -1.24, 0.28, 0.22, 0.05, iron); break;
-      case 'pickaxe': P(0, -0.95, 0.06, 0.72, 0.06, wood); P(0, -1.27, 0.5, 0.08, 0.06, iron); break;
-      case 'staff': P(0, -1.0, 0.06, 1.15, 0.06, wood); P(0, -1.64, 0.15, 0.15, 0.15, [0.3, 0.9, 1]); break;
-      case 'bow': P(0, -0.75, 0.05, 0.9, 0.05, wood); P(0, -0.75, 0.012, 0.8, 0.012, [0.95, 0.95, 0.95]); break;
-      case 'lighter': P(0, -0.7, 0.07, 0.12, 0.05, dark); break;
-      default: { const it = ITEMS[id]; if (it && it.block) { const d = BlockRegistry.byType(it.block); if (d) P(0, -0.78, 0.22, 0.22, 0.22, d.color || [0.6, 0.6, 0.6]); } }
+  /** Matrix of an arm: shoulder pivot, swung out sideways (rz) then forward/back (rx). */
+  limb(base, px, py, rx, rz) { return Mat4.chain(base, Mat4.translation(px, py, 0), Mat4.rotationZ(rz || 0), Mat4.rotationX(rx)); }
+  /** A held item at the end of an arm. Tools are 3D pixel models (queued, drawn after the solid pass); blocks are small cubes. */
+  heldProp(arm, id, thrust, roll, tint, look) {
+    const it = ITEMS[id];
+    if (it && it.kind === 'tool') {
+      const tile = WEAPON_TOOLS.includes(id) ? weaponTile(id, look && look.weapons ? look.weapons[id] : 'default') : TILE['ICON_' + String(id).toUpperCase()];
+      if (tile == null) return;
+      const bow = id === 'bow', sc = bow ? 0.8 : 0.72, g = bow ? [0.156, -0.156] : [0.28, 0.28];
+      this.heldQueue.push({ tile, m: Mat4.chain(arm, Mat4.translation(0, -0.6 - thrust, 0.02), Mat4.rotationY(-Math.PI / 2), Mat4.rotationZ(-Math.PI / 4 + (roll || 0)), Mat4.scaling(sc, bow ? -sc : sc, sc), Mat4.translation(g[0], g[1], 0)) });
+      return;
     }
+    if (it && it.block) { const d = BlockRegistry.byType(it.block); if (d) this.box(Mat4.chain(arm, Mat4.translation(0, -0.78 - thrust, 0.08), Mat4.scaling(0.22, 0.22, 0.22)), tint(d.color || [0.6, 0.6, 0.6]), 1); }
   }
   humanoid(e, skin, shirt, legs, zombie, time, accent) {
     const swing = zombie ? 0 : e.swing || 0, ph = (e.walk || 0) * 3.2, fl = e.flash || 0;
-    const crouch = e.crouch ? 0.14 : 0, burn = e.burning ? 0.25 + 0.25 * Math.sin(time * 18) : 0;
-    const tint = (c) => { let r = c[0], g = c[1], b = c[2]; if (burn) { r = Math.min(1, r + burn); g *= 1 - burn * 0.4; b *= 1 - burn * 0.6; } if (fl) { r = Math.min(1, r + fl * 0.75); g *= 1 - fl * 0.65; b *= 1 - fl * 0.65; } return [r, g, b]; };
+    const crouch = e.crouch ? 0.14 : 0, burn = e.burning ? 0.25 + 0.25 * Math.sin(time * 18) : 0, chill = e.chilled ? 0.35 : 0;
+    const tint = (c) => {
+      let r = c[0], g = c[1], b = c[2];
+      if (burn) { r = Math.min(1, r + burn); g *= 1 - burn * 0.4; b *= 1 - burn * 0.6; }
+      if (chill) { r *= 1 - chill; g = Math.min(1, g * (1 - chill * 0.3) + chill * 0.3); b = Math.min(1, b + chill); }
+      if (fl) { r = Math.min(1, r + fl * 0.75); g *= 1 - fl * 0.65; b *= 1 - fl * 0.65; }
+      return [r, g, b];
+    };
     const lean = e.sprinting ? 0.18 : 0;
     const base = Mat4.chain(Mat4.translation(e.x, e.y, e.z), Mat4.rotationY(e.yaw));
     const sw = Math.sin(ph) * (e.moving === false ? 0 : 0.85) * (e.sprinting ? 1.25 : 1);
@@ -5287,27 +5480,31 @@ class Renderer {
     this.part(base, 0, 1.05 - crouch, 0, crouch * 2 + lean, 0, 0.58, 0.7, 0.3, tint(shirt));
     if (accent) this.part(base, 0, 0.8 - crouch * 0.6, 0, crouch * 2, 0, 0.6, 0.12, 0.32, tint(accent));
     this.part(base, 0, 1.4 - crouch, 0, (e.pitch ? clamp(e.pitch, -1.2, 1.2) : 0) + lean, 0.21, 0.42, 0.42, 0.42, tint(skin));
-    let ra, la, thrust = 0, rp = e.held || 'pickaxe', lp = null;
+    let ra, la, raz = 0, laz = 0, roll = 0, thrust = 0, rp = e.held || 'pickaxe', lp = null;
     if (zombie) { ra = la = armSwing; }
     else {
       const t = swing > 0 ? 1 - swing : 1, sk = e.sk || 'sword', ease = (x) => 1 - Math.pow(1 - x, 3), k = (x) => clamp(x, 0, 1);
-      ra = -sw * 0.5 - 0.2; la = sw;
-      if (rp === 'bow') { ra = -1.45; la = -1.5; lp = 'bow'; rp = null; if (swing > 0) ra = -1.45 + 0.7 * Math.sin(t * Math.PI); }
-      else if (e.blocking) { ra = -1.15; la = -0.55; }
+      /** Keyframed pose: frames = [[t, ra, raz, roll], ...], smoothly blended. */
+      const keys = (frames) => { let i = 0; while (i < frames.length - 2 && t > frames[i + 1][0]) i++; const a = frames[i], b = frames[i + 1], u = ease(k((t - a[0]) / Math.max(0.001, b[0] - a[0]))); ra = a[1] + (b[1] - a[1]) * u; raz = a[2] + (b[2] - a[2]) * u; roll = a[3] + (b[3] - a[3]) * u; };
+      ra = -sw * 0.5 - 0.25; la = sw; raz = 0.05;
+      if (rp === 'bow') { ra = -1.45; la = -1.5; laz = -0.15; raz = 0.25; lp = 'bow'; rp = null; if (swing > 0) ra = -1.45 + 0.7 * Math.sin(t * Math.PI); }
+      else if (e.blocking) { ra = -1.15; raz = -0.35; roll = 0.9; la = -0.55; }
       else if (swing > 0) {
-        if (sk === 'axe') ra = t < 0.45 ? -2.7 + Math.sin(t * 6) * 0.05 : -2.7 + 2.6 * ease(k((t - 0.45) / 0.22)) * (1 - 0.1 * k((t - 0.67) / 0.33));
+        const idle = -sw * 0.5 - 0.25;
+        if (sk === 'axe') keys([[0, idle, 0.05, 0], [0.4, -2.75, 0.15, 0.2], [0.62, -0.35, -0.1, -0.15], [1, idle, 0.05, 0]]);                    // heavy overhead chop
         else if (sk === 'staff') { ra = -1.55; thrust = Math.sin(t * Math.PI) * 0.4; }
-        else if (sk === 'pickaxe') ra = -2.5 + 2.2 * ease(k(t / 0.7)) - 0.2 * k((t - 0.7) / 0.3);
-        else ra = -2.4 + 2.1 * ease(k(t / 0.6)) - 0.2 * k((t - 0.6) / 0.4);
+        else if (sk === 'pickaxe') keys([[0, idle, 0.05, 0], [0.25, -2.45, 0.1, 0], [0.62, -0.45, 0, 0], [1, idle, 0.05, 0]]);
+        else keys([[0, idle, 0.05, 0], [0.18, -2.0, 0.85, 0.7], [0.55, -1.15, -0.55, -0.5], [1, idle, 0.05, 0]]);                             // sword: diagonal slash across the body
         la = sw * 0.3;
       }
     }
-    this.part(base, 0.4, 1.38 - crouch, 0, ra, -0.3, 0.22, 0.68, 0.22, tint(zombie ? skin : shirt));
-    this.part(base, -0.4, 1.38 - crouch, 0, la, -0.3, 0.22, 0.68, 0.22, tint(zombie ? skin : shirt));
+    const rArm = this.limb(base, 0.4, 1.38 - crouch, ra, raz), lArm = this.limb(base, -0.4, 1.38 - crouch, la, laz);
+    this.box(Mat4.chain(rArm, Mat4.translation(0, -0.3, 0), Mat4.scaling(0.22, 0.68, 0.22)), tint(zombie ? skin : shirt), 1);
+    this.box(Mat4.chain(lArm, Mat4.translation(0, -0.3, 0), Mat4.scaling(0.22, 0.68, 0.22)), tint(zombie ? skin : shirt), 1);
     if (!zombie) {
-      if (rp) this.heldProp(base, rp, 0.4, 1.38 - crouch, ra, thrust, tint, e.look);
-      if (lp) this.heldProp(base, lp, -0.4, 1.38 - crouch, la, 0, tint, e.look);
-      if (e.blocking && !lp) this.part(base, -0.4, 1.38 - crouch, 0, la, -0.85, 0.34, 0.1, 0.34, tint([0.55, 0.38, 0.2]));       // off-hand guard plate
+      if (rp) this.heldProp(rArm, rp, thrust, roll, tint, e.look);
+      if (lp) this.heldProp(lArm, lp, 0, 0, tint, e.look);
+      if (e.blocking && !lp) this.box(Mat4.chain(lArm, Mat4.translation(0, -0.85, 0), Mat4.scaling(0.34, 0.1, 0.34)), tint([0.55, 0.38, 0.2]), 1);       // off-hand guard plate
     }
   }
 
@@ -5381,6 +5578,11 @@ class Renderer {
         else this.humanoid(p, HUMAN_SKIN, col, [0.2, 0.22, 0.4], false, time);
       }
       for (const m of snap.mobs) { if (m.type === 'creeper') this.creeper(m, time); else this.humanoid({ x: m.x, y: m.y, z: m.z, yaw: m.yaw, walk: m.walk, swing: m.swing, pitch: 0 }, ZOMBIE_SKIN, [0.2, 0.42, 0.5], [0.22, 0.25, 0.5], true, time); }
+      if (this.heldQueue.length) {                                     // held weapons: textured pixel models, so switch to the world shader briefly
+        this.useProgram(wp); gl.disable(gl.CULL_FACE);
+        for (const q of this.heldQueue) this.drawMesh(this.iconVoxel(q.tile), q.m);
+        gl.enable(gl.CULL_FACE); this.heldQueue.length = 0; this.useProgram(sp);
+      }
       if (snap.banners) for (const b of snap.banners) this.banner(b, time);
       for (const a of snap.arrows) {
         const m = Mat4.chain(Mat4.translation(a.x, a.y, a.z), Mat4.rotationY(a.yaw), Mat4.rotationX(a.pitch), Mat4.scaling(0.06, 0.06, 0.9));
@@ -5436,20 +5638,46 @@ class Renderer {
       this.drawMesh(this.blockMesh(held.id, held.meta || 0), m);
     } else if (held.kind === 'tool') {
       gl.disable(gl.CULL_FACE);
-      const sm = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
-      const t = swing, id = held.id, W = { sword: [0.15, 0.25], axe: [0.45, 0.2], pickaxe: [0.25, 0.25], staff: [0.1, 0.2], lighter: [0.2, 0.2] }[id] || [0.2, 0.25];
-      const r = sm(t / W[0]) * (1 - sm((t - W[0]) / W[1])), c = sm((t - W[0]) / W[1]) * (1 - sm((t - W[0] - W[1]) / Math.max(0.05, 1 - W[0] - W[1]))), on = swing > 0;
-      const R = { sword: [0.15, 0.2, 0.05, 0.6, 0, 0.5], axe: [0, 0.5, 0.1, 1.4, 0, 0], pickaxe: [0.05, 0.4, 0.05, 1.0, 0, 0], staff: [0, -0.05, 0.15, 0, 0, 0], lighter: [0, 0.1, 0, 0.5, 0, 0] }[id] || [0, 0, 0, 0, 0, 0];
-      const C = { sword: [-0.6, -0.15, -0.15, -0.9, -0.4, 1.6], axe: [-0.15, -0.25, -0.3, -1.6, 0, 0.4], pickaxe: [-0.1, -0.2, -0.25, -1.3, 0, 0], staff: [-0.1, 0.05, -0.55, -0.5, 0, 0], lighter: [0, 0, 0, -0.4, 0, 0] }[id] || [0, 0, 0, 0, 0, 0];
-      let X = 0.4, Y = -0.3 + bob, Z = -0.72, RX = 0, RY = -0.35, RZ = -0.5;
-      if (on) { X += r * R[0] + c * C[0]; Y += r * R[1] + c * C[1]; Z += r * R[2] + c * C[2]; RX += r * R[3] + c * C[3]; RY += c * C[4]; RZ += r * R[5] + c * C[5]; }
+      const id = held.id, t = swing, on = swing > 0;
+      // pose = [X, Y, Z, RX, RY, RZ]; each swing is a few keyframes blended smoothly, so it reads as a real motion
+      // blade angle on screen = 45 deg + RZ: idle points up-left from the bottom-right corner, like Minecraft
+      const IDLE = id === 'bow' ? [0.3, -0.26, -0.7, 0, -0.5, 0.8] : [0.42, -0.36, -0.72, 0.1, -0.45, 1.35];
+      const ANIM = {
+        sword:   [[0, IDLE], [0.15, [0.55, 0.02, -0.74, 0.2, -0.4, 0.35]], [0.45, [-0.06, -0.3, -0.8, -0.3, 0.3, 2.6]], [1, IDLE]],
+        axe:     [[0, IDLE], [0.38, [0.42, -0.02, -0.66, 0.95, -0.45, 0.95]], [0.58, [0.26, -0.56, -0.8, -1.2, -0.45, 1.55]], [1, IDLE]],
+        pickaxe: [[0, IDLE], [0.25, [0.42, -0.08, -0.68, 0.75, -0.45, 1.0]], [0.6, [0.3, -0.5, -0.8, -1.0, -0.45, 1.5]], [1, IDLE]],
+        staff:   [[0, IDLE], [0.3, [0.26, -0.26, -1.0, -0.3, -0.3, 1.2]], [1, IDLE]],
+        lighter: [[0, IDLE], [0.3, [0.32, -0.24, -0.7, -0.5, -0.45, 1.35]], [1, IDLE]],
+      }[id];
+      const poseAt = (tt) => {
+        if (!ANIM || tt <= 0) return IDLE.slice();
+        let i = 0; while (i < ANIM.length - 2 && tt > ANIM[i + 1][0]) i++;
+        const A = ANIM[i], B = ANIM[i + 1], u0 = clamp((tt - A[0]) / Math.max(0.001, B[0] - A[0]), 0, 1), u = u0 * u0 * (3 - 2 * u0);
+        return A[1].map((v, j) => v + (B[1][j] - v) * u);
+      };
+      const matFor = (P) => Mat4.chain(Mat4.translation(P[0], P[1], P[2]), Mat4.rotationY(P[4]), Mat4.rotationZ(P[5]), Mat4.rotationX(P[3]), Mat4.translation(0.06, 0.06, 0), Mat4.scaling(0.36, 0.36, 0.36));
+      const P = poseAt(on ? t : 0); P[1] += bob;
       const bk = held.block || 0;
-      if (bk > 0 && id !== 'bow') { X += -0.3 * bk; Y += 0.1 * bk; Z += 0.0; RZ += 1.1 * bk; RY += -0.7 * bk; RX += 0.3 * bk; }
-      if (id === 'bow') { const ch = held.charge || 0; X += -0.22 * ch; Z += 0.04 * ch; RZ += -0.3 * ch; Y += Math.sin(time * 40) * 0.003 * ch; }
-      Y -= (1 - (held.equip == null ? 1 : held.equip)) * 0.55;
-      const m = Mat4.chain(Mat4.translation(X, Y, Z), Mat4.rotationY(RY), Mat4.rotationZ(RZ), Mat4.rotationX(RX), Mat4.translation(0, 0.1, 0), Mat4.scaling(0.42, 0.42, 0.42));
-      this.drawMesh(this.iconQuad(held.tile), m);
+      if (bk > 0 && id !== 'bow') { P[0] += -0.28 * bk; P[1] += 0.14 * bk; P[5] += 0.35 * bk; P[4] += 0.7 * bk; P[3] += 0.2 * bk; }
+      if (id === 'bow') { const ch = held.charge || 0; P[0] += -0.2 * ch; P[2] += 0.06 * ch; P[4] += 0.3 * ch; P[1] += Math.sin(time * 40) * 0.003 * ch; }
+      P[1] -= (1 - (held.equip == null ? 1 : held.equip)) * 0.55;
+      this.drawMesh(this.iconVoxel(held.tile), matFor(P));
       gl.enable(gl.CULL_FACE);
+      // swoosh trail behind the blade tip while the strike is moving
+      const hitPart = id === 'sword' ? [0.12, 0.5] : id === 'axe' ? [0.4, 0.62] : null;
+      if (on && hitPart && t > hitPart[0] && t < hitPart[1] + 0.12) {
+        const sp = this.solidProg, sk = WEAPON_SKINS[held.skin], fx = sk && sk.pal.fx ? sk.pal.fx : [1, 1, 1], tip = [0.41, 0.41, 0];
+        this.useProgram(sp);
+        gl.uniformMatrix4fv(sp.u.uVP, false, proj); gl.uniform3f(sp.u.uCam, 0, 0, 0); gl.uniform1f(sp.u.uFogStart, 500); gl.uniform1f(sp.u.uFogEnd, 600); gl.uniform1f(sp.u.uBright, 1);
+        gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+        const t1 = Math.min(t, hitPart[1]), t0 = Math.max(hitPart[0], t1 - 0.22), fade = t > hitPart[1] ? 1 - (t - hitPart[1]) / 0.12 : 1;
+        for (let i = 0; i <= 14; i++) {
+          const tt = t0 + (t1 - t0) * i / 14, M = matFor(poseAt(tt)), x = M[0] * tip[0] + M[4] * tip[1] + M[12], y = M[1] * tip[0] + M[5] * tip[1] + M[13], z = M[2] * tip[0] + M[6] * tip[1] + M[14];
+          this.boxAt(x, y + bob, z, 0.03, 0.03, 0.03, [fx[0], fx[1], fx[2], 0.55 * fade * (i / 14)], 0);
+        }
+        gl.depthMask(true); gl.disable(gl.BLEND);
+        this.useProgram(this.worldProg);
+      }
     }
   }
 
@@ -5801,7 +6029,7 @@ class UI {
   /* ---------- profile / locker / stats ---------- */
   renderProfileBar(career) {
     const L = levelFor(career.xp);
-    this.$('profileBar').innerHTML = `<div class="lv"><span>LEVEL ${L.level}</span><span>${career.coins} coins</span></div><div class="xpbar"><i style="width:${Math.round(L.into / L.need * 100)}%"></i></div>`;
+    this.$('profileBar').innerHTML = `<div class="ver">VERSION ${GAME_VERSION}</div><div class="lv"><span>LEVEL ${L.level}</span><span>${career.coins} coins</span></div><div class="xpbar"><i style="width:${Math.round(L.into / L.need * 100)}%"></i></div>`;
   }
   renderStats(career, rows) {
     const L = levelFor(career.xp);
@@ -5822,7 +6050,7 @@ class UI {
     const grid = this.$('lockerGrid'); let html = '';
     const hex = (c) => `rgb(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)})`;
     if (tab === 'weapon') {
-      html = `<div style="grid-column:1/-1"><span class="req">Weapon skins give that weapon a <b>small boost</b>. Buy each skin per weapon with coins you earn by playing.</span></div>`;
+      html = `<div style="grid-column:1/-1"><span class="req">Every collection plays differently: each skin has a <b class="pk-good">perk</b> and a <b class="pk-bad">drawback</b>. Buy each skin per weapon with coins you earn by playing.</span></div>`;
       for (const tool of WEAPON_TOOLS) {
         html += `<div style="grid-column:1/-1"><h3 style="margin:6px 0 0">${esc(ITEMS[tool].label.toUpperCase())}</h3></div>`;
         html += WEAPON_SKIN_ORDER.filter((sk) => !WEAPON_SKINS[sk].admin || state.admin).map((sk) => {
@@ -5830,7 +6058,8 @@ class UI {
           const btn = owned ? `<button class="btn tiny" data-act="wequip" data-id="${key}">${on2 ? 'EQUIPPED' : 'EQUIP'}</button>`
             : W.admin ? '<span class="req">Admin only</span>'
             : lvlOk ? `<button class="btn tiny" data-act="wbuy" data-id="${key}" ${career.coins >= W.cost ? '' : 'disabled'}>BUY ${W.cost}</button>` : `<span class="req">Unlocks at level ${W.level}</span>`;
-          return `<div class="lk ${on2 ? 'on' : ''} ${owned || lvlOk ? '' : 'locked'}">${this.iconHTML(weaponTile(tool, sk), 32)} <h4 style="display:inline-block;margin-left:6px">${esc(W.name)}</h4><span class="req" style="display:block">${esc(boostText(W.boost[tool] || {}))}</span>${btn}</div>`;
+          const perks = perkLines(W.perk[tool] || {}).map(([t, good]) => `<li class="${good ? 'pk-good' : 'pk-bad'}">${good ? '+' : '-'} ${esc(t)}</li>`).join('');
+          return `<div class="lk wsk ${on2 ? 'on' : ''} ${owned || lvlOk ? '' : 'locked'}"><div class="wsk-h">${this.iconHTML(weaponTile(tool, sk), 48)}<div><h4>${esc(W.name)}</h4><span class="req">${esc(W.tag)}</span></div></div>${perks ? `<ul class="pk">${perks}</ul>` : ''}${btn}</div>`;
         }).join('');
       }
     } else if (tab === 'title') {
@@ -6755,6 +6984,13 @@ class Game {
         if (!e.blocked) this.sfx('hit', t.pos.x, t.pos.y + 1, t.pos.z, 40);
         if (e.crit) this.sfx('crit', t.pos.x, t.pos.y + 1, t.pos.z, 40);
         if (e.sprint) P.puff(t.pos.x, t.pos.y + 0.3, t.pos.z, [0.9, 0.9, 0.9], 6, 1.2, 0.3, 0.2, 0.5, false);
+        const wsk = WEAPON_SKINS[e.skin], hx = t.pos.x, hy = t.pos.y + 1.1, hz = t.pos.z;
+        if (!e.blocked && wsk && wsk.pal.fx) P.burst(hx, hy, hz, wsk.pal.fx, 6, 2.2, 0.08);
+        if (e.fx) {                                                        // skin perks that landed
+          if (e.fx.includes('chill')) { P.burst(hx, hy, hz, [0.78, 0.94, 1], 12, 2.6, 0.1); if (t === me) this.ui.toast('FROZEN: you are slowed', 'warn', 1200); }
+          if (e.fx.includes('burn')) P.puff(hx, hy, hz, [1, 0.5, 0.1], 8, 0.6, 1.8, 0.2, 0.6);
+          if (e.fx.includes('leech')) { const pl = this.server.players, a = typeof e.by === 'number' ? pl[e.by] : pl.find((q) => q.id === e.by); if (a && a.pos) P.puff(a.pos.x, a.pos.y + 1.2, a.pos.z, [0.95, 0.1, 0.2], 6, 0.5, 1.2, 0.12, 0.6); }
+        }
         if (mine && t !== me) {
           this.ui.hitMarker(e.blocked ? 'block' : e.crit ? 'crit' : '');
           const d = this.lastDmgEvt && this.lastDmgEvt.target === t ? this.lastDmgEvt.amount : 0;
@@ -7168,6 +7404,15 @@ class Game {
     for (const t of s.tnts) P.puff(t.pos.x, t.pos.y + 1, t.pos.z, [1, 0.8, 0.3], 1, 0.15, 1.5, 0.1, 0.35);
     for (const m of s.meteors) P.puff(m.pos.x, m.pos.y, m.pos.z, [1, 0.5, 0.15], 4, 1.4, 0.5, 0.7, 0.9);
     for (const b of s.bodies()) if (b.burnTime > 0) P.puff(b.pos.x, b.pos.y + 1, b.pos.z, [1, 0.5, 0.1], 1, 0.5, 1.5, 0.15, 0.5);
+    for (const p of s.players) {                                       // weapon skins glow in other players' hands
+      if (!p.alive || p === this.player || !p.look || !p.look.weapons || Math.abs(p.pos.x - l.x) > 30 || Math.abs(p.pos.z - l.z) > 30) continue;
+      const sk = p.look.weapons[p.held]; if (!sk || sk === 'default' || sk === 'titan') continue;
+      const fwdX = -Math.sin(p.yaw), fwdZ = -Math.cos(p.yaw), hx = p.pos.x + Math.cos(p.yaw) * 0.42 + fwdX * 0.5, hz = p.pos.z - Math.sin(p.yaw) * 0.42 + fwdZ * 0.5, hy = p.pos.y + 1.05, c = WEAPON_SKINS[sk].pal.fx;
+      if (sk === 'frost') P.puff(hx, hy, hz, c, 1, 0.35, -0.5, 0.06, 0.8);
+      else if (sk === 'inferno') P.puff(hx, hy, hz, Math.random() < 0.5 ? c : [1, 0.85, 0.3], 1, 0.3, 1.4, 0.08, 0.5);
+      else if (sk === 'blood') P.puff(hx, hy, hz, c, 1, 0.2, -1, 0.06, 0.6, false);
+      else P.puff(hx, hy, hz, c, 1, 0.4, 0.4, 0.06, 0.45);
+    }
   }
 
   stageInfo() {
@@ -7175,7 +7420,7 @@ class Game {
     switch (s.phase) {
       case 'countdown': return ['GET READY', 'Match begins in ' + Math.ceil(M.COUNTDOWN - s.phaseTime), fmtTime(M.COUNTDOWN - s.phaseTime)];
       case 'build': { const left = s.timeLeft(); return left <= 30 * (M.BUILD / 180) ? ['PREPARE', 'Set traps, load TNT, sharpen weapons. War is coming.', fmtTime(left)] : ['BUILD', 'Fortify your land. Only your own land can be edited.', fmtTime(left)]; }
-      case 'war': { const t = s.phaseTime / (M.WAR - M.CHAOS); const left = s.timeLeft(); return s.coreShielded && s.coreShielded() ? ['FIGHT', 'Cores are shielded for ' + Math.ceil(CONFIG.MATCH.CORE_SHIELD - s.phaseTime) + ' s. Find the enemy cores (purple).', fmtTime(left)] : t < 0.33 ? ['FIGHT', 'Break enemy cores. While yours stands, you respawn.', fmtTime(left)] : t < 0.75 ? ['DESTROY', 'Break enemy bases. Watch their integrity %.', fmtTime(left)] : ['SURVIVE', 'Stay alive. Chaos is near.', fmtTime(left)]; }
+      case 'war': { const t = s.phaseTime / (M.WAR - M.CHAOS); const left = s.timeLeft(); return s.coreShielded && s.coreShielded() ? ['FIGHT', 'Cores are shielded for ' + Math.ceil(CONFIG.MATCH.CORE_SHIELD - s.phaseTime) + ' s. Find the enemy cores (purple).', fmtTime(left)] : t < 0.33 ? ['FIGHT', 'Break enemy cores. While yours stands, you respawn.', fmtTime(left)] : t < 0.75 ? ['DESTROY', 'Break enemy cores: without one, a team cannot respawn.', fmtTime(left)] : ['SURVIVE', 'Stay alive. Chaos is near.', fmtTime(left)]; }
       case 'chaos': return ['CHAOS', 'Sudden death: no respawns. Disasters rage. Last team standing wins.', fmtTime(s.timeLeft())];
       case 'sandbox': return ['SANDBOX', 'Unlimited resources. No timers.', '∞'];
       case 'ended': return ['MATCH OVER', '', '0:00'];
@@ -7253,7 +7498,7 @@ class Game {
       if (this.kick > 0) { dir.y += this.kick * 0.05; const l = Math.hypot(dir.x, dir.y, dir.z); dir.x /= l; dir.y /= l; dir.z /= l; }
       cam = { x: e.x + (Math.random() - 0.5) * sh, y: e.y + (Math.random() - 0.5) * sh, z: e.z + (Math.random() - 0.5) * sh, dir, fov: this.settings.fov + (this.fovAdd || 0) };
       const it = this.currentItem();
-      if (p.alive && it) held = it.def.kind === 'tool' ? { kind: 'tool', id: it.id, tile: weaponTile(it.id, p.look && p.look.weapons ? p.look.weapons[it.id] : 'default'), block: this.blockAmt, charge: it.id === 'bow' ? this.charge : 0, equip: this.equip } : { kind: 'block', id: BlockRegistry.byType(it.def.block).id, meta: it.id === 'piston' ? 12 : 0, equip: this.equip };
+      if (p.alive && it) held = it.def.kind === 'tool' ? { kind: 'tool', id: it.id, skin: p.look && p.look.weapons ? p.look.weapons[it.id] : null, tile: weaponTile(it.id, p.look && p.look.weapons ? p.look.weapons[it.id] : 'default'), block: this.blockAmt, charge: it.id === 'bow' ? this.charge : 0, equip: this.equip } : { kind: 'block', id: BlockRegistry.byType(it.def.block).id, meta: it.id === 'piston' ? 12 : 0, equip: this.equip };
     }
     this.cam = cam;
     const m = srv.map ? srv.map.vault : null;
