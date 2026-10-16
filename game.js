@@ -39,18 +39,18 @@ const CONFIG = {
   WORLD: { SIZE_X: 100, SIZE_Y: 40, SIZE_Z: 100, CHUNK: 16 },
   PLAYER: {
     WIDTH: 0.6, HEIGHT: 1.8, EYE: 1.62, EYE_CROUCH: 1.32,
-    WALK: 6.0, CROUCH: 2.4,
-    GROUND_ACCEL: 80, GROUND_FRICTION: 70, AIR_ACCEL: 22,
-    JUMP: 9.0, GRAVITY: 28, TERMINAL: 50, REACH: 6,
+    WALK: 4.3, CROUCH: 1.3,                                    // Minecraft speeds: walk 4.3 b/s, sprint 5.6, sneak 1.3
+    GROUND_ACCEL: 50, GROUND_FRICTION: 45, AIR_ACCEL: 14,
+    JUMP: 8.4, GRAVITY: 28, TERMINAL: 50, REACH: 6,            // jump about 1.25 blocks high, like Minecraft
   },
   STEP: 1 / 60,                 // fixed physics timestep (seconds)
   MOUSE_SENS: 0.0022,           // radians per pixel at sensitivity 1.0
-  MINE: { TIME_PER_HARDNESS: 0.12, MIN_TIME: 0.08, PLACE_COOLDOWN: 0.2 },
-  HEALTH: { MAX: 100, REGEN_DELAY: 8, REGEN_RATE: 1.2, FALL_SAFE: 13, FALL_DMG: 4.5 },
+  MINE: { TIME_PER_HARDNESS: 0.45, MIN_TIME: 0.15, PLACE_COOLDOWN: 0.25 }, // stone ~0.7 s with a pickaxe, close to Minecraft
+  HEALTH: { MAX: 100, REGEN_DELAY: 10, REGEN_RATE: 0.8, FALL_SAFE: 13, FALL_DMG: 4.5 },
   PLOT_RADIUS: 18,
   MATCH: {
-    COUNTDOWN: 3, BUILD: 180 / TIME_SPEED, WAR: 420 / TIME_SPEED, CHAOS: 120 / TIME_SPEED,
-    SANDBOX_RESPAWN: 2, SPEED: TIME_SPEED,
+    COUNTDOWN: 3, BUILD: 120 / TIME_SPEED, WAR: 420 / TIME_SPEED, CHAOS: 120 / TIME_SPEED,
+    SANDBOX_RESPAWN: 2, CORE_RESPAWN: 5, CORE_SHIELD: 60 / TIME_SPEED, SPEED: TIME_SPEED,
   },
   RENDER: { FOG_START: 50, FOG_END: 140, SKY: [0.55, 0.78, 0.95], REBUILD_BUDGET: 4 },
   ATLAS: { TILES: 16, TILE_PX: 16 },
@@ -67,7 +67,7 @@ const TILE_NAMES = ['grass_top', 'grass_side', 'dirt', 'stone', 'wood', 'glass',
   'wire_off', 'wire_on', 'plate_off', 'plate_on', 'lever_off', 'lever_on', 'button', 'tripwire',
   'piston_side', 'piston_front', 'piston_back', 'piston_head', 'door', 'timer', 'sensor', 'alarm',
   'vault', 'log_side', 'log_top', 'vault_top', 'icon_pickaxe', 'icon_sword', 'icon_axe', 'icon_bow', 'icon_staff', 'icon_lighter', 'brick', 'shingle', 'lamp', 'flower_red', 'flower_yellow', 'gold_ore',
-  'plotwall', 'turret', 'cannon', 'mine', 'spikes', 'jumppad', 'conv_0', 'conv_1', 'conv_2', 'conv_3', 'sprinkler', 'healer', 'flamer', 'dropper'];
+  'plotwall', 'turret', 'cannon', 'mine', 'spikes', 'jumppad', 'conv_0', 'conv_1', 'conv_2', 'conv_3', 'sprinkler', 'healer', 'flamer', 'dropper', 'core'];
 const TILE = {};
 TILE_NAMES.forEach((n, i) => { TILE[n.toUpperCase()] = i; });
 
@@ -170,6 +170,8 @@ const BlockRegistry = (() => {
   define({ ...MACH, type: 'healer', hardness: 1.5, blastResistance: 2, weight: 2, color: [0.4, 0.9, 0.5], tiles: all(TILE.HEALER), boxes: () => [[0.15, 0, 0.15, 0.85, 0.7, 0.85]], drop: ['mech', 3, 0.8] });
   define({ ...MACH, type: 'flamer', hardness: 2, blastResistance: 3, weight: 3, color: [0.85, 0.35, 0.15], tiles: all(TILE.FLAMER), boxes: () => [[0.15, 0, 0.15, 0.85, 0.5, 0.85], [0.35, 0.5, 0.35, 0.65, 0.8, 0.65]], drop: ['mech', 3, 0.8] });
   define({ type: 'dropper', hardness: 2, blastResistance: 4, weight: 3, sound: 'stone', color: [0.75, 0.3, 0.2], mech: 'consumer', tiles: all(TILE.DROPPER), drop: ['mech', 2, 0.8] });
+  // each player's base core: while it stands its owner respawns; enemies must mine it (slowly) or blow it up
+  define({ type: 'core', hardness: 25, blastResistance: 7, weight: 10, sound: 'stone', color: [0.7, 0.35, 1], placeable: false, pushable: false, tiles: { top: TILE.CORE, side: TILE.CORE, bottom: TILE.OBSIDIAN } });
   define({ type: 'vault', hardness: Infinity, blastResistance: Infinity, weight: 20, sound: 'stone', color: [1, 0.8, 0.2], breakable: false, placeable: false, pushable: false, tiles: { top: TILE.VAULT_TOP, side: TILE.VAULT, bottom: TILE.VAULT } });
 
   return {
@@ -485,6 +487,7 @@ function generateAtlas() {
   paint(TILE.SPRINKLER, 80, (x, y, r) => (edge(x, y) ? [30, 70, 130] : ((x + y) % 5 === 0) ? [190, 225, 255] : noisy(r, 70, 130, 220, 14)));
   paint(TILE.HEALER, 81, (x, y, r) => (edge(x, y) ? [30, 120, 60] : ((Math.abs(x - 7.5) < 1.6 && Math.abs(y - 7.5) < 5) || (Math.abs(y - 7.5) < 1.6 && Math.abs(x - 7.5) < 5)) ? [255, 255, 255] : noisy(r, 90, 210, 120, 12)));
   paint(TILE.FLAMER, 82, (x, y, r) => (edge(x, y) ? [60, 20, 10] : (Math.hypot(x - 7.5, y - 8.5) < 3.2) ? [255, 190, 50] : noisy(r, 170, 60, 30, 14)));
+  paint(TILE.CORE, 84, (x, y, r) => { const d = Math.abs(x - 7.5) + Math.abs(y - 7.5); return edge(x, y) ? [40, 20, 60] : d < 3 ? [255, 235, 255] : d < 6 ? [200, 110, 255] : noisy(r, 110, 50, 170, 18); });
   paint(TILE.DROPPER, 83, (x, y, r) => (edge(x, y) ? [90, 30, 20] : (Math.hypot(x - 7.5, y - 7.5) < 3.5) ? [20, 20, 20] : noisy(r, 190, 70, 55, 14)));
   const flower = (tile, petal) => paint(tile, 63, (x, y, r) => {
     const d = Math.hypot(x - 7.5, y - 5.5);
@@ -498,7 +501,8 @@ function generateAtlas() {
   paint(TILE.GOLD_ORE, 64, (x, y, r) => (r() < 0.14 ? [250, 212, 70] : r() < 0.09 ? [96, 96, 102] : noisy(r, 126, 126, 132, 22)));
 
   // --- tool icons (hotbar): tiny pixel drawings on a transparent tile ---
-  const icon = (tile, rows, palette) => paint(tile, 7, (x, y) => { const ch = rows[y] && rows[y][x]; return ch && ch !== '.' ? palette[ch] : undefined; });
+  const iconRows = {};
+  const icon = (tile, rows, palette) => { iconRows[tile] = rows; paint(tile, 7, (x, y) => { const ch = rows[y] && rows[y][x]; return ch && ch !== '.' ? palette[ch] : undefined; }); };
   const WOODC = [140, 100, 56], STEEL = [220, 224, 236], DARK = [90, 94, 110];
   icon(TILE.ICON_PICKAXE, [
     '................', '...ssssss.......', '..ssddddss......', '.ss...ww.ss.....', '.s....ww..s.....', '......ww........', '.....ww.........', '.....ww.........',
@@ -518,6 +522,11 @@ function generateAtlas() {
   icon(TILE.ICON_LIGHTER, [
     '................', '................', '.......ff.......', '......ffff......', '......ffyf......', '.....ssssss.....', '.....sddddss....', '.....sdddds.....',
     '.....sdddds.....', '.....sdddds.....', '.....sdddds.....', '.....sddddss....', '.....ssssss.....', '................', '................', '................'], { f: [255, 150, 40], y: [255, 230, 120], s: [190, 190, 200], d: [110, 110, 124] });
+  for (const tool of WEAPON_TOOLS) for (const sk of WEAPON_SKIN_ORDER) {                // weapon skins: the same drawings, recoloured
+    if (sk === 'default') continue;
+    const S = WEAPON_SKINS[sk], rows = iconRows[TILE['ICON_' + tool.toUpperCase()]];
+    icon(weaponTile(tool, sk), rows, tool === 'bow' ? { b: S.steel, s: [240, 240, 240], a: S.dark } : { s: S.steel, d: S.dark, w: S.handle, g: [230, 190, 60] });
+  }
   return canvas;
 }
 
@@ -841,7 +850,7 @@ class Player extends Body {
 
     this.simulate(dt, wx, wz, speed, !!controls.jump, P.JUMP * this.mods.jump, world, env);
     if (this.jumped && this.sprinting) {                         // sprint-jump: a burst of forward speed, like Minecraft
-      const l = Math.hypot(wx, wz) || 1; this.vel.x += wx / l * 3.2; this.vel.z += wz / l * 3.2;
+      const l = Math.hypot(wx, wz) || 1; this.vel.x += wx / l * 2; this.vel.z += wz / l * 2;
     }
     this.hurtT = Math.max(0, this.hurtT - dt);
 
@@ -879,7 +888,7 @@ class Mob extends Body {
       if (this.onGround && Math.hypot(this.vel.x, this.vel.z) < 0.4 && d > 1.2) { this.stuck += dt; if (this.stuck > 0.4) jump = true; } else this.stuck = 0;
     }
     const px = this.pos.x, pz = this.pos.z;
-    this.simulate(dt, wx, wz, this.type === 'creeper' ? (this.fuse > 0 ? 0.6 : 3.1) : 3.4, jump, 8.2, world, env);
+    this.simulate(dt, wx, wz, this.type === 'creeper' ? (this.fuse > 0 ? 0.5 : 2.2) : 2.4, jump, 8.2, world, env);
     if (this.onGround) this.walkPhase += Math.hypot(this.pos.x - px, this.pos.z - pz) * 1.6;
   }
 }
@@ -899,6 +908,7 @@ class FluidSystem {
   }
   /** Called for every block change: wake fluid cells next to the change. */
   onChange(x, y, z) {
+    if (this.server.bulkFluid || this.pending.size > 40000) return;          // whole-layer floods are still water; and a hard cap so the queue can never run away
     const w = this.world;
     let near = BLOCKS[w.get(x, y, z)].shape === 'fluid';
     if (!near) for (const d of DIRS6) if (BLOCKS[w.get(x + d[0], y + d[1], z + d[2])].shape === 'fluid') { near = true; break; }
@@ -1114,8 +1124,8 @@ class FireSystem {
   }
   update(dt) {
     this.acc += dt;
-    if (this.acc < 0.5) return;
-    this.acc -= 0.5;
+    if (this.acc < 0.9) return;                                      // fire spreads about once a second
+    this.acc -= 0.9;
     const w = this.world;
     for (const k of Array.from(this.fires)) {
       const [x, y, z] = unkey(k);
@@ -1281,7 +1291,7 @@ class StructureSystem {
 /** Sand, gravel and unsupported TNT fall as one-block (or column) groups. */
 class GravitySystem {
   constructor(server) { this.server = server; this.world = server.world; this.pending = new Set(); }
-  onChange(x, y, z) { this.pending.add(keyOf(x, y, z)); this.pending.add(keyOf(x, y + 1, z)); }
+  onChange(x, y, z) { if (this.server.bulkFluid) return; this.pending.add(keyOf(x, y, z)); this.pending.add(keyOf(x, y + 1, z)); }
   update() {
     if (!this.pending.size) return;
     const w = this.world, keys = Array.from(this.pending).slice(0, 300);
@@ -1365,11 +1375,14 @@ class RedstoneSystem {
     for (const k of this.mechs) {
       const [x, y, z] = unkey(k), id = w.get(x, y, z), m = w.getMeta(x, y, z);
       let on = false;
+      // plates and tripwires ignore whoever placed them (and their allies), so nobody walks onto their own trap
+      const trapOwner = (id === ID.plate || id === ID.tripwire) ? s.playerBySlot(w.getOwner(x, y, z) - 1) : null;
+      const trips = (b) => !(trapOwner && b.player && (b.player === trapOwner || s.areAllies(b.player, trapOwner)));
       if (id === ID.plate) {
-        on = bodies.some((b) => Math.abs(b.pos.x - (x + 0.5)) < b.hw + 0.42 && Math.abs(b.pos.z - (z + 0.5)) < b.hw + 0.42 && b.pos.y < y + 0.5 && b.pos.y + b.h > y);
+        on = bodies.some((b) => trips(b) && Math.abs(b.pos.x - (x + 0.5)) < b.hw + 0.42 && Math.abs(b.pos.z - (z + 0.5)) < b.hw + 0.42 && b.pos.y < y + 0.5 && b.pos.y + b.h > y);
         if (on !== !!(m & 1)) { w.setMeta(x, y, z, on ? m | 1 : m & ~1); s.emit({ type: 'mechClick', x, y, z, block: BLOCKS[id] }); }
       } else if (id === ID.tripwire) {
-        on = bodies.some((b) => Math.abs(b.pos.x - (x + 0.5)) < b.hw + 0.5 && Math.abs(b.pos.z - (z + 0.5)) < b.hw + 0.5 && b.pos.y < y + 1 && b.pos.y + b.h > y);
+        on = bodies.some((b) => trips(b) && Math.abs(b.pos.x - (x + 0.5)) < b.hw + 0.5 && Math.abs(b.pos.z - (z + 0.5)) < b.hw + 0.5 && b.pos.y < y + 1 && b.pos.y + b.h > y);
         if (on !== !!(m & 1)) w.setMeta(x, y, z, on ? m | 1 : m & ~1);
       } else if (id === ID.sensor) {
         const owner = w.getOwner(x, y, z) - 1, op = owner >= 0 ? s.playerBySlot(owner) : null;
@@ -1523,17 +1536,17 @@ const ITEM_ORDER = Object.keys(ITEMS);
 /** Combat numbers follow Minecraft's feel (scaled to 100 HP): sword 4 hits, axe heavy and slow, sprint hits knock back harder, crits while falling.
  *  cd = seconds for a full attack charge, kb = horizontal knockback speed (blocks/s). */
 const TOOLS = {
-  pickaxe: { dmg: 14, cd: 0.83, reach: 3.2, kb: 8,  mine: 2.6 },
-  sword:   { dmg: 24, cd: 0.625, reach: 3.3, kb: 8,  mine: 1.2 },
-  axe:     { dmg: 32, cd: 1.0,  reach: 3.1, kb: 8,  mine: 1.0, woodMine: 2.5 },
-  staff:   { dmg: 5,  cd: 0.7,  reach: 3.4, kb: 24, mine: 1.0 },
-  bow:     { dmg: 28, cd: 0.5,  draw: 0.7, speed: 34, mine: 1.0 },
+  pickaxe: { dmg: 14, cd: 0.83, reach: 3.2, kb: 7,  mine: 2.6 },
+  sword:   { dmg: 24, cd: 0.625, reach: 3.3, kb: 7,  mine: 1.2 },
+  axe:     { dmg: 32, cd: 1.0,  reach: 3.1, kb: 7,  mine: 1.0, woodMine: 2.5 },
+  staff:   { dmg: 5,  cd: 0.7,  reach: 3.4, kb: 18, mine: 1.0 },
+  bow:     { dmg: 28, cd: 0.6,  draw: 1.0, speed: 34, mine: 1.0 },   // full draw takes 1 s, like Minecraft
   lighter: { mine: 1.0 },
 };
 /** Seconds to break `def` by hand/tool (used by both the client progress bar and bots). */
-function mineTime(def, toolId, mods) {
+function mineTime(def, toolId, mods, look) {
   const t = TOOLS[toolId] || { mine: 1 };
-  let mult = t.mine || 1;
+  let mult = (t.mine || 1) * (weaponBoost(look, toolId).mine || 1);
   if (t.woodMine && (def.sound === 'wood')) mult = t.woodMine;
   else if (toolId === 'pickaxe' && (def.sound === 'soft')) mult = 1.6;
   if (mods) mult *= mods.mineSpeed;
@@ -1871,7 +1884,9 @@ const MapGenerator = {
           for (let k = 0; k < 4; k++) { const oy = h - 1 - Math.floor(rng() * 4), ox = x + Math.floor(rng() * 3) - 1, oz = z + Math.floor(rng() * 3) - 1; if (world.get(ox, oy, oz) === ID.stone) world.set(ox, oy, oz, ID.iron_ore, true); }
         }
       }
-      plots.push({ index: s.index, landId: land, owner, x: px, z: pz, baseY: base, outward: o });
+      let core = null;
+      if (opts.cores && owner >= 0) { const [cx2, cz2] = at(-2, 0); put(cx2, base + 1, cz2, 'core', oc); core = [cx2, base + 1, cz2]; }
+      plots.push({ index: s.index, landId: land, owner, x: px, z: pz, baseY: base, outward: o, core });
     }
 
     // ---- centre vault: hollow stone building with doors, windows, glass roof and the vault core ----
@@ -2100,6 +2115,7 @@ const COSMETICS = {
     frost:   { name: 'Frost',   cost: 300, level: 4, skin: [0.82, 0.93, 1.0],  shirt: [0.45, 0.72, 0.95], legs: [0.2, 0.32, 0.55] },
     shadow:  { name: 'Shadow',  cost: 400, level: 6, skin: [0.3, 0.3, 0.36],   shirt: [0.14, 0.12, 0.2],  legs: [0.08, 0.07, 0.12] },
     golden:  { name: 'Golden',  cost: 900, level: 10, skin: [1.0, 0.88, 0.45], shirt: [0.96, 0.78, 0.2],  legs: [0.62, 0.45, 0.1] },
+    admin:   { name: 'Admin',   cost: 0, level: 1, admin: true, skin: [0.95, 0.8, 1], shirt: [0.92, 0.18, 0.85], legs: [0.12, 0.08, 0.16] },
     leaf:    { name: 'Woodland', cost: 350, level: 5, skin: [0.78, 0.66, 0.46], shirt: [0.28, 0.56, 0.24], legs: [0.34, 0.26, 0.14] },
   },
   trail: {
@@ -2138,7 +2154,49 @@ const COSMETICS = {
     taunt:  { name: 'Come get me!',   text: 'Come get me!',   cost: 200, level: 5 },
   },
 };
+/**
+ * Weapon skins: bought with coins (earned by playing), one tool at a time. Unlike the other cosmetics these give a SMALL boost
+ * to that weapon. Admin skins only appear for admins (code LN1).
+ * boost: dmg = melee damage x, speed = swing cooldown x (lower is faster), mine = mining speed x, draw = bow draw time x, arrow = arrow damage x.
+ */
+const WEAPON_TOOLS = ['sword', 'axe', 'pickaxe', 'bow'];
+const WEAPON_SKINS = {
+  default: { name: 'Standard', cost: 0, level: 1, boost: {} },
+  iron:    { name: 'Iron',    cost: 200,  level: 2,  steel: [232, 234, 242], dark: [140, 144, 160], handle: [120, 90, 60],
+    boost: { sword: { dmg: 1.04 }, axe: { dmg: 1.04 }, pickaxe: { mine: 1.1 }, bow: { draw: 0.95 } } },
+  gold:    { name: 'Gold',    cost: 450,  level: 4,  steel: [255, 214, 70], dark: [196, 146, 30], handle: [110, 70, 35],
+    boost: { sword: { speed: 0.94 }, axe: { speed: 0.94 }, pickaxe: { mine: 1.15 }, bow: { arrow: 1.06 } } },
+  diamond: { name: 'Diamond', cost: 900,  level: 7,  steel: [120, 236, 240], dark: [36, 166, 180], handle: [90, 60, 40],
+    boost: { sword: { dmg: 1.08 }, axe: { dmg: 1.08 }, pickaxe: { mine: 1.25 }, bow: { draw: 0.9, arrow: 1.05 } } },
+  ember:   { name: 'Ember',   cost: 1500, level: 10, steel: [255, 124, 40], dark: [176, 36, 20], handle: [50, 30, 30],
+    boost: { sword: { dmg: 1.1, speed: 0.95 }, axe: { dmg: 1.1, speed: 0.95 }, pickaxe: { mine: 1.3 }, bow: { draw: 0.88, arrow: 1.08 } } },
+  admin:   { name: 'Admin',   cost: 0,    level: 1,  admin: true, steel: [255, 70, 225], dark: [110, 0, 150], handle: [28, 28, 32],
+    boost: { sword: { dmg: 1.5, speed: 0.7 }, axe: { dmg: 1.5, speed: 0.7 }, pickaxe: { mine: 3 }, bow: { draw: 0.5, arrow: 1.5 } } },
+};
+const WEAPON_SKIN_ORDER = Object.keys(WEAPON_SKINS);
+/** The boost a look's equipped skin gives `tool` ({} when none). */
+function weaponBoost(look, tool) { const id = look && look.weapons && look.weapons[tool], sk = WEAPON_SKINS[id]; return (sk && sk.boost[tool]) || {}; }
+/** Atlas tile for a tool drawn in a skin (the plain icon for the standard skin). */
+function weaponTile(tool, skin) {
+  const ti = WEAPON_TOOLS.indexOf(tool), si = WEAPON_SKIN_ORDER.indexOf(skin);
+  return ti >= 0 && si > 0 ? 100 + ti * 8 + si : TILE['ICON_' + String(tool).toUpperCase()];
+}
+function boostText(b) {
+  const pct = (v, inv) => Math.round(Math.abs((inv ? 1 / v : v) - 1) * 100) + '%', out = [];
+  if (b.dmg) out.push('+' + pct(b.dmg) + ' damage'); if (b.speed) out.push('+' + pct(b.speed, true) + ' swing speed');
+  if (b.mine) out.push('+' + pct(b.mine) + ' mining speed'); if (b.draw) out.push('+' + pct(b.draw, true) + ' draw speed'); if (b.arrow) out.push('+' + pct(b.arrow) + ' arrow damage');
+  return out.join(', ') || 'No boost';
+}
 const COSMETIC_SLOTS = ['skin', 'trail', 'kill', 'banner'];
+/** Admin panel: opened by typing this as a join code. Anyone who reads game.js can see it, so it is a fun extra, not security. */
+const ADMIN_CODE = 'LN1';
+const ADMIN_DEFAULTS = { speed: 1, jump: 1, damage: 1, mine: 1, health: 100, regen: 1, draw: 1, god: false, infinite: false };
+const ADMIN_SLIDERS = [                                         // [key, label, min, max, step, format]
+  ['speed', 'Move speed', 0.5, 4, 0.1, (v) => v.toFixed(1) + 'x'], ['jump', 'Jump height', 0.5, 3, 0.1, (v) => v.toFixed(1) + 'x'],
+  ['damage', 'Melee & arrow damage', 0.5, 10, 0.5, (v) => v.toFixed(1) + 'x'], ['mine', 'Mining speed', 0.5, 20, 0.5, (v) => v.toFixed(1) + 'x'],
+  ['health', 'Max health', 50, 1000, 10, (v) => Math.round(v) + ' HP'], ['regen', 'Regeneration', 0.5, 20, 0.5, (v) => v.toFixed(1) + 'x'],
+  ['draw', 'Bow draw speed', 0.5, 5, 0.1, (v) => v.toFixed(1) + 'x'],
+];
 const DEFAULT_EMOTES = ['gg', 'oops', 'boom', 'help'];
 const BANNER_COLORS = [[1, 0.35, 0.2], [0.25, 0.65, 1], [0.45, 0.88, 0.35], [1, 0.82, 0.25], [0.78, 0.5, 1], [1, 0.55, 0.7], [0.95, 0.95, 0.95], [0.15, 0.15, 0.18]];
 
@@ -2157,7 +2215,9 @@ const TITLES = {
 };
 const TITLE_ORDER = Object.keys(TITLES);
 
-const DEFAULT_PROFILE = () => ({ owned: { skin: ['default'], trail: ['none'], kill: ['none'], banner: ['solid'], emote: DEFAULT_EMOTES.slice() }, equipped: { skin: 'default', trail: 'none', kill: 'none', banner: 'solid', title: 'rookie', emotes: DEFAULT_EMOTES.slice(), bannerColor: 0 } });
+const DEFAULT_WEAPONS = () => ({ sword: 'default', axe: 'default', pickaxe: 'default', bow: 'default' });
+const DEFAULT_PROFILE = () => ({ owned: { skin: ['default'], trail: ['none'], kill: ['none'], banner: ['solid'], emote: DEFAULT_EMOTES.slice(), weapon: [] }, equipped: { skin: 'default', trail: 'none', kill: 'none', banner: 'solid', title: 'rookie', emotes: DEFAULT_EMOTES.slice(), bannerColor: 0, weapons: DEFAULT_WEAPONS() } });
+const validWeaponKey = (k) => { const [t, sk] = String(k).split(':'); return WEAPON_TOOLS.includes(t) && !!WEAPON_SKINS[sk]; };
 
 /** Validates (and repairs) a profile loaded from storage or received over the network. */
 function sanitizeProfile(pr) {
@@ -2172,24 +2232,29 @@ function sanitizeProfile(pr) {
   if (TITLES[eq.title]) d.equipped.title = eq.title;
   if (Array.isArray(eq.emotes)) d.equipped.emotes = [0, 1, 2, 3].map((i) => (COSMETICS.emote[eq.emotes[i]] && d.owned.emote.includes(eq.emotes[i]) ? eq.emotes[i] : DEFAULT_EMOTES[i]));
   d.equipped.bannerColor = clamp(eq.bannerColor | 0, 0, BANNER_COLORS.length - 1);
+  d.owned.weapon = pr.owned && Array.isArray(pr.owned.weapon) ? Array.from(new Set(pr.owned.weapon.filter(validWeaponKey))) : [];
+  for (const t of WEAPON_TOOLS) { const id = eq.weapons && eq.weapons[t]; if (WEAPON_SKINS[id] && (id === 'default' || d.owned.weapon.includes(t + ':' + id))) d.equipped.weapons[t] = id; }
   return d;
 }
 /** The small public part of a profile that other players see. */
 function publicLook(profile) {
   const e = profile.equipped;
-  return { skin: e.skin, trail: e.trail, kill: e.kill, banner: e.banner, bannerColor: e.bannerColor, title: e.title, emotes: e.emotes.slice() };
+  return { skin: e.skin, trail: e.trail, kill: e.kill, banner: e.banner, bannerColor: e.bannerColor, title: e.title, emotes: e.emotes.slice(), weapons: Object.assign(DEFAULT_WEAPONS(), e.weapons) };
 }
 function sanitizeLook(l) {
   const d = DEFAULT_PROFILE().equipped;
   if (!l || typeof l !== 'object') return publicLook({ equipped: d });
   const out = { skin: COSMETICS.skin[l.skin] ? l.skin : d.skin, trail: COSMETICS.trail[l.trail] ? l.trail : d.trail, kill: COSMETICS.kill[l.kill] ? l.kill : d.kill, banner: COSMETICS.banner[l.banner] ? l.banner : d.banner, bannerColor: clamp(l.bannerColor | 0, 0, BANNER_COLORS.length - 1), title: TITLES[l.title] ? l.title : d.title };
   out.emotes = [0, 1, 2, 3].map((i) => (l.emotes && COSMETICS.emote[l.emotes[i]] ? l.emotes[i] : DEFAULT_EMOTES[i]));
+  out.weapons = DEFAULT_WEAPONS();
+  for (const t of WEAPON_TOOLS) if (l.weapons && WEAPON_SKINS[l.weapons[t]]) out.weapons[t] = l.weapons[t];
   return out;
 }
 /** Random cosmetics for bots, so the lobby looks lively and every match looks different. */
 function randomLook(rng = Math.random) {
-  const pick = (slot) => { const ids = Object.keys(COSMETICS[slot]); return ids[Math.floor(rng() * ids.length)]; };
-  return sanitizeLook({ skin: rng() < 0.45 ? 'default' : pick('skin'), trail: rng() < 0.6 ? 'none' : pick('trail'), kill: pick('kill'), banner: pick('banner'), bannerColor: Math.floor(rng() * BANNER_COLORS.length), title: TITLE_ORDER[Math.floor(rng() * 4)], emotes: DEFAULT_EMOTES });
+  const pick = (slot) => { const ids = Object.keys(COSMETICS[slot]).filter((id) => !COSMETICS[slot][id].admin); return ids[Math.floor(rng() * ids.length)]; };
+  const weapons = {}; for (const t of WEAPON_TOOLS) weapons[t] = rng() < 0.55 ? 'default' : ['iron', 'iron', 'gold', 'diamond'][Math.floor(rng() * 4)];
+  return sanitizeLook({ weapons, skin: rng() < 0.45 ? 'default' : pick('skin'), trail: rng() < 0.6 ? 'none' : pick('trail'), kill: pick('kill'), banner: pick('banner'), bannerColor: Math.floor(rng() * BANNER_COLORS.length), title: TITLE_ORDER[Math.floor(rng() * 4)], emotes: DEFAULT_EMOTES });
 }
 
 /* =========================== 11. GAME SERVER ============================ */
@@ -2205,6 +2270,9 @@ function removePlotWalls(world, cells, server) {
   for (let i = 0; i < cells.length; i += 3) if (world.get(cells[i], cells[i + 1], cells[i + 2]) === ID.plotwall) world.set(cells[i], cells[i + 1], cells[i + 2], AIR);
   if (server) { server.suppressSupport = false; server.removingWalls = false; }
 }
+/** Flood / lava-rise layers: fill every empty cell of one layer with still liquid, or drain it again. */
+function fillFluidLayer(world, y, id, meta) { for (let z = 0; z < world.sizeZ; z++) for (let x = 0; x < world.sizeX; x++) if (world.get(x, y, z) === AIR) world.set(x, y, z, id, false, meta); }
+function drainFluidLayer(world, y, id) { for (let z = 0; z < world.sizeZ; z++) for (let x = 0; x < world.sizeX; x++) if (world.get(x, y, z) === id && (world.getMeta(x, y, z) & 32)) world.set(x, y, z, AIR); }
 const IFRAME_KINDS = new Set(['melee', 'arrow', 'trap']);
 const HAZARD_KINDS = new Set(['lava', 'fire', 'flood', 'drown', 'disaster', 'mob']);
 const TNT_CAUSES = new Set(['tnt', 'chain', 'trap', 'collapse']);
@@ -2401,7 +2469,7 @@ class GameServer {
     this.suspendTracking = true;                                   // do not run per-block systems while generating
     const mapId = cfg.mapId === 'random' ? MAP_ORDER[Math.floor(rng() * MAP_ORDER.length)] : (MAPS[cfg.mapId] ? cfg.mapId : 'plains');
     this.mapId = mapId;
-    this.map = MapGenerator.generate(this.world, { seed: cfg.seed != null ? cfg.seed : 1337, mapId, lands, owners: [0, 1, 2, 3, 4, 5].map((i) => (i < n ? i : -1)), walls: cfg.mode !== 'sandbox' });
+    this.map = MapGenerator.generate(this.world, { seed: cfg.seed != null ? cfg.seed : 1337, mapId, lands, owners: [0, 1, 2, 3, 4, 5].map((i) => (i < n ? i : -1)), walls: cfg.mode !== 'sandbox', cores: cfg.mode !== 'sandbox' });
     this.suspendTracking = false;
     this.wallCells = this.map.wallCells || []; this.wallsDropped = false;
     this.plots = this.map.plots;
@@ -2552,6 +2620,7 @@ class GameServer {
     if (id === AIR) return { ok: false, reason: 'empty' };
     const def = BLOCKS[id];
     if (!def.breakable) return { ok: false, reason: 'unbreakable' };
+    if (id === ID.core) { const o = this.players[w.getOwner(x, y, z) - 1]; if (o && (o === p || this.areAllies(o, p))) return { ok: false, reason: 'own-core' }; if (this.coreShielded()) return { ok: false, reason: 'core-shielded' }; }
     if (!this.withinReach(p, x, y, z)) return { ok: false, reason: 'too-far' };
     if (!this.canModify(p, x, y, z)) return { ok: false, reason: 'not-allowed' };
     this.cause = p.index;
@@ -2612,6 +2681,7 @@ class GameServer {
     this.cause = null;
     if (lift) { p.pos.y = y + 1; p.prev.y = p.pos.y; p.vel.y = Math.max(p.vel.y, 0); }
     p.cooldowns.place = CONFIG.MINE.PLACE_COOLDOWN * p.mods.placeCooldown * (it.kind === 'mech' ? 0.8 : 1);
+    p.stats.blocksPlaced = (p.stats.blocksPlaced || 0) + 1;
     this.emit({ type: 'blockPlaced', x, y, z, block: def, by: p.id, repaired });
     return { ok: true, repaired };
   }
@@ -2627,7 +2697,7 @@ class GameServer {
     const w = this.world;
     if (!this.withinReach(p, x, y, z)) return { ok: false, reason: 'too-far' };
     if (!this.canModify(p, x, y, z)) return { ok: false, reason: 'not-allowed' };
-    if (w.get(x, y, z) === ID.tnt) { this.primeTnt(x, y, z, 3.2, p.index, 'tnt'); return { ok: true, tnt: true }; }
+    if (w.get(x, y, z) === ID.tnt) { this.primeTnt(x, y, z, 4, p.index, 'tnt'); return { ok: true, tnt: true }; }
     if (w.get(x + nx, y + ny, z + nz) === AIR && (nx || ny || nz) && this.fire.ignite(x + nx, y + ny, z + nz, p.index)) { this.emit({ type: 'ignite', x: x + nx, y: y + ny, z: z + nz }); return { ok: true }; }
     return { ok: false, reason: 'nothing' };
   }
@@ -2647,7 +2717,7 @@ class GameServer {
   attack(p, { targetId, tool = 'sword' }) {
     const t = TOOLS[tool];
     if (!t || t.dmg == null) return { ok: false, reason: 'bad-tool' };
-    const full = t.cd * p.mods.attackCooldown;
+    const wb = weaponBoost(p.look, tool), full = t.cd * p.mods.attackCooldown * (wb.speed || 1);
     if (p.cooldowns.attack > full * 0.85) return { ok: false, reason: 'cooldown' };
     const target = this.playerMap.get(targetId) || this.mobs.find((m) => m.id === targetId);
     if (!target || !target.alive || target === p) return { ok: false, reason: 'no-target' };
@@ -2659,14 +2729,14 @@ class GameServer {
     p.swing = 1; p.swingKind = tool; p.held = tool;
     if (p.blocking) { p.blocking = false; p.blockCd = 0.3; }
     const strong = frac > 0.9, sprint = !!(p.controls && p.controls.sprint && p.controls.forward && !p.inWater);
-    let dmg = t.dmg * p.mods.meleeDamage * (0.2 + 0.8 * frac * frac) * (p.bot ? this.diff().botMelee : 1);
+    let dmg = t.dmg * p.mods.meleeDamage * (wb.dmg || 1) * (0.2 + 0.8 * frac * frac) * (p.bot && !p.proxy ? this.diff().botMelee : 1);
     const crit = strong && !p.onGround && p.vel.y < -0.5 && !sprint && !p.inWater && !p.inLava;
     if (crit) dmg *= 1.5;
     target.lastBlocked = false;
     const dealt = this.damage(target, dmg, { kind: 'melee', by: p.index, direct: true });
     if (dealt !== null) {
       const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
-      const kb = (t.kb * (0.4 + 0.6 * frac) + (sprint && strong ? 9 : 0)) * (target.lastBlocked ? 0.4 : 1);
+      const kb = (t.kb * (0.4 + 0.6 * frac) + (sprint && strong ? 6 : 0)) * (target.lastBlocked ? 0.4 : 1);
       target.vel.x = target.vel.x * 0.5 + fx * kb; target.vel.z = target.vel.z * 0.5 + fz * kb;
       target.vel.y = Math.min(target.vel.y * 0.5 + 7.5, 7.5) + (sprint && strong ? 1.5 : 0);
       target.onGround = false;
@@ -2682,7 +2752,7 @@ class GameServer {
     const T = TOOLS.bow, ch = clamp(charge, 0.15, 1);
     p.cooldowns.shoot = T.cd; p.swing = 0.6; p.swingKind = 'bow'; p.held = 'bow';
     const e = p.eyePosition(), d = p.lookDirection(), speed = T.speed * (0.5 + 0.5 * ch);
-    const a = new Arrow(this.nextId(), e.x + d.x * 0.6, e.y + d.y * 0.6, e.z + d.z * 0.6, d.x * speed, d.y * speed, d.z * speed, p.index, T.dmg * (0.4 + 0.6 * ch) * p.mods.meleeDamage * (p.bot ? this.diff().botBow : 1));
+    const a = new Arrow(this.nextId(), e.x + d.x * 0.6, e.y + d.y * 0.6, e.z + d.z * 0.6, d.x * speed, d.y * speed, d.z * speed, p.index, T.dmg * (0.4 + 0.6 * ch) * p.mods.meleeDamage * (weaponBoost(p.look, 'bow').arrow || 1) * (p.bot && !p.proxy ? this.diff().botBow : 1));
     this.arrows.push(a);
     this.emit({ type: 'shoot', by: p.id, arrow: a });
     return { ok: true };
@@ -2691,7 +2761,7 @@ class GameServer {
   /* ------------------------ health and damage ------------------------ */
   /** Applies damage with class modifiers and phase rules. Returns the damage dealt, or null if nothing happened. */
   damage(target, amount, src) {
-    if (!target.alive || amount <= 0) return null;
+    if (!target.alive || amount <= 0 || target.adminGod) return null;
     const attacker = src.by != null && src.by >= 0 ? this.players[src.by] : null;
     if (target instanceof Mob) {
       target.health -= amount;
@@ -2763,7 +2833,7 @@ class GameServer {
       if (!Object.keys(loot).length) loot = null;
     }
     target.bounty = 0; target.bountyTime = 0; target.lastHits.length = 0;
-    target.respawnTimer = this.mode === 'sandbox' ? CONFIG.MATCH.SANDBOX_RESPAWN : 0;
+    target.respawnTimer = this.mode === 'sandbox' ? CONFIG.MATCH.SANDBOX_RESPAWN : (this.phase === 'war' || this.phase === 'chaos') && this.coreAlive(target.index) ? CONFIG.MATCH.CORE_RESPAWN : 0;
     this.emit({ type: 'death', victim: target, killer, kind: src.kind, detail: src.detail || null, bounty, tnt: viaTnt, loot });
     this.winCheckClock = 0.4;
   }
@@ -2805,6 +2875,7 @@ class GameServer {
       const def = BLOCKS[id];
       if (def.shape === 'fluid') continue;
       if (id === ID.tnt) { this.primeTnt(bx, by, bz, 0.25 + Math.random() * 0.7, owner, 'chain'); continue; }
+      if (id === ID.core && (this.phase === 'build' || this.phase === 'countdown' || this.coreShielded())) continue;
       const crater = opts.crater && dist <= opts.crater && def.breakable;
       const str = 12 * power * (1 - Math.pow(dist / radius, 1.4)) * (0.85 + Math.random() * 0.3);
       if (crater || (def.breakable && str > def.blastResistance * this.landBlastMult(bx, bz))) {
@@ -2890,6 +2961,7 @@ class GameServer {
       const d = DIRS6[(oldMeta >> 2) & 7];
       if (this.world.get(x + d[0], y + d[1], z + d[2]) === ID.piston_head) this.world.set(x + d[0], y + d[1], z + d[2], AIR);
     }
+    if (old === ID.core && oldOwner > 0) this.coreDestroyed(oldOwner - 1, this.inSuddenDeath);
     // base integrity bookkeeping (blocks owned by a player and standing above their pad)
     if (oldOwner > 0 && od.solid && od.shape !== 'fluid') this.integrityDelta(oldOwner - 1, x, y, z, -1);
     const no = this.world.getOwner(x, y, z);
@@ -2899,12 +2971,18 @@ class GameServer {
     const plot = this.plots[slot];
     if (!plot || y <= plot.baseY || Math.hypot(x + 0.5 - plot.x, z + 0.5 - plot.z) > PLOT_BASE_RADIUS) return;
     this.baseCount[slot] += delta;
-    if (delta < 0 && !this.baseDestroyed[slot] && (this.phase === 'war' || this.phase === 'chaos' || this.phase === 'sandbox') && this.integrity(slot) < 5) {
-      this.baseDestroyed[slot] = true;
-      const by = this.cause != null && this.cause !== slot ? this.players[this.cause] : null;
-      if (by) by.stats.score += 300;
-      this.emit({ type: 'baseDestroyed', player: this.players[slot], by });
-    }
+  }
+  /** Cores cannot be damaged during the first minute of the war, so nobody is knocked out the moment the walls drop. */
+  coreShielded() { return this.phase === 'war' && this.phaseTime < CONFIG.MATCH.CORE_SHIELD; }
+  /** Is this player's core still standing (so they respawn)? */
+  coreAlive(slot) { const pl = this.plots[slot]; return !!(pl && pl.core) && !this.baseDestroyed[slot]; }
+  /** The base falls when its core does: no more respawns for that player. */
+  coreDestroyed(slot, quiet) {
+    if (this.baseDestroyed[slot] || !this.players[slot]) return;
+    this.baseDestroyed[slot] = true;
+    const by = this.cause != null && this.cause !== slot && !this.areAllies(this.players[this.cause], this.players[slot]) ? this.players[this.cause] : null;
+    if (by) { by.stats.score += 400; by.stats.structuresDestroyed++; by.stats.objectives++; }
+    this.emit({ type: 'baseDestroyed', player: this.players[slot], by, quiet: !!quiet });
   }
   computeBaseCounts() {
     const w = this.world;
@@ -2953,10 +3031,12 @@ class GameServer {
       }
     }
   }
+  /** Whole-layer flood. Bulk mode: these cells are still liquid, so they skip the flow / gravity queues and are not streamed block by block. */
   fillLayer(y, id, meta) {
-    const w = this.world;
-    for (let z = 0; z < w.sizeZ; z++) for (let x = 0; x < w.sizeX; x++) if (w.get(x, y, z) === AIR) w.set(x, y, z, id, false, meta);
-    this.emit({ type: 'layerFilled', y, id });
+    this.bulkFluid = true;
+    fillFluidLayer(this.world, y, id, meta);
+    this.bulkFluid = false;
+    this.emit({ type: 'layerFilled', y, id, meta });
   }
   spawnMobAtEdge(type = 'zombie') {
     const w = this.world, side = Math.floor(Math.random() * 4), t = 4 + Math.random() * (w.sizeX - 8);
@@ -3046,6 +3126,20 @@ class GameServer {
     this.phase = name; this.phaseTime = 0;
     this.emit({ type: 'phase', phase: name });
     if (name === 'war') this.dropPlotWalls();
+    if (name === 'chaos') this.suddenDeath();
+  }
+  /** CHAOS begins: all remaining cores crumble, so from now on every death is final. */
+  suddenDeath() {
+    const w = this.world; let any = false;
+    this.inSuddenDeath = true;
+    for (const pl of this.plots) {
+      if (!pl.core || this.baseDestroyed[pl.owner] || pl.owner < 0) continue;
+      any = true; this.cause = null;
+      if (w.get(pl.core[0], pl.core[1], pl.core[2]) === ID.core) w.set(pl.core[0], pl.core[1], pl.core[2], AIR);
+      this.coreDestroyed(pl.owner, true);
+    }
+    this.inSuddenDeath = false;
+    if (any) this.emit({ type: 'suddenDeath' });
   }
   /** The dividers between plots vanish when the war begins. Hosts do not stream these block changes: every client removes the same cells itself. */
   dropPlotWalls() {
@@ -3075,7 +3169,7 @@ class GameServer {
     } else if ((p.idleInput = (p.idleInput || 0) + dt) > 0.3) { c.forward = c.back = c.left = c.right = c.jump = c.crouch = c.sprint = false; }
   }
   updateDead(p, dt) {
-    if (this.mode === 'sandbox' && p.respawnTimer > 0) { p.respawnTimer -= dt; if (p.respawnTimer <= 0) this.respawn(p); }
+    if (p.respawnTimer > 0) { p.respawnTimer -= dt; if (p.respawnTimer <= 0) this.respawn(p); }
   }
 
   tickPlayer(p, dt, env, live) {
@@ -3237,7 +3331,8 @@ class GameServer {
       d.acc += dt;
       if (d.acc < 0.3) continue;
       d.acc = 0;
-      for (let z = 0; z < w.sizeZ; z++) for (let x = 0; x < w.sizeX; x++) if (w.get(x, d.y, z) === d.id && (w.getMeta(x, d.y, z) & 32)) w.set(x, d.y, z, AIR);
+      this.bulkFluid = true; drainFluidLayer(w, d.y, d.id); this.bulkFluid = false;
+      this.emit({ type: 'layerDrained', y: d.y, id: d.id });
       d.y--;
     }
     this.drains = this.drains.filter((d) => d.y > 1);
@@ -3294,10 +3389,13 @@ class GameServer {
 
   /* ------------------------------ win / results ------------------------------ */
   alivePlayers() { return this.players.filter((p) => p.alive); }
+  /** Still in the match: alive, or dead but about to respawn at their core. */
+  contenders() { return this.players.filter((p) => p.alive || p.respawnTimer > 0); }
   checkWinner(timeUp) {
     if (this.phase === 'sandbox' || this.phase === 'ended' || this.phase === 'countdown' || this.phase === 'idle') return;
     if (this.phase === 'build' && !timeUp) return;
-    const alive = this.alivePlayers(), teams = new Set(alive.map((p) => p.team));
+    const alive = this.mode === 'sandbox' ? this.alivePlayers() : this.contenders(), teams = new Set(alive.map((p) => p.team));
+    if (!timeUp && this.phase === 'war' && teams.size === 2 && this.players.length > 2 && this.phaseTime < CONFIG.MATCH.WAR - CONFIG.MATCH.CHAOS) { this.setPhase('chaos'); this.eventGap = 3; this.emit({ type: 'finalDuel' }); return; }
     if (teams.size <= 1 && this.players.length > 1) {
       if (alive.length > 1 && this.allianceMode && !timeUp) return;      // surviving allies keep playing: betrayal is still possible
       if (alive.length <= 1 || !this.allianceMode) { this.endMatch(alive, alive.length ? 'last-standing' : 'draw'); return; }
@@ -3643,7 +3741,7 @@ function netUnpack(v, view) {
   for (const k in v) o[k] = netUnpack(v[k], view);
   return o;
 }
-const LOW_PRIORITY_EVENTS = new Set(['debris', 'blockBroken', 'blockPlaced', 'quakeTick', 'layerFilled']);
+const LOW_PRIORITY_EVENTS = new Set(['debris', 'blockBroken', 'blockPlaced', 'quakeTick']);   // layerFilled/layerDrained must never be dropped: clients rebuild the flood from them
 
 /* ============================== HOST SESSION ============================== */
 /** Lobby + match relay on the host. `game` supplies the local GameServer and the host's own profile. */
@@ -3658,7 +3756,7 @@ class HostSession {
     this.code = null; this.providers = [];
     this.step = 0; this.tickNo = 0; this.blockQ = []; this.evQ = []; this.nextId = 1;
     this.lastBroadcast = 0; this.holdSince = 0;
-    this.blockListener = (x, y, z, o, n) => { if (this.state === 'playing' && !server.removingWalls) this.blockQ.push(x, y, z, n, server.world.getMeta(x, y, z), server.world.getOwner(x, y, z)); };
+    this.blockListener = (x, y, z, o, n) => { if (this.state === 'playing' && !server.removingWalls && !server.bulkFluid) this.blockQ.push(x, y, z, n, server.world.getMeta(x, y, z), server.world.getOwner(x, y, z)); };
     this.eventListener = (e) => { if (this.state === 'playing') this.captureEvent(e); };
     this.reroll();
   }
@@ -3971,13 +4069,19 @@ class NetServerView {
   }
   dispose() { const i = this.world.listeners.indexOf(this.worldListener); if (i >= 0) this.world.listeners.splice(i, 1); }
   subscribe(fn) { this.listeners.push(fn); }
-  emit(e) { if (e.type === 'phase' && e.phase === 'war' && !this.wallsDropped) { this.wallsDropped = true; removePlotWalls(this.world, this.wallCells, null); } for (const fn of this.listeners) fn(e); }
+  emit(e) {
+    if (e.type === 'phase' && e.phase === 'war' && !this.wallsDropped) { this.wallsDropped = true; removePlotWalls(this.world, this.wallCells, null); }
+    else if (e.type === 'layerFilled' && e.meta != null) fillFluidLayer(this.world, e.y, e.id, e.meta);
+    else if (e.type === 'layerDrained') drainFluidLayer(this.world, e.y, e.id);
+    for (const fn of this.listeners) fn(e);
+  }
   get human() { return this.me; }
   areAllies(a, b) { return !!a && !!b && a !== b && a.team === b.team; }
   alivePlayers() { return this.players.filter((p) => p.alive); }
   bodies() { const r = []; for (const p of this.players) if (p.alive) r.push(p); for (const m of this.mobs) if (m.alive) r.push(m); return r; }
   scoreboard() { return this.players.slice().sort((a, b) => b.stats.score - a.stats.score); }
   integrity(slot) { return this.integ[slot] == null ? 100 : this.integ[slot]; }
+  coreShielded() { return this.phase === 'war' && this.phaseTime < CONFIG.MATCH.CORE_SHIELD; }
   timeLeft(total = false) {
     const M = CONFIG.MATCH, left = { countdown: M.COUNTDOWN, build: M.BUILD, war: M.WAR - M.CHAOS, chaos: M.CHAOS }[this.phase];
     if (left == null) return 0;
@@ -3993,7 +4097,7 @@ class NetServerView {
     this.mode = cfg.mode; this.unlimited = cfg.mode === 'sandbox'; this.allianceMode = cfg.mode === 'alliance';
     this.mapId = cfg.mapId; this.lands = cfg.lands;
     this.world.clear();
-    this.map = MapGenerator.generate(this.world, { seed: cfg.seed != null ? cfg.seed : 1337, mapId: cfg.mapId, lands: cfg.lands, owners: [0, 1, 2, 3, 4, 5].map((i) => (i < n ? i : -1)), walls: cfg.mode !== 'sandbox' });
+    this.map = MapGenerator.generate(this.world, { seed: cfg.seed != null ? cfg.seed : 1337, mapId: cfg.mapId, lands: cfg.lands, owners: [0, 1, 2, 3, 4, 5].map((i) => (i < n ? i : -1)), walls: cfg.mode !== 'sandbox', cores: cfg.mode !== 'sandbox' });
     this.plots = this.map.plots; this.wallCells = this.map.wallCells || []; this.wallsDropped = false;
     this.fire.fires.clear(); this.redstone.mechs.clear();
     const w = this.world;
@@ -4122,7 +4226,7 @@ class NetServerView {
     if (!this.me.alive) return { ok: false, reason: 'dead' };
     if (msg.type === 'hold') this.me.held = msg.item;
     else if (msg.type === 'block') { if (msg.on) { if (this.me.blockCd <= 0 && !this.me.blocking) { this.me.blocking = true; this.me.blockT = 0; } } else if (this.me.blocking) { this.me.blocking = false; this.me.blockCd = 0.35; } }
-    if (msg.type === 'attack') { const T = TOOLS[msg.tool]; this.me.cooldowns.attack = T && T.cd ? T.cd * this.me.mods.attackCooldown : 0.5; }
+    if (msg.type === 'attack') { const T = TOOLS[msg.tool]; this.me.cooldowns.attack = T && T.cd ? T.cd * this.me.mods.attackCooldown * (weaponBoost(this.me.look, msg.tool).speed || 1) : 0.5; }
     else if (msg.type === 'place') this.me.cooldowns.place = Math.max(this.me.cooldowns.place, 0.15 * this.me.mods.placeCooldown);
     else if (msg.type === 'shoot') this.me.cooldowns.shoot = Math.max(this.me.cooldowns.shoot, 0.4);
     this.session.send({ t: 'act', m: msg });
@@ -4207,6 +4311,8 @@ class Bot {
   }
 
   /* ---------- helpers ---------- */
+  /** Difficulty settings for this bot. A test stand-in for a human (p.proxy) always plays at Normal. */
+  diff() { return this.p.proxy ? DIFFICULTIES.normal : this.s.diff(); }
   face(tx, ty, tz, snap = false) {
     const p = this.p, e = p.eyePosition(), dx = tx - e.x, dy = ty - e.y, dz = tz - e.z;
     const yaw = Math.atan2(-dx, -dz), pitch = Math.atan2(dy, Math.hypot(dx, dz));
@@ -4219,6 +4325,101 @@ class Bot {
   dangerous(x, y, z) { const id = this.s.world.get(x, y, z); return id === ID.lava || id === ID.fire; }
   /** First free cell above the ground in this column. */
   groundY(x, z) { return this.s.world.getSolidHeight(x, z) + 1; }
+  /** Fall damage this bot would take dropping `h` blocks (same formula as the server). */
+  fallDamage(h) { const v = Math.sqrt(2 * CONFIG.PLAYER.GRAVITY * Math.max(0, h)); return Math.max(0, v - CONFIG.HEALTH.FALL_SAFE) * CONFIG.HEALTH.FALL_DMG * this.p.mods.fall; }
+  /** Would stepping into column (x, z) at feet level fy hurt? A wall is not a drop; landing in water is safe. */
+  unsafeAt(x, fy, z) {
+    const w = this.s.world;
+    if (w.isSolid(x, fy, z)) return false;
+    if (this.dangerous(x, fy, z) || this.dangerous(x, fy - 1, z)) return true;
+    let drop = 0;
+    while (drop < 16 && !w.isSolid(x, fy - 1 - drop, z) && BLOCKS[w.get(x, fy - 1 - drop, z)].shape !== 'fluid') drop++;
+    const landing = w.get(x, fy - 1 - drop, z);
+    if (landing === ID.lava) return true;
+    if (landing === ID.water) return false;
+    return this.fallDamage(drop) > Math.min(12, this.p.health * 0.25);
+  }
+  /**
+   * Edge guard, run after every decision: if the keys the bot is holding would carry it off a harmful drop (strafing,
+   * walking backwards, sprinting), cancel the move. Covers every mode, not just walkTo.
+   */
+  guardEdges() {
+    const p = this.p, c = p.controls;
+    if (this.followingPath) { this.followingPath = false; return; }       // escape paths are checked cell by cell already
+    if (p.inWater || p.inLava) return;
+    const fy0 = Math.floor(p.pos.y + 0.05), spd = Math.hypot(p.vel.x, p.vel.z);
+    if (p.onGround && spd > 1.5) {                                          // sliding (knockback, momentum) toward a harmful drop: push back against it
+      const vx = p.vel.x / spd, vz = p.vel.z / spd;
+      for (const r of [0.5, 1.0]) {
+        if (this.unsafeAt(Math.floor(p.pos.x + vx * r), fy0, Math.floor(p.pos.z + vz * r))) {
+          const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw), rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw);
+          const along = vx * fx + vz * fz, side = vx * rx + vz * rz;
+          c.forward = along < -0.3; c.back = along > 0.3; c.right = side < -0.3; c.left = side > 0.3; c.jump = false; c.sprint = false;
+          return;
+        }
+      }
+    }
+    const f = (c.forward ? 1 : 0) - (c.back ? 1 : 0), sd = (c.right ? 1 : 0) - (c.left ? 1 : 0);
+    if (!f && !sd) return;
+    let wx = f * -Math.sin(p.yaw) + sd * Math.cos(p.yaw), wz = f * -Math.cos(p.yaw) + sd * -Math.sin(p.yaw);
+    const l = Math.hypot(wx, wz) || 1; wx /= l; wz /= l;
+    const fy = Math.floor(p.pos.y + 0.05), reach = c.sprint || c.jump || !p.onGround ? [0.55, 1.0, 1.5, 2.0] : [0.55, 1.0];
+    for (const r of reach) for (const side of [-0.28, 0, 0.28]) {
+      const x = Math.floor(p.pos.x + wx * r - wz * side), z = Math.floor(p.pos.z + wz * r + wx * side);
+      if ((x !== Math.floor(p.pos.x) || z !== Math.floor(p.pos.z)) && this.unsafeAt(x, fy, z)) {
+        c.forward = c.back = c.left = c.right = c.jump = c.sprint = false;
+        if (this.detourT <= 0) { this.detour = (Math.random() < 0.5 ? 1 : -1) * 1.6; this.detourT = 0.8; }
+        this.strafe = -this.strafe;
+        return;
+      }
+    }
+  }
+  /**
+   * Walkable cells around the bot (breadth-first, up to 16 steps): flat moves, 1-block step-ups and safe drops.
+   * Cached for a quarter second, since the bot asks several times while choosing where to put a TNT.
+   */
+  reachable() {
+    const p = this.p, w = this.s.world, sx = Math.floor(p.pos.x), sz = Math.floor(p.pos.z), sy = Math.floor(p.pos.y + 0.05);
+    const c = this.bfsCache;
+    if (c && c.x === sx && c.y === sy && c.z === sz && this.s.clock - c.t < 0.25) return c.cells;
+    const cells = new Map(), queue = [[sx, sy, sz]];
+    cells.set(sx + ',' + sz, { x: sx, y: sy, z: sz, prev: null, n: 0 });
+    for (let qi = 0; qi < queue.length; qi++) {
+      const [x, y, z] = queue[qi], cur = cells.get(x + ',' + z);
+      if (cur.n >= 16) continue;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, nz = z + dz, k = nx + ',' + nz;
+        if (cells.has(k) || !w.inBounds(nx, y, nz)) continue;
+        let ny = null;
+        if (!w.isSolid(nx, y, nz) && !w.isSolid(nx, y + 1, nz)) {
+          if (this.unsafeAt(nx, y, nz)) continue;
+          ny = y; while (ny > 1 && !w.isSolid(nx, ny - 1, nz) && BLOCKS[w.get(nx, ny - 1, nz)].shape !== 'fluid' && y - ny < 4) ny--;
+        } else if (w.isSolid(nx, y, nz) && !w.isSolid(nx, y + 1, nz) && !w.isSolid(nx, y + 2, nz) && !w.isSolid(x, y + 2, z) && !this.dangerous(nx, y + 1, nz)) ny = y + 1;
+        if (ny == null) continue;
+        cells.set(k, { x: nx, y: ny, z: nz, prev: cur, n: cur.n + 1 });
+        queue.push([nx, ny, nz]);
+      }
+    }
+    this.bfsCache = { x: sx, y: sy, z: sz, t: this.s.clock, cells };
+    return cells;
+  }
+  /** Best reachable spot at least 7.5 blocks from (fromX, fromZ), with the path to it; null if there is none. */
+  escapeRoute(fromX, fromZ) {
+    const p = this.p, d0 = Math.hypot(p.pos.x - fromX, p.pos.z - fromZ), cand = [];
+    for (const c of this.reachable().values()) {
+      const d = Math.hypot(c.x + 0.5 - fromX, c.z + 0.5 - fromZ);
+      if (d >= 7.5 && c.n <= 15) cand.push({ c, d, score: d - c.n * 0.35 });
+    }
+    cand.sort((a, b) => b.score - a.score);
+    for (const k of cand.slice(0, 12)) {                                        // never run past the bomb on the way out
+      const path = []; let ok = true;
+      for (let c = k.c; c && c.prev; c = c.prev) { if (Math.hypot(c.x + 0.5 - fromX, c.z + 0.5 - fromZ) < Math.min(d0, 2.5) - 0.01) { ok = false; break; } path.unshift([c.x + 0.5, c.z + 0.5, c.y]); }
+      if (ok && path.length) return { path, d: k.d };
+    }
+    return null;
+  }
+  /** True if a TNT lit at (x, z) can be outrun along a real walkable path. */
+  canEscapeFrom(x, z) { return !!this.escapeRoute(x, z); }
 
   /* ---------- movement ---------- */
   /** Steers toward (x, z), jumping steps, digging walls and bridging gaps. `stopAt` = distance at which it stops. */
@@ -4246,14 +4447,11 @@ class Bot {
       if (allowDig) this.digAhead(ax, fy + 1, az, dt); else { c.crouch = false; }
     } else {
       this.mine = null;
-      // gap / drop / hazard check
-      let drop = 0;
-      while (drop < 6 && !w.isSolid(ax, fy - 1 - drop, az)) drop++;
-      const landing = w.get(ax, fy - 1 - drop, az);
-      if (this.dangerous(ax, fy, az) || this.dangerous(ax, fy - 1, az) || landing === ID.lava || (drop >= 5)) {
-        if (drop >= 5 && this.s.hasResource(p, 'earth', 1) && this.s.canModify(p, ax, fy - 1, az) && p.cooldowns.place <= 0 && !this.dangerous(ax, fy, az)) {
-          this.s.handle(p.id, { type: 'place', x: ax, y: fy - 1, z: az, item: 'dirt' });
-        } else { c.forward = drop < 5 && !this.dangerous(ax, fy, az); this.detour = (Math.random() < 0.5 ? 1 : -1) * 1.5; this.detourT = 0.9; }
+      // gap / drop / hazard check: bridge a harmful drop with any building block, otherwise steer around it
+      if (this.unsafeAt(ax, fy, az)) {
+        const item = !this.dangerous(ax, fy, az) && this.s.canModify(p, ax, fy - 1, az) && p.cooldowns.place <= 0 ? this.pickMaterial() : null;
+        if (item) { this.face(ax + 0.5, fy - 0.5, az + 0.5, true); this.s.handle(p.id, { type: 'place', x: ax, y: fy - 1, z: az, item }); }
+        c.forward = false; this.detour = (Math.random() < 0.5 ? 1 : -1) * 1.5; this.detourT = 0.9;
       }
     }
     // stuck watchdog
@@ -4269,12 +4467,15 @@ class Bot {
   digDown(dt) {
     const p = this.p, s = this.s, w = s.world, fx = Math.floor(p.pos.x), fy = Math.floor(p.pos.y - 0.05), fz = Math.floor(p.pos.z);
     const below = w.get(fx, fy, fz);
-    if (below === AIR || !BLOCKS[below].breakable || !s.canModify(p, fx, fy, fz)) return;
-    for (let k = 1; k < 8; k++) { const id = w.get(fx, fy - k, fz); if (id === ID.lava || id === ID.water) return; if (w.isSolid(fx, fy - k, fz)) break; }
+    if (below === AIR || !BLOCKS[below].breakable || !s.canModify(p, fx, fy, fz)) return false;
+    let floor = false;                                                   // never dig into a cave, a long drop or liquid
+    for (let k = 1; k <= 3; k++) { const id = w.get(fx, fy - k, fz); if (id === ID.lava || id === ID.water) return false; if (w.isSolid(fx, fy - k, fz)) { floor = true; break; } }
+    if (!floor) return false;
     this.face(fx + 0.5, fy + 0.5, fz + 0.5, true);
-    if (!this.mine || this.mine.y !== fy || this.mine.x !== fx || this.mine.z !== fz) this.mine = { x: fx, y: fy, z: fz, t: 0, need: mineTime(BLOCKS[below], 'pickaxe', p.mods) };
+    if (!this.mine || this.mine.y !== fy || this.mine.x !== fx || this.mine.z !== fz) this.mine = { x: fx, y: fy, z: fz, t: 0, need: mineTime(BLOCKS[below], 'pickaxe', p.mods, p.look) };
     this.mine.t += dt;
     if (this.mine.t >= this.mine.need) { s.handle(p.id, { type: 'break', x: fx, y: fy, z: fz }); this.mine = null; }
+    return true;
   }
   /** Builds a block under its own feet (pillar jumping), mining the ceiling first if needed. Returns true if it acted. */
   pillarUp(dt) {
@@ -4284,7 +4485,7 @@ class Bot {
     if (w.isSolid(fx, fy + 2, fz)) {                                    // ceiling in the way: dig up first
       if (!s.canModify(p, fx, fy + 2, fz) || !BLOCKS[w.get(fx, fy + 2, fz)].breakable) return false;
       this.face(fx + 0.5, fy + 2.5, fz + 0.5, true);
-      if (!this.mine || this.mine.y !== fy + 2 || this.mine.x !== fx || this.mine.z !== fz) this.mine = { x: fx, y: fy + 2, z: fz, t: 0, need: mineTime(BLOCKS[w.get(fx, fy + 2, fz)], 'pickaxe', p.mods) };
+      if (!this.mine || this.mine.y !== fy + 2 || this.mine.x !== fx || this.mine.z !== fz) this.mine = { x: fx, y: fy + 2, z: fz, t: 0, need: mineTime(BLOCKS[w.get(fx, fy + 2, fz)], 'pickaxe', p.mods, p.look) };
       this.mine.t += dt;
       if (this.mine.t >= this.mine.need) { s.handle(p.id, { type: 'break', x: fx, y: fy + 2, z: fz }); this.mine = null; }
       return true;
@@ -4309,7 +4510,7 @@ class Bot {
     if (this.s.phase !== 'build' && this.tntCooldown <= 0 && this.s.hasResource(p, 'tnt', 1) && w.getOwner(x, ty, z) && w.getOwner(x, ty, z) !== p.index + 1 && this.tryBreachTnt(x, y, z)) return;
     if (!this.s.canModify(p, x, ty, z)) { this.detour = 1.4; this.detourT = 1; this.mine = null; return; }
     c.forward = false;
-    if (!this.mine || this.mine.x !== x || this.mine.y !== ty || this.mine.z !== z) this.mine = { x, y: ty, z, t: 0, need: mineTime(def, 'pickaxe', p.mods) };
+    if (!this.mine || this.mine.x !== x || this.mine.y !== ty || this.mine.z !== z) this.mine = { x, y: ty, z, t: 0, need: mineTime(def, 'pickaxe', p.mods, p.look) };
     this.face(x + 0.5, ty + 0.5, z + 0.5);
     this.mine.t += dt;
     if (this.mine.t >= this.mine.need) {
@@ -4324,7 +4525,7 @@ class Bot {
   tryBreachTnt(wx, wy, wz) {
     const p = this.p, w = this.s.world, fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
     const px = Math.floor(p.pos.x + fx * 1.2), pz = Math.floor(p.pos.z + fz * 1.2), py = Math.floor(p.pos.y);
-    if (w.get(px, py, pz) !== AIR) return false;
+    if (w.get(px, py, pz) !== AIR || !this.canEscapeFrom(px + 0.5, pz + 0.5)) return false;
     const r = this.s.handle(p.id, { type: 'place', x: px, y: py, z: pz, item: 'tnt' });
     if (!r.ok) return false;
     this.s.handle(p.id, { type: 'ignite', x: px, y: py, z: pz });
@@ -4333,8 +4534,10 @@ class Bot {
     return true;
   }
   startFlee(fromX, fromZ, seconds) {
-    const p = this.p, dx = p.pos.x - fromX, dz = p.pos.z - fromZ, l = Math.hypot(dx, dz) || 1;
-    this.flee = { x: p.pos.x + dx / l * 18, z: p.pos.z + dz / l * 18, t: seconds };
+    const p = this.p, r = this.escapeRoute(fromX, fromZ);
+    this.bfsCache = null;
+    if (r && r.path.length) this.flee = { path: r.path, i: 0, x: r.path[r.path.length - 1][0], z: r.path[r.path.length - 1][1], t: seconds };
+    else { const dx = p.pos.x - fromX, dz = p.pos.z - fromZ, l = Math.hypot(dx, dz) || 1; this.flee = { x: p.pos.x + dx / l * 18, z: p.pos.z + dz / l * 18, t: seconds }; }
     this.mine = null;
   }
 
@@ -4354,6 +4557,12 @@ class Bot {
     ring.sort((a, b) => Math.atan2(a[1] - cz, a[0] - cx) - Math.atan2(b[1] - cz, b[0] - cx));
     if (Math.random() < 0.5) ring.reverse();
     const layers = style === 'keep' ? 5 : 3 + Math.floor(Math.random() * 2);
+    if (plot.core) {                                                                 // first job: encase our own core
+      const [kx, ky, kz] = plot.core;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) q.push({ kind: 'wall', x: kx + dx, z: kz + dz, layer: 0, y0: ky });
+      q.push({ kind: 'wall', x: kx, z: kz, layer: 1, y0: ky });
+      if (style === 'keep' || this.archetype === 'turtle') for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) q.push({ kind: 'wall', x: kx + dx, z: kz + dz, layer: 1, y0: ky });
+    }
     if (style === 'moat') {                                                          // a trench outside the wall first
       const m = half + 2;
       for (let x = -m; x <= m; x++) for (let z = -m; z <= m; z++) if (Math.max(Math.abs(x), Math.abs(z)) === m && !(cx + x === gap[0] + this.out[0] * 2 && cz + z === gap[1] + this.out[1] * 2) && Math.random() < 0.85) q.push({ kind: 'dig', x: cx + x, z: cz + z });
@@ -4415,7 +4624,7 @@ class Bot {
       const e0 = p.eyePosition();
       if (Math.hypot(job.x + 0.5 - e0.x, gy + 0.5 - e0.y, job.z + 0.5 - e0.z) > 4.4) { this.walkTo(job.x + 0.5, job.z + 0.5, dt, 3, false); return; }
       this.face(job.x + 0.5, gy + 0.5, job.z + 0.5, true);
-      if (!this.mine || this.mine.x !== job.x || this.mine.z !== job.z) this.mine = { x: job.x, y: gy, z: job.z, t: 0, need: mineTime(def, 'pickaxe', p.mods) };
+      if (!this.mine || this.mine.x !== job.x || this.mine.z !== job.z) this.mine = { x: job.x, y: gy, z: job.z, t: 0, need: mineTime(def, 'pickaxe', p.mods, p.look) };
       this.mine.t += dt;
       if (this.mine.t >= this.mine.need) { s.handle(p.id, { type: 'break', x: job.x, y: gy, z: job.z }); this.mine = null; this.queueIndex++; }
       return;
@@ -4475,7 +4684,7 @@ class Bot {
     const e = p.eyePosition(), d = Math.hypot(t.x + 0.5 - e.x, t.y + 0.5 - e.y, t.z + 0.5 - e.z);
     if (d > 4.6) { this.walkTo(t.x + 0.5, t.z + 0.5, dt, 3.2, true); return true; }
     const def = BLOCKS[w.get(t.x, t.y, t.z)];
-    if (!this.mine || this.mine.x !== t.x || this.mine.y !== t.y || this.mine.z !== t.z) this.mine = { x: t.x, y: t.y, z: t.z, t: 0, need: mineTime(def, def.sound === 'wood' ? 'axe' : 'pickaxe', p.mods) };
+    if (!this.mine || this.mine.x !== t.x || this.mine.y !== t.y || this.mine.z !== t.z) this.mine = { x: t.x, y: t.y, z: t.z, t: 0, need: mineTime(def, def.sound === 'wood' ? 'axe' : 'pickaxe', p.mods, p.look) };
     this.face(t.x + 0.5, t.y + 0.5, t.z + 0.5);
     this.mine.t += dt;
     if (this.mine.t >= this.mine.need) { this.s.handle(p.id, { type: 'break', x: t.x, y: t.y, z: t.z }); this.mine = null; this.gatherTarget = null; }
@@ -4495,9 +4704,14 @@ class Bot {
   warUpdate(dt) {
     const p = this.p, s = this.s, c = p.controls;
     this.tntCooldown -= dt;
-    if (this.flee) {                                                      // run away from a lit fuse
-      this.flee.t -= dt;
-      this.walkTo(this.flee.x, this.flee.z, dt, 1, false);
+    if (this.flee) {                                                      // run away from a lit fuse, along the searched path
+      const F = this.flee; F.t -= dt;
+      if (F.path) {                                                         // every cell on the path is known to be safe: face the next one and run
+        while (F.i < F.path.length - 1 && Math.hypot(F.path[F.i][0] - p.pos.x, F.path[F.i][1] - p.pos.z) < 0.45) F.i++;
+        const wp = F.path[F.i], dx = wp[0] - p.pos.x, dz = wp[1] - p.pos.z;
+        this.followingPath = true;
+        if (Math.hypot(dx, dz) > 0.3) { p.yaw = Math.atan2(-dx, -dz); p.pitch *= 0.8; c.forward = true; c.sprint = true; if (wp[2] > Math.floor(p.pos.y + 0.05) && p.onGround) c.jump = true; }
+      } else this.walkTo(F.x, F.z, dt, 1, false);
       c.jump = c.jump || false;
       if (this.flee.t <= 0) this.flee = null;
       return;
@@ -4506,17 +4720,22 @@ class Bot {
     this.thinkClock -= dt; this.warClock += dt;
     if (this.thinkClock <= 0) {
       const T = this.traits;
-      const D = s.diff();
+      const D = this.diff();
       this.thinkClock = (0.25 + Math.random() * 0.25 + T.react * 0.35) * D.think;       // slower thinkers react later
       this.target = this.pickTarget(foes);
+      const intruder = this.coreIntruder(foes);
+      if (intruder) this.target = intruder;                                     // someone is at our core: deal with them first
       const t = this.target, d = t ? this.dist(t) : 99;
+      const siege = intruder ? null : this.pickSiege();
       const aggr = clamp(T.aggr + D.aggr + this.mood * 0.3 + (s.phase === 'chaos' ? 0.25 : 0) + Math.min(0.5, this.warClock / 120), 0, 1);
       const hurt = p.health < p.maxHealth * (T.nerve + (p.classId === 'survivalist' ? 0.12 : 0));
       const vaultReady = s.vault.cooldown <= 0 && s.phase !== 'build';
       const toVault = Math.hypot(s.map.vault.x - p.pos.x, s.map.vault.z - p.pos.z);
       const wantRange = T.range > 0.45;
       const prev = this.mode;
-      if (hurt && t && d < 16) this.mode = 'retreat';
+      const keepSiege = prev === 'siege' && this.siegeCore && s.coreAlive(this.siegeCore.slot) && this.modeT < 70 && !intruder && !(t && d < 3.4 && this.hasLOS(t));
+      if (keepSiege && !hurt) this.mode = 'siege';
+      else if (hurt && t && d < 16) this.mode = 'retreat';
       else if (this.hitRun > 0 && t) this.mode = 'retreat';
       else if (t && d < 3.4 && this.hasLOS(t)) this.mode = 'melee';
       else if (t && d < Math.min(D.bowRange, wantRange ? 36 : 22) && d > (wantRange ? 8 : 6) && this.hasLOS(t) && aggr > 0.25 && (wantRange || Math.random() < 0.6)) this.mode = 'shoot';
@@ -4529,7 +4748,7 @@ class Bot {
         else if (t && (aggr > 0.62 || d < 14)) this.mode = 'hunt';
         else this.mode = 'gather';
       }
-      else if (t && T.tnt > 0.55 && Math.random() < 0.3 * T.tnt && s.hasResource(p, 'tnt', 2) && this.tntCooldown <= 0 && d > 14) this.mode = 'raid';
+      else if (siege && (!t || d > 10 || !this.hasLOS(t)) && Math.random() < 0.25 + 0.35 * T.tnt + 0.25 * aggr) { this.mode = 'siege'; this.siegeCore = siege; }
       else if (t && (aggr > 0.45 || d < 30)) this.mode = 'hunt';
       else this.mode = 'gather';
       if (this.mode !== prev) { this.modeT = 0; if (this.mode === 'hunt') { this.approach = pickOf(ARCHETYPES[this.archetype].approach); this.tunnelT = 0; } }
@@ -4565,8 +4784,8 @@ class Bot {
         if (p.held !== tool) s.handle(p.id, { type: 'hold', item: tool });
         this.blockT = (this.blockT || 0) - dt;
         if (p.blocking && this.blockT <= 0) s.handle(p.id, { type: 'block', on: false });
-        else if (!p.blocking && t.swing > 0.5 && Math.random() < 0.05 * s.diff().block * (1 - this.traits.sloppy) && tool !== 'bow') { if (s.handle(p.id, { type: 'block', on: true }).ok) this.blockT = 0.4 + Math.random() * 0.5; }
-        if (!p.blocking && p.cooldowns.attack <= 0 && Math.random() < s.diff().rate) {
+        else if (!p.blocking && t.swing > 0.5 && Math.random() < 0.05 * this.diff().block * (1 - this.traits.sloppy) && tool !== 'bow') { if (s.handle(p.id, { type: 'block', on: true }).ok) this.blockT = 0.4 + Math.random() * 0.5; }
+        if (!p.blocking && p.cooldowns.attack <= 0 && Math.random() < this.diff().rate) {
           s.handle(p.id, { type: 'attack', targetId: t.id, tool });
           if (p.classId === 'scout' && Math.random() < 0.35) this.hitRun = 0.8 + Math.random() * 0.8;      // scouts strike and slip away
           else if (Math.random() < 0.08 * this.traits.sloppy) this.hitRun = 0.6;
@@ -4575,7 +4794,7 @@ class Bot {
       }
       case 'shoot': {
         if (!t) break;
-        const D = s.diff(), dist = this.dist(t);
+        const D = this.diff(), dist = this.dist(t);
         // one aiming error per arrow (re-rolled after each shot), not a fresh jitter every frame: this is what makes archers miss
         if (!this.aimErr) { const mag = D.aim * (0.4 + this.traits.sloppy) * (1 + dist / 18); this.aimErr = { x: (Math.random() - 0.5) * mag * 2, y: (Math.random() - 0.5) * mag, z: (Math.random() - 0.5) * mag * 2, lead: D.lead * (0.7 + Math.random() * 0.5) }; }
         const E = this.aimErr, flight = dist / 28;
@@ -4586,7 +4805,7 @@ class Bot {
         if (this.shootWait <= 0) this.shootCharge += dt;
         this.strafeT -= dt; if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 0.6 + Math.random(); }
         if (this.strafe > 0) c.right = true; else c.left = true;
-        if (this.shootCharge >= TOOLS.bow.draw * p.mods.bowDraw * D.draw && p.cooldowns.shoot <= 0) { s.handle(p.id, { type: 'shoot', charge: 1 }); this.shootCharge = 0; this.aimErr = null; this.shootWait = D.shootGap * (0.7 + Math.random() * 0.6); }
+        if (this.shootCharge >= TOOLS.bow.draw * p.mods.bowDraw * (weaponBoost(p.look, 'bow').draw || 1) * D.draw && p.cooldowns.shoot <= 0) { s.handle(p.id, { type: 'shoot', charge: 1 }); this.shootCharge = 0; this.aimErr = null; this.shootWait = D.shootGap * (0.7 + Math.random() * 0.6); }
         break;
       }
       case 'vault': {
@@ -4600,6 +4819,24 @@ class Bot {
         this.buildUpdate(dt);
         break;
       }
+      case 'siege': {                                                      // go to an enemy core and break it (TNT if we can get away, pickaxe otherwise)
+        const sc = this.siegeCore, w = s.world;
+        if (!sc || w.get(sc.x, sc.y, sc.z) !== ID.core) { this.siegeCore = null; this.thinkClock = 0; this.mode = 'hunt'; break; }
+        const e = p.eyePosition(), reachD = Math.hypot(sc.x + 0.5 - e.x, sc.y + 0.5 - e.y, sc.z + 0.5 - e.z);
+        if (reachD > 4.2) { this.walkTo(sc.x + 0.5, sc.z + 0.5, dt, 2.2, true, sc.y); break; }
+        if (this.tntCooldown <= 0 && s.hasResource(p, 'tnt', 1)) {
+          for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]]) {
+            const x = sc.x + dx, y = sc.y + dy, z = sc.z + dz;
+            if (w.get(x, y, z) !== AIR || (!dy && !w.isSolid(x, y - 1, z)) || !this.canEscapeFrom(x + 0.5, z + 0.5)) continue;
+            this.face(x + 0.5, y + 0.5, z + 0.5, true);
+            if (s.handle(p.id, { type: 'place', x, y, z, item: 'tnt' }).ok) { s.handle(p.id, { type: 'ignite', x, y, z }); this.startFlee(x + 0.5, z + 0.5, 4.6); this.tntCooldown = 10 + Math.random() * 10; }
+            break;
+          }
+          if (this.flee) break;
+        }
+        if (!this.digTowardPoint(sc.x + 0.5, sc.y + 0.5, sc.z + 0.5, dt)) this.walkTo(sc.x + 0.5, sc.z + 0.5, dt, 1.2, true, sc.y);
+        break;
+      }
       case 'raid': {                                                       // bomber: carry TNT to the enemy base and light it
         if (!t) break;
         const plot = s.plots[t.index], d = Math.hypot(plot.x - p.pos.x, plot.z - p.pos.z);
@@ -4607,7 +4844,7 @@ class Bot {
         if (d > 7) { this.walkTo(plot.x, plot.z, dt, 6, true, plot.baseY + 1); break; }
         const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw), px = Math.floor(p.pos.x + fx * 1.3), pz = Math.floor(p.pos.z + fz * 1.3), py = Math.floor(p.pos.y);
         this.face(plot.x, p.pos.y + 1, plot.z, true);
-        if (s.world.get(px, py, pz) === AIR && s.handle(p.id, { type: 'place', x: px, y: py, z: pz, item: 'tnt' }).ok) {
+        if (s.world.get(px, py, pz) === AIR && this.canEscapeFrom(px + 0.5, pz + 0.5) && s.handle(p.id, { type: 'place', x: px, y: py, z: pz, item: 'tnt' }).ok) {
           s.handle(p.id, { type: 'ignite', x: px, y: py, z: pz }); this.startFlee(px + 0.5, pz + 0.5, 4.5); this.tntCooldown = 10 + Math.random() * 12; this.thinkClock = 0; this.mode = 'hunt';
         } else this.walkTo(plot.x, plot.z, dt, 3, true);
         break;
@@ -4616,11 +4853,11 @@ class Bot {
         if (!t) break;
         // drop TNT on the target when close and exposed
         const d = this.dist(t);
-        if (d < 9 && d > 4.5 && this.tntCooldown <= 0 && s.hasResource(p, 'tnt', 1) && this.aggression > 0.4 && Math.abs(t.pos.y - p.pos.y) < 3) {
+        if (d < 9 && d > 5.5 && this.tntCooldown <= 0 && s.hasResource(p, 'tnt', 1) && this.aggression > 0.4 && Math.abs(t.pos.y - p.pos.y) < 3) {
           const tx = Math.floor(t.pos.x), tz = Math.floor(t.pos.z), ty = Math.floor(t.pos.y);
           this.face(tx + 0.5, ty + 0.5, tz + 0.5, true);
-          const px = Math.floor(p.pos.x + (t.pos.x - p.pos.x) * 0.45), pz = Math.floor(p.pos.z + (t.pos.z - p.pos.z) * 0.45), py = Math.floor(p.pos.y);
-          if (s.handle(p.id, { type: 'place', x: px, y: py, z: pz, item: 'tnt' }).ok) { s.handle(p.id, { type: 'ignite', x: px, y: py, z: pz }); this.startFlee(px + 0.5, pz + 0.5, 4); this.tntCooldown = 12 + Math.random() * 10; break; }
+          const k = Math.min(0.8, (d - 1.2) / d), px = Math.floor(p.pos.x + (t.pos.x - p.pos.x) * k), pz = Math.floor(p.pos.z + (t.pos.z - p.pos.z) * k), py = Math.floor(p.pos.y);
+          if (Math.hypot(px + 0.5 - p.pos.x, pz + 0.5 - p.pos.z) <= 5.2 && this.canEscapeFrom(px + 0.5, pz + 0.5) && s.handle(p.id, { type: 'place', x: px, y: py, z: pz, item: 'tnt' }).ok) { s.handle(p.id, { type: 'ignite', x: px, y: py, z: pz }); this.startFlee(px + 0.5, pz + 0.5, 4); this.tntCooldown = 12 + Math.random() * 10; break; }
         }
         // go for their base spawn when they are not visible, otherwise straight at them
         const plot = s.plots[t.index], vis = this.hasLOS(t);
@@ -4629,11 +4866,12 @@ class Bot {
         if (this.approach === 'sky' && d > 5 && d < 24 && this.modeT < 20 && p.pos.y < t.pos.y + 4.5 && (this.skyBase == null || p.pos.y < this.skyBase + 6) && this.pillarUp(dt)) { if (this.skyBase == null) this.skyBase = p.pos.y; break; }
         if (this.approach === 'tunnel' && d > 10 && !vis && (this.tunnelT = (this.tunnelT || 0) + dt) < 25) {      // go under their defences
           const surf = s.world.getSolidHeight(Math.floor(p.pos.x), Math.floor(p.pos.z)) + 1;
-          if (p.pos.y > surf - 2.2 && p.onGround) { this.digDown(dt); break; }
+          if (p.pos.y > surf - 2.2 && p.onGround) { if (this.digDown(dt)) break; this.approach = 'ground'; }
           this.walkTo(gx, gz, dt, 1.8, true, p.pos.y); break;
         }
+        if (d < 3.2 && !vis && this.digToward(t, dt)) break;                    // close but a block is in the way: dig through it
         if (dy > 2.2 && d < 8 && this.pillarUp(dt)) break;                      // enemy is above us: build upward
-        if (dy < -3 && d < 4) { this.digDown(dt); break; }                        // enemy is below: dig down
+        if (dy < -1.5 && d < 2.5 && this.digDown(dt)) break;                   // enemy is just below: dig down to them
         this.walkTo(gx, gz, dt, 1.8, true, gy);
         if (d < 3.4 && vis) this.mode = 'melee';
         break;
@@ -4662,14 +4900,116 @@ class Bot {
     }
   }
 
+  /* ---------- getting unstuck ---------- */
+  /** Climbs out of water by placing a block at its feet (lifts the bot), or swims toward the nearest bank. */
+  waterEscape() {
+    const p = this.p, s = this.s, w = s.world, c = p.controls, fx = Math.floor(p.pos.x), fy = Math.floor(p.pos.y + 0.05), fz = Math.floor(p.pos.z);
+    const item = this.pickMaterial();
+    if (item && p.cooldowns.place <= 0 && s.canModify(p, fx, fy, fz) && BLOCKS[w.get(fx, fy, fz)].shape === 'fluid' && w.isSolid(fx, fy - 1, fz)) {
+      this.face(p.pos.x, p.pos.y - 3, p.pos.z, true);
+      if (s.handle(p.id, { type: 'place', x: fx, y: fy, z: fz, item }).ok) return;
+    }
+    let best = null;
+    for (let r = 1; r <= 6 && !best; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+      const x = fx + dx, z = fz + dz, gy = w.getSolidHeight(x, z) + 1;
+      if (BLOCKS[w.get(x, gy, z)].shape === 'fluid' || gy - p.pos.y > 2.2) continue;
+      if (!best || dx * dx + dz * dz < best.d) best = { x: x + 0.5, z: z + 0.5, d: dx * dx + dz * dz };
+    }
+    if (best) { this.face(best.x, p.pos.y + 1, best.z, true); c.forward = true; c.jump = true; }
+  }
+  /** Mines the first block between the bot and a nearby target it cannot see, so the two can actually fight. */
+  digToward(t, dt) { const cc = t.center(); return this.digTowardPoint(cc.x, cc.y, cc.z, dt); }
+  /** Nearest enemy core still standing: { slot, x, y, z, d } or null. */
+  pickSiege() {
+    const p = this.p, s = this.s; let best = null;
+    for (const q of s.players) {
+      if (q === p || s.areAllies(q, p) || !s.coreAlive(q.index)) continue;
+      const [x, y, z] = s.plots[q.index].core, d = Math.hypot(x + 0.5 - p.pos.x, z + 0.5 - p.pos.z);
+      if (!best || d < best.d) best = { slot: q.index, x, y, z, d };
+    }
+    return best;
+  }
+  /** An enemy standing next to our own core (we defend it), or null. */
+  coreIntruder(foes) {
+    const p = this.p, s = this.s;
+    if (!s.coreAlive(p.index)) return null;
+    const [x, , z] = s.plots[p.index].core;
+    if (Math.hypot(x - p.pos.x, z - p.pos.z) > 45) return null;
+    let best = null, bd = 9;
+    for (const q of foes) { const d = Math.hypot(q.pos.x - x - 0.5, q.pos.z - z - 0.5); if (d < bd) { bd = d; best = q; } }
+    return best;
+  }
+  digTowardPoint(tx, ty, tz, dt) {
+    const p = this.p, s = this.s, w = s.world, e = p.eyePosition(), cc = { x: tx, y: ty, z: tz };
+    const dx = cc.x - e.x, dy = cc.y - e.y, dz = cc.z - e.z, l = Math.hypot(dx, dy, dz) || 1;
+    const hit = w.raycast(e, { x: dx / l, y: dy / l, z: dz / l }, Math.min(l, 5));
+    if (!hit || !BLOCKS[w.get(hit.x, hit.y, hit.z)].breakable || !s.canModify(p, hit.x, hit.y, hit.z)) return false;
+    this.face(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, true);
+    if (!this.mine || this.mine.x !== hit.x || this.mine.y !== hit.y || this.mine.z !== hit.z) this.mine = { x: hit.x, y: hit.y, z: hit.z, t: 0, need: mineTime(w.def(hit.x, hit.y, hit.z), 'pickaxe', p.mods, p.look) };
+    this.mine.t += dt;
+    if (this.mine.t >= this.mine.need) { s.handle(p.id, { type: 'break', x: hit.x, y: hit.y, z: hit.z }); this.mine = null; }
+    return true;
+  }
+  /** Last resort: the nearest dry standing spot within 10 blocks (not where the bot already is). */
+  safeSpot() {
+    const p = this.p, w = this.s.world, fx = Math.floor(p.pos.x), fz = Math.floor(p.pos.z);
+    for (let r = 2; r <= 10; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+      const x = fx + dx, z = fz + dz, gy = w.getSolidHeight(x, z) + 1;
+      if (!w.inBounds(x, gy + 1, z) || w.isSolid(x, gy, z) || w.isSolid(x, gy + 1, z)) continue;
+      const floor = w.get(x, gy - 1, z);
+      if (BLOCKS[floor].shape === 'fluid' || floor === ID.fire || BLOCKS[w.get(x, gy, z)].shape === 'fluid' || this.dangerous(x, gy, z)) continue;
+      return { x: x + 0.5, y: gy, z: z + 0.5 };
+    }
+    return null;
+  }
+  /**
+   * Progress watchdog for the war. "Progress" is moving 1.5 blocks (any direction, so tunnelling and pillaring count) or
+   * changing blocks. After 6 s without progress the bot rethinks and takes a detour, after 12 s it tries to dig or climb
+   * out, and after 20 s it is moved to the nearest safe ground (losing a little health, so it is never a free teleport).
+   */
+  watchStall(dt) {
+    const p = this.p, s = this.s;
+    if (this.mode === 'melee' || this.mode === 'shoot' || this.flee) return;   // fighting or fleeing: pause the stall clock (do not reset it)
+    const work = p.stats.blocksDestroyed + (p.stats.blocksPlaced || 0);
+    const r = this.stallRef;
+    if (!r || Math.hypot(p.pos.x - r.x, p.pos.z - r.z) > 1.5 || (p.onGround && Math.abs(p.pos.y - r.y) > 2.5) || Math.abs(work - r.work) >= 3) { this.stallRef = { x: p.pos.x, y: p.pos.y, z: p.pos.z, work }; this.stallT = 0; this.unstick = 0; return; }
+    this.stallT = (this.stallT || 0) + dt;
+    const c = p.controls;
+    if (this.stallT > 20) {
+      const spot = this.safeSpot();
+      if (spot) { p.teleport(spot.x, spot.y, spot.z); p.health = Math.max(1, p.health - 10); s.emit({ type: 'botUnstuck', player: p }); }
+      this.stallT = 0; this.stallRef = null; this.unstick = 0;
+      return;
+    }
+    if (this.stallT > 12) {                                                 // stage 2: dig or climb out
+      if (p.inWater) { this.waterEscape(); return; }
+      if (this.unstick !== 2) { this.unstick = 2; this.mine = null; }
+      const w = s.world, fx = Math.floor(p.pos.x), fy = Math.floor(p.pos.y + 0.05), fz = Math.floor(p.pos.z);
+      const walls = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dz]) => w.isSolid(fx + dx, fy, fz + dz) || w.isSolid(fx + dx, fy + 1, fz + dz)).length;
+      if (walls >= 3 && this.pillarUp(dt)) return;                          // in a hole: build up and out
+      c.forward = true; c.jump = p.onGround; this.digAhead(Math.floor(p.pos.x - Math.sin(p.yaw) * 0.75), fy, Math.floor(p.pos.z - Math.cos(p.yaw) * 0.75), dt);
+      return;
+    }
+    if (this.stallT > 6 && this.unstick !== 1) {                            // stage 1: rethink and take a detour
+      this.unstick = 1;
+      this.gatherTarget = null; this.mine = null; this.approach = 'ground'; this.thinkClock = 0; this.skyBase = null;
+      if (this.extra && this.queue) this.queueIndex++;
+      this.detour = (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random()); this.detourT = 2.5;
+    }
+    if (this.stallT > 6 && p.inWater) this.waterEscape();
+  }
+
   update(dt) {
     const p = this.p, s = this.s, c = p.controls;
     c.forward = c.back = c.left = c.right = c.jump = c.crouch = false;
     if (!p.alive) return;
     this.diplomacy(dt);
     if (s.phase === 'build') this.buildUpdate(dt);
-    else if (s.phase === 'war' || s.phase === 'chaos' || s.phase === 'sandbox') this.warUpdate(dt);
+    else if (s.phase === 'war' || s.phase === 'chaos' || s.phase === 'sandbox') { this.warUpdate(dt); this.watchStall(dt); }
     if (p.inLava || p.inWater) c.jump = true;
+    this.guardEdges();
     if (p.onGround && this.skyBase != null && this.mode !== 'hunt') this.skyBase = null;
   }
 }
@@ -4919,9 +5259,11 @@ class Renderer {
     this.part(base, 0, 1.4, -0.235, 0, 0, 0.12, 0.16, 0.03, [0.02, 0.02, 0.02]);
   }
   /** A tool held in the right/left hand, drawn from boxes. `arm` = rotation of the arm it hangs from, `px` = shoulder x. */
-  heldProp(base, id, px, py, arm, thrust, tint) {
+  heldProp(base, id, px, py, arm, thrust, tint, look) {
     const P = (dx, cy, w, h, d, c) => this.part(base, px + dx, py, 0, arm, cy - thrust, w, h, d, tint(c));
-    const wood = [0.45, 0.31, 0.16], iron = [0.78, 0.8, 0.86], dark = [0.3, 0.3, 0.34];
+    const sk = WEAPON_SKINS[look && look.weapons && look.weapons[id]], c255 = (c) => [c[0] / 255, c[1] / 255, c[2] / 255];
+    let wood = [0.45, 0.31, 0.16], iron = [0.78, 0.8, 0.86], dark = [0.3, 0.3, 0.34];
+    if (sk && sk.steel) { iron = c255(sk.steel); dark = c255(sk.dark); if (id === 'bow') wood = c255(sk.steel); }
     switch (id) {
       case 'sword': P(0, -0.68, 0.06, 0.16, 0.06, wood); P(0, -0.78, 0.22, 0.05, 0.08, dark); P(0, -1.12, 0.08, 0.62, 0.04, iron); break;
       case 'axe': P(0, -0.95, 0.06, 0.72, 0.06, wood); P(0.1, -1.24, 0.28, 0.22, 0.05, iron); break;
@@ -4963,8 +5305,8 @@ class Renderer {
     this.part(base, 0.4, 1.38 - crouch, 0, ra, -0.3, 0.22, 0.68, 0.22, tint(zombie ? skin : shirt));
     this.part(base, -0.4, 1.38 - crouch, 0, la, -0.3, 0.22, 0.68, 0.22, tint(zombie ? skin : shirt));
     if (!zombie) {
-      if (rp) this.heldProp(base, rp, 0.4, 1.38 - crouch, ra, thrust, tint);
-      if (lp) this.heldProp(base, lp, -0.4, 1.38 - crouch, la, 0, tint);
+      if (rp) this.heldProp(base, rp, 0.4, 1.38 - crouch, ra, thrust, tint, e.look);
+      if (lp) this.heldProp(base, lp, -0.4, 1.38 - crouch, la, 0, tint, e.look);
       if (e.blocking && !lp) this.part(base, -0.4, 1.38 - crouch, 0, la, -0.85, 0.34, 0.1, 0.34, tint([0.55, 0.38, 0.2]));       // off-hand guard plate
     }
   }
@@ -5320,7 +5662,7 @@ class UI {
   constructor() {
     const $ = (id) => document.getElementById(id);
     this.$ = $;
-    this.panels = { main: $('panelMain'), pause: $('panelPause'), multi: $('panelMulti'), lobby: $('panelLobby'), locker: $('panelLocker'), how: $('panelHow'), settings: $('panelSettings'), stats: $('panelStats') };
+    this.panels = { main: $('panelMain'), pause: $('panelPause'), multi: $('panelMulti'), lobby: $('panelLobby'), locker: $('panelLocker'), how: $('panelHow'), settings: $('panelSettings'), stats: $('panelStats'), admin: $('panelAdmin') };
     this.slotEls = [];
     this.cache = {};
     this.bannerTimer = 0;
@@ -5330,7 +5672,7 @@ class UI {
   setText(id, text) { if (this.cache['t' + id] !== text) { this.cache['t' + id] = text; this.$(id).textContent = text; } }
   setWidth(id, pct) { const k = 'w' + id, v = Math.round(clamp(pct, 0, 100)); if (this.cache[k] !== v) { this.cache[k] = v; this.$(id).style.width = v + '%'; } }
 
-  showPanel(name) { for (const [k, el] of Object.entries(this.panels)) el.classList.toggle('hidden', k !== name); const compact = name === 'lobby' || name === 'how' || name === 'locker' || name === 'multi'; this.$('title').classList.toggle('compact', compact); this.$('subtitle').classList.toggle('hidden', compact); }
+  showPanel(name) { for (const [k, el] of Object.entries(this.panels)) el.classList.toggle('hidden', k !== name); const compact = name === 'lobby' || name === 'how' || name === 'locker' || name === 'multi' || name === 'admin'; this.$('title').classList.toggle('compact', compact); this.$('subtitle').classList.toggle('hidden', compact); }
   showOverlay(panel) { this.$('overlay').classList.remove('hidden'); this.showPanel(panel); }
   hideOverlay() { this.$('overlay').classList.add('hidden'); }
   showHud(v) { this.$('hud').classList.toggle('hidden', !v); }
@@ -5338,9 +5680,9 @@ class UI {
 
   /* ---------- icons ---------- */
   setAtlas(canvas) { document.documentElement.style.setProperty('--atlas', 'url(' + canvas.toDataURL() + ')'); }
-  itemTile(itemId) {
+  itemTile(itemId, look) {
     const it = ITEMS[itemId];
-    if (it.kind === 'tool') return TILE['ICON_' + itemId.toUpperCase()];
+    if (it.kind === 'tool') return weaponTile(itemId, look && look.weapons ? look.weapons[itemId] : 'default');
     const def = BlockRegistry.byType(it.block);
     return def.tileFn ? def.tileFn(0, 0, 1) : def.tiles.side;
   }
@@ -5371,7 +5713,7 @@ class UI {
       const id = hotbar[i], icon = el.querySelector('.icon'), qty = el.querySelector('.qty');
       icon.style.display = id ? 'block' : 'none';
       if (id) {
-        this.iconStyle(icon, this.itemTile(id));
+        this.iconStyle(icon, this.itemTile(id, player && player.look));
         const it = ITEMS[id];
         let q = '', low = false;
         if (it.kind !== 'tool' && !server.unlimited) { const have = player.resources[it.res] || 0; q = Math.floor(have / (it.cost * (it.res === 'mech' ? player.mods.mechCost : 1) || 1)); low = q < 1; }
@@ -5472,14 +5814,26 @@ class UI {
    */
   renderLocker(state, on) {
     const { tab, profile, career } = state, L = levelFor(career.xp), eq = profile.equipped;
-    const tabs = [['skin', 'SKINS'], ['trail', 'TRAILS'], ['kill', 'KILL EFFECTS'], ['emote', 'EMOTES'], ['banner', 'BANNERS'], ['title', 'TITLES']];
+    const tabs = [['skin', 'SKINS'], ['weapon', 'WEAPONS'], ['trail', 'TRAILS'], ['kill', 'KILL EFFECTS'], ['emote', 'EMOTES'], ['banner', 'BANNERS'], ['title', 'TITLES']];
     this.$('lockerBar').innerHTML = `<span><b>LEVEL ${L.level}</b> <span class="xpbar"><i style="width:${Math.round(L.into / L.need * 100)}%"></i></span></span><span><b>${career.coins}</b> coins</span>`;
     const tabEl = this.$('lockerTabs');
     tabEl.innerHTML = tabs.map(([id, label]) => `<button class="segbtn ${tab === id ? 'on' : ''}" data-tab="${id}">${label}</button>`).join('');
     tabEl.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => on.tab(b.dataset.tab)));
     const grid = this.$('lockerGrid'); let html = '';
     const hex = (c) => `rgb(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)})`;
-    if (tab === 'title') {
+    if (tab === 'weapon') {
+      html = `<div style="grid-column:1/-1"><span class="req">Weapon skins give that weapon a <b>small boost</b>. Buy each skin per weapon with coins you earn by playing.</span></div>`;
+      for (const tool of WEAPON_TOOLS) {
+        html += `<div style="grid-column:1/-1"><h3 style="margin:6px 0 0">${esc(ITEMS[tool].label.toUpperCase())}</h3></div>`;
+        html += WEAPON_SKIN_ORDER.filter((sk) => !WEAPON_SKINS[sk].admin || state.admin).map((sk) => {
+          const W = WEAPON_SKINS[sk], key = tool + ':' + sk, owned = sk === 'default' || profile.owned.weapon.includes(key), lvlOk = L.level >= W.level, on2 = (eq.weapons || {})[tool] === sk;
+          const btn = owned ? `<button class="btn tiny" data-act="wequip" data-id="${key}">${on2 ? 'EQUIPPED' : 'EQUIP'}</button>`
+            : W.admin ? '<span class="req">Admin only</span>'
+            : lvlOk ? `<button class="btn tiny" data-act="wbuy" data-id="${key}" ${career.coins >= W.cost ? '' : 'disabled'}>BUY ${W.cost}</button>` : `<span class="req">Unlocks at level ${W.level}</span>`;
+          return `<div class="lk ${on2 ? 'on' : ''} ${owned || lvlOk ? '' : 'locked'}">${this.iconHTML(weaponTile(tool, sk), 32)} <h4 style="display:inline-block;margin-left:6px">${esc(W.name)}</h4><span class="req" style="display:block">${esc(boostText(W.boost[tool] || {}))}</span>${btn}</div>`;
+        }).join('');
+      }
+    } else if (tab === 'title') {
       html = TITLE_ORDER.map((id) => { const t = TITLES[id], ok = t.ok(career); return `<div class="lk ${eq.title === id ? 'on' : ''} ${ok ? '' : 'locked'}"><h4>${esc(t.name)}</h4><span class="req">${esc(t.desc)}</span>${ok ? `<button class="btn tiny" data-act="title" data-id="${id}">${eq.title === id ? 'EQUIPPED' : 'EQUIP'}</button>` : '<span class="req"><br>Locked</span>'}</div>`; }).join('');
     } else {
       const items = COSMETICS[tab];
@@ -5489,7 +5843,7 @@ class UI {
       if (tab === 'emote') {
         html += `<div style="grid-column:1/-1"><span class="req">Keys <b>Z X C V</b> use these four slots. Pick a slot, then click an emote you own.</span><div class="emslots">${eq.emotes.map((id, i) => `<span class="emslot ${state.emoteSlot === i ? 'on' : ''}" data-act="slot" data-id="${i}">${'ZXCV'[i]}: ${esc(COSMETICS.emote[id].name)}</span>`).join('')}</div></div>`;
       }
-      html += Object.keys(items).map((id) => {
+      html += Object.keys(items).filter((id) => !items[id].admin || state.admin).map((id) => {
         const it = items[id], owned = profile.owned[tab].includes(id), lvlOk = L.level >= it.level, canBuy = !owned && lvlOk && career.coins >= it.cost;
         let btn;
         if (tab === 'emote') btn = owned ? `<button class="btn tiny" data-act="emote" data-id="${id}">USE IN SLOT ${'ZXCV'[state.emoteSlot]}</button>` : lvlOk ? `<button class="btn tiny" data-act="buy" data-id="${id}" ${canBuy ? '' : 'disabled'}>BUY ${it.cost}</button>` : `<span class="req">Level ${it.level}</span>`;
@@ -5502,7 +5856,8 @@ class UI {
     grid.innerHTML = html;
     grid.querySelectorAll('[data-act]').forEach((el) => el.addEventListener('click', () => {
       const act = el.dataset.act, id = el.dataset.id;
-      if (act === 'buy') on.buy(tab, id); else if (act === 'equip') on.equip(tab, id); else if (act === 'color') on.color(+id);
+      if (act === 'wbuy') on.wbuy(id); else if (act === 'wequip') on.wequip(id);
+      else if (act === 'buy') on.buy(tab, id); else if (act === 'equip') on.equip(tab, id); else if (act === 'color') on.color(+id);
       else if (act === 'title') on.title(id); else if (act === 'slot') on.slot(+id); else if (act === 'emote') on.emote(state.emoteSlot, id);
     }));
   }
@@ -5534,7 +5889,7 @@ class UI {
   setPlayers(rows) {
     this.setHTML('players', rows.map((r) => `<div class="prow ${r.alive ? '' : 'dead'} ${r.me ? 'me' : ''} ${r.ally ? 'ally' : ''}" style="--c:${r.color}">
       <i class="dot"></i><span class="nm">${esc(r.name)}${r.ally ? ' <em>ALLY</em>' : ''}${r.bounty ? ' <em class="bty">$' + r.bounty + '</em>' : ''}</span>
-      <span class="hpb"><i style="width:${r.alive ? Math.round(r.hp) : 0}%"></i></span><span class="int ${r.integ < 35 ? 'low' : ''}" title="Base integrity">${r.integ}%</span><b class="sc">${r.score}</b></div>`).join(''));
+      <span class="hpb"><i style="width:${r.alive ? Math.round(r.hp) : 0}%"></i></span><span class="int ${r.core === false ? 'low' : ''}" title="${r.core === false ? 'Core destroyed: no respawns' : 'Core standing'} - base integrity ${r.integ}%">${r.core === false ? '&#10007;' : '&#9670;'}${r.integ}%</span><b class="sc">${r.score}</b></div>`).join(''));
   }
   killfeed(html, cls = '') {
     const feed = this.$('killfeed'), el = document.createElement('div');
@@ -5775,6 +6130,7 @@ class Game {
     this.settings = Storage.load('mpw.settings', { sens: 1, fov: 75, vol: 0.7 });
     this.career = Object.assign({ matches: 0, wins: 0, kills: 0, deaths: 0, xp: 0, coins: 0, blocks: 0, best: 0, playSeconds: 0, tntKills: 0, structures: 0, damage: 0, totalCoins: 0 }, Storage.load('mpw.career', {}));
     this.profile = sanitizeProfile(Storage.load('mpw.profile', null));
+    this.admin = Object.assign({}, ADMIN_DEFAULTS, { unlocked: false, enabled: true }, Storage.load('mpw.admin', {}));
     this.lobby = Object.assign({ difficulty: 'normal', mode: 'war', bots: 3, classId: 'builder', name: 'PLAYER', seed: 1, mapId: 'plains' }, Storage.load('mpw.lobby', {}));
     if (!CLASSES[this.lobby.classId]) this.lobby.classId = 'builder';
     if (!MAPS[this.lobby.mapId] && this.lobby.mapId !== 'random') this.lobby.mapId = 'plains';
@@ -5823,7 +6179,7 @@ class Game {
   }
 
   get player() { return this.server.human; }
-  saveCareer() { Storage.save('mpw.career', this.career); Storage.save('mpw.lobby', this.lobby); Storage.save('mpw.hotbar', { slots: this.hotbar }); Storage.save('mpw.settings', this.settings); }
+  saveCareer() { Storage.save('mpw.career', this.career); Storage.save('mpw.lobby', this.lobby); Storage.save('mpw.hotbar', { slots: this.hotbar }); Storage.save('mpw.settings', this.settings); Storage.save('mpw.profile', this.profile); Storage.save('mpw.admin', this.admin); }
 
   /** A frozen sample map shown behind the main menu. */
   demoMatch() {
@@ -6069,7 +6425,9 @@ class Game {
   openLocker() { this.ui.showPanel('locker'); this.refreshLocker(); }
   refreshLocker() {
     const pr = this.profile, c = this.career;
-    this.ui.renderLocker({ tab: this.lockerTab, profile: pr, career: c, emoteSlot: this.emoteSlot }, {
+    this.ui.renderLocker({ tab: this.lockerTab, profile: pr, career: c, emoteSlot: this.emoteSlot, admin: !!this.admin.unlocked }, {
+      wbuy: (key) => { const [tool, sk] = key.split(':'), W = WEAPON_SKINS[sk]; if (W && !W.admin && c.coins >= W.cost && levelFor(c.xp).level >= W.level && !pr.owned.weapon.includes(key)) { c.coins -= W.cost; pr.owned.weapon.push(key); pr.equipped.weapons[tool] = sk; this.audio.play('chime', null, 0.6); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
+      wequip: (key) => { const [tool, sk] = key.split(':'); if (sk === 'default' || pr.owned.weapon.includes(key)) { pr.equipped.weapons[tool] = sk; this.audio.play('click'); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
       tab: (t) => { this.lockerTab = t; this.audio.play('click'); this.refreshLocker(); },
       slot: (i) => { this.emoteSlot = i; this.refreshLocker(); },
       buy: (slot, id) => { const it = COSMETICS[slot][id]; if (c.coins >= it.cost && levelFor(c.xp).level >= it.level && !pr.owned[slot].includes(id)) { c.coins -= it.cost; pr.owned[slot].push(id); if (slot !== 'emote') pr.equipped[slot] = id; this.audio.play('chime', null, 0.6); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
@@ -6082,6 +6440,50 @@ class Game {
   /** Tells a hosted/joined lobby about changed cosmetics. */
   pushLook() { const look = publicLook(this.profile); if (this.host) this.host.setHostInfo({ look }); else if (this.client) this.client.send({ t: 'prof', look }); }
   myLook() { return publicLook(this.profile); }
+
+  /* ---------------------------- admin panel (type LN1 as a join code) ---------------------------- */
+  openAdmin() {
+    if (!this.admin.unlocked) { this.admin.unlocked = true; this.saveCareer(); }
+    this.backPanel = 'main'; this.ui.showPanel('admin'); this.renderAdmin();
+  }
+  renderAdmin() {
+    const A = this.admin, $ = this.ui.$;
+    $('adminNote').textContent = 'Powers apply to you in single player and when you host (other players get a chat line saying admin is on). They do nothing when you join someone else\'s game.';
+    const sliders = ADMIN_SLIDERS.map(([k, label, min, max, step, fmt]) => `<label>${esc(label)} <output id="adm_o_${k}">${fmt(A[k])}</output><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${A[k]}"></label>`).join('');
+    const toggles = [['enabled', 'Admin powers ON'], ['god', 'God mode (take no damage)'], ['infinite', 'Infinite resources']].map(([k, label]) => `<label class="inline adm-t"><input type="checkbox" data-t="${k}" ${A[k] ? 'checked' : ''}> ${esc(label)}</label>`).join('');
+    $('adminBody').innerHTML = `<div class="cols"><div>${sliders}</div><div class="adm-side">${toggles}<h3>COSMETICS</h3>
+      <button class="btn tiny" data-a="unlock">UNLOCK ALL COSMETICS + ADMIN SKINS</button> <button class="btn tiny" data-a="coins">+10,000 COINS</button>
+      <h3>SLIDERS</h3><button class="btn tiny" data-a="reset">RESET SLIDERS</button><p class="hint" id="adminMsg"></p></div></div>`;
+    $('adminBody').querySelectorAll('input[type=range]').forEach((el) => el.addEventListener('input', () => {
+      const k = el.dataset.k, def = ADMIN_SLIDERS.find((x) => x[0] === k); A[k] = parseFloat(el.value); $('adm_o_' + k).textContent = def[5](A[k]); this.saveCareer(); this.applyAdmin();
+    }));
+    $('adminBody').querySelectorAll('input[type=checkbox]').forEach((el) => el.addEventListener('change', () => { A[el.dataset.t] = el.checked; this.saveCareer(); this.applyAdmin(); }));
+    $('adminBody').querySelectorAll('[data-a]').forEach((el) => el.addEventListener('click', () => {
+      const a = el.dataset.a, pr = this.profile, msg = $('adminMsg');
+      this.audio.play('chime', null, 0.5);
+      if (a === 'unlock') {
+        for (const slot of [...COSMETIC_SLOTS, 'emote']) pr.owned[slot] = Object.keys(COSMETICS[slot]);
+        pr.owned.weapon = WEAPON_TOOLS.flatMap((t) => WEAPON_SKIN_ORDER.filter((sk) => sk !== 'default').map((sk) => t + ':' + sk));
+      } else if (a === 'coins') { this.career.coins += 10000; this.career.totalCoins += 10000; }
+      else if (a === 'reset') { Object.assign(A, ADMIN_DEFAULTS); this.saveCareer(); this.renderAdmin(); this.applyAdmin(); $('adminMsg').textContent = 'Sliders reset.'; return; }
+      msg.textContent = a === 'unlock' ? 'Everything is unlocked, including the Admin skin and Admin weapons. Equip them in the Locker.' : 'Added 10,000 coins.';
+      this.saveCareer(); this.pushLook(); this.ui.renderProfileBar(this.career);
+    }));
+  }
+  /** Re-applies class stats, then the admin multipliers, to the local player. Only on a server we run (single player or host). */
+  applyAdmin(atStart) {
+    const p = this.player, s = this.server, A = this.admin;
+    if (!p || s !== this.localServer || !s.players.length || s.phase === 'idle') return;
+    s.applyClass(p);
+    const on = !!(A.unlocked && A.enabled);
+    if (on) {
+      p.mods.speed *= A.speed; p.mods.jump *= A.jump; p.mods.meleeDamage *= A.damage; p.mods.mineSpeed *= A.mine; p.mods.bowDraw /= A.draw; p.mods.regenRate *= A.regen;
+      p.maxHealth = A.health;
+    }
+    p.adminGod = on && A.god; p.adminInfinite = on && A.infinite;
+    if (atStart || p.health > p.maxHealth) p.health = p.maxHealth;
+    if (atStart && on && this.kind === 'host' && this.host) this.host.relayChat('p0', this.lobby.name, 'has admin powers on', false, true);
+  }
 
   /* ---------------------------- lobby ---------------------------- */
   /** AI opponents shown in the lobby: random classes (no repeats), random names and cosmetics. Re-rolled every time. */
@@ -6166,6 +6568,7 @@ class Game {
     this.state = 'paused';
     this.saveCareer();
     this.startPlay();
+    this.applyAdmin(true);
     const land = LANDS[p.landId], cls = CLASSES[p.classId], map = MAPS[this.server.mapId];
     this.ui.banner(land.name.toUpperCase() + ' · ' + cls.name.toUpperCase(), (map ? map.name + '. ' : '') + (this.server.mode === 'sandbox' ? 'Sandbox: unlimited resources' : 'Build phase: edit only your own land.'), '', 3800);
   }
@@ -6208,6 +6611,7 @@ class Game {
   async joinGame(rawCode) {
     if (this.busyNet) return;
     const code = cleanCode(rawCode);
+    if (code === ADMIN_CODE) { this.ui.$('joinCode').value = ''; this.setNet(''); this.openAdmin(); return; }
     if (code.length < 4) { this.setNet('Enter the game code your friend gave you.', 'bad'); return; }
     this.busyNet = true; this.setNet('Connecting to ' + code + '...'); this.chatLog = []; this.chatMuted.clear();
     let ch;
@@ -6409,9 +6813,14 @@ class Game {
         this.noteHighlight(this.server.map.vault.x, this.server.map.vault.y, this.server.map.vault.z, 'VAULT CAPTURED', 40);
         break;
       }
+      case 'suddenDeath': this.ui.banner('SUDDEN DEATH', 'Every core has crumbled. From now on, death is final.', 'bad', 3800); this.audio.play('crash', null, 0.8); this.shake = Math.max(this.shake, 1); break;
+      case 'finalDuel': this.ui.killfeed('Only two teams left: <b>CHAOS starts now</b>', 'warn'); break;
+      case 'botUnstuck': break;
       case 'baseDestroyed': {
-        const who = e.player; this.ui.killfeed(`<b style="color:${who.color}">${esc(who.name)}</b>'s base was DESTROYED${e.by ? ' by <b style="color:' + e.by.color + '">' + esc(e.by.name) + '</b>' : ''}`, 'bad');
-        if (who === me) this.ui.banner('YOUR BASE IS DESTROYED', 'Stay alive. Take someone with you.', 'bad', 3500);
+        if (e.quiet) break;
+        const who = e.player; this.ui.killfeed(`<b style="color:${who.color}">${esc(who.name)}</b>'s CORE was destroyed${e.by ? ' by <b style="color:' + e.by.color + '">' + esc(e.by.name) + '</b> <em>+400</em>' : ''}`, 'bad');
+        if (who === me) this.ui.banner('YOUR CORE IS DESTROYED', 'No more respawns. Stay alive.', 'bad', 3500);
+        else if (e.by === me) this.ui.banner('CORE DESTROYED', esc(who.name) + ' can no longer respawn. +400', 'good', 2600);
         const pl = this.server.plots[who.index]; if (pl) this.noteHighlight(pl.x, pl.baseY + 3, pl.z, 'BASE DESTROYED', 80);
         this.audio.play('crash', null, 0.7);
         break;
@@ -6477,7 +6886,12 @@ class Game {
     if (v === me) {
       this.deathReplay = { victim: v, killer: k };
       this.mining = null; this.charge = 0;
-      if (this.server.mode !== 'sandbox' && this.server.phase !== 'ended') {
+      if (this.server.mode !== 'sandbox' && this.server.phase !== 'ended' && this.myCoreAlive()) {
+        U.banner('YOU DIED', (k ? 'Killed by ' + k.name + '. ' : '') + 'Respawning in ' + CONFIG.MATCH.CORE_RESPAWN + ' s at your core.', 'bad', 2400);
+        this.spectateIndex = k && k.alive ? k.index : -1;
+        U.setPanelOpen('inventory', false); U.setPanelOpen('diplomacy', false);
+        if (this.state === 'panel') { this.state = 'playing'; this.startPlay(); }
+      } else if (this.server.mode !== 'sandbox' && this.server.phase !== 'ended') {
         U.banner('YOU DIED', k ? 'Killed by ' + k.name : 'Eliminated', 'bad', 2400);
         this.spectateIndex = k && k.alive ? k.index : -1;
         this.pendingKillcam = { at: this.server.clock + 1.0, victim: v, killer: k };
@@ -6485,6 +6899,11 @@ class Game {
         if (this.state === 'panel') { this.state = 'playing'; this.startPlay(); }
       } else U.banner('YOU DIED', 'Respawning...', 'bad', 1800);
     }
+  }
+  /** Will the local player respawn? (their core still stands, during the war) */
+  myCoreAlive() {
+    const s = this.server, p = this.player;
+    return !!p && (s.phase === 'war' || s.phase === 'chaos') && !!(s.plots[p.index] && s.plots[p.index].core) && !s.baseDestroyed[p.index];
   }
   onMatchEnd(e) {
     this.matchEndAt = this.time + 2.2;
@@ -6494,7 +6913,7 @@ class Game {
   /** Rejected requests from a hosted match come back as events; same wording as a local refusal. */
   onRejected(e) {
     const r = e.reason, it = e.item && ITEMS[e.item], phase = this.server.phase;
-    const msg = { 'no-resource': it && it.res ? 'Out of ' + RESOURCES[it.res].label.toLowerCase() + '!' : 'Not enough resources.', 'not-allowed': phase === 'build' ? 'Build phase: you can only edit your own land.' : 'You cannot do that right now.', 'no-support': 'Needs something to attach to.', 'no-floor': 'Needs solid ground below it.', 'player-in-way': 'Someone is in the way.' }[r];
+    const msg = { 'no-resource': it && it.res ? 'Out of ' + RESOURCES[it.res].label.toLowerCase() + '!' : 'Not enough resources.', 'not-allowed': phase === 'build' ? 'Build phase: you can only edit your own land.' : 'You cannot do that right now.', 'no-support': 'Needs something to attach to.', 'no-floor': 'Needs solid ground below it.', 'player-in-way': 'Someone is in the way.', 'own-core': 'That is your own core: protect it!', 'core-shielded': 'Cores are shielded for the first minute of the war.' }[r];
     if (msg && (e.action === 'place' || e.action === 'break' || e.action === 'ignite')) this.ui.toast(msg, 'bad', 1500);
   }
   addFloat(t, amount, cls) {
@@ -6640,8 +7059,8 @@ class Game {
     // ---- left button ----
     this.charge = 0;
     if (item && item.id === 'bow') {
-      if (left) { this.bowHeld = (this.bowHeld || 0) + dt; this.charge = clamp(this.bowHeld / (TOOLS.bow.draw * p.mods.bowDraw), 0, 1); }
-      else if (this.bowHeld) { const ch = clamp(this.bowHeld / (TOOLS.bow.draw * p.mods.bowDraw), 0, 1); this.bowHeld = 0; if (ch > 0.2) { s.handle(p.id, { type: 'shoot', charge: ch }); p.cooldowns.shoot = Math.max(p.cooldowns.shoot, 0.05); } }
+      if (left) { this.bowHeld = (this.bowHeld || 0) + dt; this.charge = clamp(this.bowHeld / (TOOLS.bow.draw * p.mods.bowDraw * (weaponBoost(p.look, 'bow').draw || 1)), 0, 1); }
+      else if (this.bowHeld) { const ch = clamp(this.bowHeld / (TOOLS.bow.draw * p.mods.bowDraw * (weaponBoost(p.look, 'bow').draw || 1)), 0, 1); this.bowHeld = 0; if (ch > 0.2) { s.handle(p.id, { type: 'shoot', charge: ch }); p.cooldowns.shoot = Math.max(p.cooldowns.shoot, 0.05); } }
       this.mining = null;
     } else {
       this.bowHeld = 0;
@@ -6655,17 +7074,19 @@ class Game {
         const key = tgt.x + ',' + tgt.y + ',' + tgt.z, def = w.def(tgt.x, tgt.y, tgt.z);
         if (!this.mining || this.mining.key !== key) this.mining = { key, progress: 0 };
         if (def.breakable) {
-          this.mining.progress += dt / mineTime(def, item && item.def.kind === 'tool' ? item.id : null, p.mods);
+          this.mining.progress += dt / mineTime(def, item && item.def.kind === 'tool' ? item.id : null, p.mods, p.look);
           if (this.mining.progress >= 1) {
             const r = s.handle(p.id, { type: 'break', x: tgt.x, y: tgt.y, z: tgt.z });
             if (!r.ok && r.reason === 'not-allowed') this.ui.toast(s.phase === 'build' ? 'Build phase: you can only edit your own land.' : 'You cannot do that right now.', 'bad', 1800);
+            else if (!r.ok && r.reason === 'own-core') this.ui.toast('That is your own core: protect it!', 'bad', 1800);
+            else if (!r.ok && r.reason === 'core-shielded') this.ui.toast('Cores are shielded for the first minute of the war.', 'bad', 1800);
             this.mining = null;
           }
         }
       } else this.mining = null;
     }
 
-    if (item && T && T.dmg != null && item.id !== 'bow' && p.cooldowns.attack > 0) this.charge = clamp(1 - p.cooldowns.attack / (T.cd * p.mods.attackCooldown), 0, 1);      // attack-charge bar
+    if (item && T && T.dmg != null && item.id !== 'bow' && p.cooldowns.attack > 0) this.charge = clamp(1 - p.cooldowns.attack / (T.cd * p.mods.attackCooldown * (weaponBoost(p.look, item.id).speed || 1)), 0, 1);      // attack-charge bar
 
     // ---- right button ----
     if (right && tgt) {
@@ -6719,6 +7140,7 @@ class Game {
       this.hudClock -= dt;
       if (this.hudClock <= 0) { this.hudClock = 0.2; this.updateHud(); }
       if (this.tut && this.state === 'playing') this.tutorialTick(dt);
+      if (p && p.adminInfinite) for (const k of RESOURCE_ORDER) p.resources[k] = 999;
       if (this.scoreboardHeld && Math.floor(this.time * 2) !== this.sbTick) { this.sbTick = Math.floor(this.time * 2); this.ui.renderScoreboard(s, p); }
       this.ui.refreshHotbar(this.hotbar, this.selected, s, p);
       if (this.state === 'panel') this.ui.refreshInventoryRes(s, p);
@@ -6753,8 +7175,8 @@ class Game {
     switch (s.phase) {
       case 'countdown': return ['GET READY', 'Match begins in ' + Math.ceil(M.COUNTDOWN - s.phaseTime), fmtTime(M.COUNTDOWN - s.phaseTime)];
       case 'build': { const left = s.timeLeft(); return left <= 30 * (M.BUILD / 180) ? ['PREPARE', 'Set traps, load TNT, sharpen weapons. War is coming.', fmtTime(left)] : ['BUILD', 'Fortify your land. Only your own land can be edited.', fmtTime(left)]; }
-      case 'war': { const t = s.phaseTime / (M.WAR - M.CHAOS); const left = s.timeLeft(); return t < 0.33 ? ['FIGHT', 'PvP is on. Hunt, defend, grab the vault.', fmtTime(left)] : t < 0.75 ? ['DESTROY', 'Break enemy bases. Watch their integrity %.', fmtTime(left)] : ['SURVIVE', 'Stay alive. Chaos is near.', fmtTime(left)]; }
-      case 'chaos': return ['CHAOS', 'Disasters rage. Last team standing or best score wins.', fmtTime(s.timeLeft())];
+      case 'war': { const t = s.phaseTime / (M.WAR - M.CHAOS); const left = s.timeLeft(); return s.coreShielded && s.coreShielded() ? ['FIGHT', 'Cores are shielded for ' + Math.ceil(CONFIG.MATCH.CORE_SHIELD - s.phaseTime) + ' s. Find the enemy cores (purple).', fmtTime(left)] : t < 0.33 ? ['FIGHT', 'Break enemy cores. While yours stands, you respawn.', fmtTime(left)] : t < 0.75 ? ['DESTROY', 'Break enemy bases. Watch their integrity %.', fmtTime(left)] : ['SURVIVE', 'Stay alive. Chaos is near.', fmtTime(left)]; }
+      case 'chaos': return ['CHAOS', 'Sudden death: no respawns. Disasters rage. Last team standing wins.', fmtTime(s.timeLeft())];
       case 'sandbox': return ['SANDBOX', 'Unlimited resources. No timers.', '∞'];
       case 'ended': return ['MATCH OVER', '', '0:00'];
       default: return ['', '', ''];
@@ -6767,7 +7189,7 @@ class Game {
     U.setEventBar(s.event && s.event.state === 'active' ? `${s.event.name} &mdash; ${Math.ceil(s.event.duration - s.event.t)}s`.replace('&mdash;', '·') : (s.event ? s.event.name + '...' : ''));
     U.setVitals(p.health, p.maxHealth, s.integrity(p.index), p.bounty, this.statusLine());
     U.setResources(s, p);
-    U.setPlayers(s.scoreboard().map((q) => ({ name: q.name, color: q.color, alive: q.alive, hp: q.health / q.maxHealth * 100, integ: s.integrity(q.index), score: Math.round(q.stats.score), me: q === p, ally: s.areAllies(q, p), bounty: q.bounty })));
+    U.setPlayers(s.scoreboard().map((q) => ({ name: q.name, color: q.color, alive: q.alive, hp: q.health / q.maxHealth * 100, integ: s.integrity(q.index), core: !!(s.plots[q.index] && s.plots[q.index].core) && !s.baseDestroyed[q.index], score: Math.round(q.stats.score), me: q === p, ally: s.areAllies(q, p), bounty: q.bounty })));
     const v = s.vault, showV = s.phase === 'war' || s.phase === 'chaos' || s.phase === 'sandbox';
     U.setVault(showV, v.cooldown > 0 ? 1 - v.cooldown / 45 : v.progress, v.cooldown > 0 ? 'VAULT RECHARGING' : v.capturing ? 'CAPTURING...' : 'VAULT (centre of map)', v.cooldown > 0 ? 'cool' : v.capturing ? 'cap' : '');
     U.setCharge(this.charge);
@@ -6780,7 +7202,8 @@ class Game {
     U.setHint(hint);
     if (!p.alive && s.mode !== 'sandbox' && this.state !== 'results' && !(this.replay && this.replay.fullscreen)) {
       const tg = s.players[this.spectateIndex];
-      U.setSpectate(tg && tg.alive ? `SPECTATING <b style="color:${tg.color}">${esc(tg.name)}</b> &mdash; <kbd>Space</kbd> next &middot; <kbd>R</kbd> killcam` : 'SPECTATING &mdash; <kbd>Space</kbd> switch player');
+      if (this.myCoreAlive()) U.setSpectate('RESPAWNING AT YOUR CORE...');
+      else U.setSpectate(tg && tg.alive ? `SPECTATING <b style="color:${tg.color}">${esc(tg.name)}</b> &mdash; <kbd>Space</kbd> next &middot; <kbd>R</kbd> killcam` : 'SPECTATING &mdash; <kbd>Space</kbd> switch player');
     } else U.setSpectate('');
     U.setScreenTint(this.tintKind());
   }
@@ -6790,8 +7213,9 @@ class Game {
     const mates = s.players.filter((q) => s.areAllies(p, q));
     if (mates.length) bits.push('<span class="ally">ALLIED with ' + mates.map((m) => esc(m.name)).join(', ') + '</span>');
     if (p.bounty) bits.push(`<span class="bad">BOUNTY $${p.bounty}</span>`);
+    if (this.admin && this.admin.unlocked && this.admin.enabled && s === this.localServer) bits.push('<span class="bad">ADMIN</span>');
     if (s.base_destroyed_flag) bits.push('');
-    if (s.baseDestroyed[p.index]) bits.push('<span class="bad">BASE DESTROYED</span>');
+    if (s.plots[p.index] && s.plots[p.index].core) bits.push(s.baseDestroyed[p.index] ? '<span class="bad">NO CORE: no respawns</span>' : '<span class="ally">CORE SAFE</span>');
     if (p.burnTime > 0) bits.push('<span class="bad">BURNING</span>');
     return bits.join(' &middot; ');
   }
@@ -6829,7 +7253,7 @@ class Game {
       if (this.kick > 0) { dir.y += this.kick * 0.05; const l = Math.hypot(dir.x, dir.y, dir.z); dir.x /= l; dir.y /= l; dir.z /= l; }
       cam = { x: e.x + (Math.random() - 0.5) * sh, y: e.y + (Math.random() - 0.5) * sh, z: e.z + (Math.random() - 0.5) * sh, dir, fov: this.settings.fov + (this.fovAdd || 0) };
       const it = this.currentItem();
-      if (p.alive && it) held = it.def.kind === 'tool' ? { kind: 'tool', id: it.id, tile: TILE['ICON_' + it.id.toUpperCase()], block: this.blockAmt, charge: it.id === 'bow' ? this.charge : 0, equip: this.equip } : { kind: 'block', id: BlockRegistry.byType(it.def.block).id, meta: it.id === 'piston' ? 12 : 0, equip: this.equip };
+      if (p.alive && it) held = it.def.kind === 'tool' ? { kind: 'tool', id: it.id, tile: weaponTile(it.id, p.look && p.look.weapons ? p.look.weapons[it.id] : 'default'), block: this.blockAmt, charge: it.id === 'bow' ? this.charge : 0, equip: this.equip } : { kind: 'block', id: BlockRegistry.byType(it.def.block).id, meta: it.id === 'piston' ? 12 : 0, equip: this.equip };
     }
     this.cam = cam;
     const m = srv.map ? srv.map.vault : null;
@@ -6901,6 +7325,7 @@ class Game {
 const api = {
   CONFIG, BlockRegistry, BLOCKS, ID, TILE, World, MapGenerator, buildChunkMesh, buildBlockListMesh, Player, Mob, GameServer, Bot, Mat4, AIR, B, VERTEX_FLOATS,
   CLASSES, LANDS, MAPS, MAP_ORDER, ITEMS, EVENT_DEFS, EVENT_LIST, startResources, mineTime, TOOLS, LAND_ORDER, CLASS_ORDER, RESOURCES, DIFFICULTIES, DIFF_ORDER,
+  HostSession, ClientSession, NetServerView, Channel, netConnect, hashWorld, WEAPON_SKINS, WEAPON_TOOLS, weaponBoost, sanitizeProfile, sanitizeLook,
 };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = api;                     // lets tests/logic.test.js run the game logic in Node
