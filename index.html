@@ -183,7 +183,8 @@
               <tr><td>M / F3 / Esc</td><td>Mute / debug / pause</td></tr>
             </table>
             <div class="tips">
-              <p><b>The loop:</b> BUILD your base &rarr; PREPARE traps &rarr; FIGHT &rarr; DESTROY enemy bases &rarr; SURVIVE &rarr; CHAOS disasters. Last team standing wins; on timeout the best score wins.</p>
+              <p><b>The loop:</b> BUILD your base (2 minutes) &rarr; WAR: break enemy cores &rarr; CHAOS: sudden death and disasters. Last team standing wins; on timeout the best score wins.</p>
+              <p><b>Cores:</b> every base has a glowing purple core. While yours stands you respawn 5 s after dying. Enemies must mine it (slow) or blow it up; cores are shielded for the first minute of the war. When CHAOS starts every core crumbles: from then on, death is final.</p>
               <p><b>Maps:</b> Plains, Canyon (cliffs) and Village (houses). <b>Weapons:</b> sword, axe (slow, heavy), bow, knockback staff. Water and lava buckets are in the inventory too.</p>
               <p><b>Multiplayer:</b> host a game, share the code or invite link, pick a map, ready up. If a player disconnects, AI takes over their character.</p>
               <p><b>Resources are finite.</b> Mine trees, stone, iron and dirt. TNT, water, lava and machine parts are rare: spend them where they hurt most.</p>
@@ -192,7 +193,7 @@
               <p><b>Machines (E menu):</b> Arrow Turret (right-click to refill), TNT Cannon (uses your TNT), Land Mine, Spike Trap, Flamethrower, Launch Pad, Conveyor, Sprinkler, Healing Beacon and TNT Dropper (wire it). They only hurt enemies, and only once the war starts.</p>
               <p><b>Combat:</b> like Minecraft: charge each swing, hit while falling for a critical, sprint into a hit for extra knockback, and a short immunity follows every hit.</p>
               <p><b>Physics:</b> blocks need support. Cut the base of a tower and it falls, crushing what is below. Sand and gravel fall. Water flows, lava burns, fire spreads on wood.</p>
-              <p><b>Base integrity:</b> your base counts only blocks you built around your spawn. Below 5% it is destroyed.</p>
+              <p><b>Weapon skins (Locker):</b> buy skins for your sword, axe, pickaxe and bow with coins you earn by playing. Each gives that weapon a small boost.</p>
             </div>
           </div>
           <button class="btn small back">BACK</button>
@@ -208,6 +209,15 @@
             <input id="setFov" type="range" min="60" max="110" step="1"></label>
           <label>Volume <output id="outVol"></output>
             <input id="setVol" type="range" min="0" max="1" step="0.05"></label>
+          <button class="btn small back">BACK</button>
+        </div>
+      </div>
+
+      <div id="panelAdmin" class="panelview hidden">
+        <div class="panel wide">
+          <h2>ADMIN PANEL</h2>
+          <p class="hint" id="adminNote"></p>
+          <div id="adminBody"></div>
           <button class="btn small back">BACK</button>
         </div>
       </div>
