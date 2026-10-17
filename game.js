@@ -49,7 +49,7 @@ const CONFIG = {
   HEALTH: { MAX: 100, REGEN_DELAY: 10, REGEN_RATE: 0.8, FALL_SAFE: 13, FALL_DMG: 4.5 },
   PLOT_RADIUS: 18,
   MATCH: {
-    COUNTDOWN: 3, BUILD: 120 / TIME_SPEED, WAR: 420 / TIME_SPEED, CHAOS: 120 / TIME_SPEED,
+    COUNTDOWN: 3, DROP_FIRST: 35 / TIME_SPEED, DROP_EVERY: 70 / TIME_SPEED, BUILD: 120 / TIME_SPEED, WAR: 420 / TIME_SPEED, CHAOS: 120 / TIME_SPEED,
     SANDBOX_RESPAWN: 2, CORE_RESPAWN: 5, CORE_SHIELD: 60 / TIME_SPEED, SPEED: TIME_SPEED,
   },
   RENDER: { FOG_START: 50, FOG_END: 140, SKY: [0.55, 0.78, 0.95], REBUILD_BUDGET: 4 },
@@ -793,7 +793,7 @@ class Body {
     this.impactSpeed = 0; this.jumped = false;
     this.halfWidth = CONFIG.PLAYER.WIDTH / 2;
     this.height = CONFIG.PLAYER.HEIGHT;
-    this.burnTime = 0; this.chillT = 0;
+    this.burnTime = 0; this.chillT = 0; this.buffs = {}; this.streak = 0; this.sinceShot = 99; this.quiverT = 0;
   }
   teleport(x, y, z) {
     this.pos.x = this.prev.x = x; this.pos.y = this.prev.y = y; this.pos.z = this.prev.z = z;
@@ -957,7 +957,7 @@ class Player extends Body {
     const wx = f * -Math.sin(this.yaw) + s * Math.cos(this.yaw);
     const wz = f * -Math.cos(this.yaw) + s * -Math.sin(this.yaw);
     this.sprinting = !!controls.sprint && f > 0 && !this.crouching && !this.blocking && !this.inWater && !this.inLava;
-    const speed = (this.crouching ? P.CROUCH : P.WALK) * this.mods.speed * (this.sprinting ? 1.3 : 1) * (this.blocking ? 0.6 : 1) * (weaponBoost(this.look, this.held).move || 1) * (this.chillT > 0 ? 0.6 : 1);
+    const speed = (this.crouching ? P.CROUCH : P.WALK) * this.mods.speed * (this.sprinting ? 1.3 : 1) * (this.blocking ? 0.6 : 1) * (weaponBoost(this.look, this.held).move || 1) * (this.chillT > 0 ? 0.6 : 1) * (this.buffs && this.buffs.swift > 0 ? 1.3 : 1);
     if (this.chillT > 0) this.chillT -= dt;
     const px = this.pos.x, pz = this.pos.z;
 
@@ -1601,8 +1601,37 @@ const RESOURCES = {
   lava:  { label: 'Lava',  cap: 4,  start: 1,  color: '#ff8a1e' },
   mech:  { label: 'Parts', cap: 80, start: 22, color: '#ff6a5a' },
   earth: { label: 'Earth', cap: 80, start: 24, color: '#9a7350' },
+  arrow: { label: 'Arrows', cap: 20, start: 10, color: '#e8d8a8' },      // a limited quiver: refills slowly when you stop shooting
 };
-const RESOURCE_ORDER = ['wood', 'stone', 'iron', 'glass', 'tnt', 'water', 'lava', 'mech', 'earth'];
+const RESOURCE_ORDER = ['wood', 'stone', 'iron', 'glass', 'tnt', 'water', 'lava', 'mech', 'earth', 'arrow'];
+/** Supply drop loot: one is picked per crate. */
+const DROP_LOOT = [
+  { id: 'quiver', name: 'Quiver Pack', desc: '+12 arrows, +1 TNT', give: { arrow: 12, tnt: 1 } },
+  { id: 'rage', name: 'Berserker Rage', desc: '+30% damage for 20 s', buff: ['rage', 20] },
+  { id: 'swift', name: 'Swiftness', desc: '+30% speed for 20 s', buff: ['swift', 20] },
+  { id: 'armor', name: 'Iron Skin', desc: '-40% damage taken for 25 s', buff: ['armor', 25] },
+  { id: 'medkit', name: 'Medkit', desc: 'Full health + short iron skin', heal: true, buff: ['armor', 6] },
+  { id: 'demo', name: 'Demolition Kit', desc: '+4 TNT, +1 lava', give: { tnt: 4, lava: 1 } },
+];
+const DROP_LOOT_BY_ID = Object.fromEntries(DROP_LOOT.map((l) => [l.id, l]));
+const BUFF_INFO = { rage: { name: 'RAGE', color: '#ff5a4a' }, swift: { name: 'SWIFT', color: '#5ae0ff' }, armor: { name: 'IRON SKIN', color: '#ffd23f' } };
+/** Daily challenges: three are picked per day (same three for everyone on that date). kind = what counts. */
+const DAILY_POOL = [
+  { id: 'kills', kind: 'kill', n: 5, coins: 150, text: 'Get 5 eliminations' },
+  { id: 'freeze', kind: 'chill', n: 8, coins: 200, text: 'Freeze enemies 8 times (Glacier)' },
+  { id: 'burn', kind: 'burn', n: 8, coins: 200, text: 'Set enemies on fire 8 times (Inferno)' },
+  { id: 'leech', kind: 'leech', n: 10, coins: 200, text: 'Lifesteal 10 times (Bloodmoon)' },
+  { id: 'core', kind: 'core', n: 1, coins: 250, text: 'Destroy an enemy core' },
+  { id: 'drops', kind: 'drop', n: 2, coins: 200, text: 'Claim 2 supply drops' },
+  { id: 'streak', kind: 'streak', n: 1, coins: 250, text: 'Get a 3 kill streak' },
+  { id: 'crits', kind: 'crit', n: 10, coins: 150, text: 'Land 10 critical hits' },
+  { id: 'arrows', kind: 'arrowHit', n: 12, coins: 150, text: 'Hit 12 arrows' },
+  { id: 'tnt', kind: 'tntKill', n: 2, coins: 200, text: 'Get 2 TNT eliminations' },
+  { id: 'win', kind: 'win', n: 1, coins: 300, text: 'Win a match' },
+  { id: 'play', kind: 'play', n: 3, coins: 150, text: 'Play 3 matches' },
+];
+const DAILY_BY_ID = Object.fromEntries(DAILY_POOL.map((d) => [d.id, d]));
+const QUIVER = { REFILL_AFTER: 4, REFILL_EVERY: 5, REFILL_TO: 10 };   // s without shooting before refilling, s per arrow, refills up to
 
 /** Everything that can sit in a hotbar slot. kind: tool | block | fluid | mech */
 const ITEMS = {
@@ -1649,9 +1678,9 @@ const ITEM_ORDER = Object.keys(ITEMS);
 /** Combat numbers follow Minecraft's feel (scaled to 100 HP): sword about 7 hits, axe heavy and slow; slowed down so fights last several seconds, sprint hits knock back harder, crits while falling.
  *  cd = seconds for a full attack charge, kb = horizontal knockback speed (blocks/s). */
 const TOOLS = {
-  pickaxe: { dmg: 9,  cd: 1.0,  reach: 3.2, kb: 7,  mine: 2.6 },
-  sword:   { dmg: 15, cd: 0.8,   reach: 3.3, kb: 7,  mine: 1.2 },
-  axe:     { dmg: 21, cd: 1.25, reach: 3.1, kb: 7,  mine: 1.0, woodMine: 2.5 },
+  pickaxe: { dmg: 9,  cd: 1.0,  crit: 1.3,  reach: 3.2, kb: 7,  mine: 2.6 },
+  sword:   { dmg: 15, cd: 0.8,  crit: 1.6, critChance: 0.15,  reach: 3.3, kb: 7,  mine: 1.2 },
+  axe:     { dmg: 21, cd: 1.25, crit: 2.1, critChance: 0.15, reach: 3.1, kb: 7,  mine: 1.0, woodMine: 2.5 },
   staff:   { dmg: 4,  cd: 0.9,  reach: 3.4, kb: 18, mine: 1.0 },
   bow:     { dmg: 18, cd: 0.9,  draw: 1.2, speed: 26, mine: 1.0 },   // full draw takes 1 s, like Minecraft
   lighter: { mine: 1.0 },
@@ -2334,7 +2363,7 @@ function perkLines(b) {
 }
 const COSMETIC_SLOTS = ['skin', 'trail', 'kill', 'banner'];
 /** Admin panel: opened by typing this as a join code. Anyone who reads game.js can see it, so it is a fun extra, not security. */
-const GAME_VERSION = '2.3 (Oct 15)';   // shown on the main menu so players can tell an old cached copy apart
+const GAME_VERSION = '2.4 (Oct 17)';   // shown on the main menu so players can tell an old cached copy apart
 const ADMIN_CODE = 'LN1';
 const ADMIN_DEFAULTS = { speed: 1, jump: 1, damage: 1, mine: 1, health: 100, regen: 1, draw: 1, god: false, infinite: false };
 const ADMIN_SLIDERS = [                                         // [key, label, min, max, step, format]
@@ -2563,7 +2592,8 @@ class GameServer {
     this.unlimited = true; this.allianceMode = false;
     this.map = null; this.plots = [];
     this.event = null; this.eventGap = 2; this.lastEventType = null;
-    this.vault = { progress: 0, team: -1, cooldown: 0, capturing: false, captured: 0 };
+    this.vault = { progress: 0, team: -1, cooldown: 0, capturing: false, captured: 0 }; this.drops = [];
+    this.drops = []; this.dropClock = CONFIG.MATCH.DROP_FIRST;
     this.baseCount = [0, 0, 0, 0, 0, 0]; this.baseRef = [0, 0, 0, 0, 0, 0]; this.baseDestroyed = [false, false, false, false, false, false];
     this.recentBreaks = new Map();
     this.proposals = [];
@@ -2680,7 +2710,8 @@ class GameServer {
   }
   respawn(p, initial = false) {
     p.teleport(p.spawn.x, p.spawn.y, p.spawn.z);
-    p.health = p.maxHealth; p.alive = true; p.burnTime = 0; p.chillT = 0; p.air = 10; p.sinceDamage = 99;
+    p.health = p.maxHealth; p.alive = true; p.burnTime = 0; p.chillT = 0; p.streak = 0; p.buffs = {}; p.air = 10;
+    if (!this.unlimited && p.resources) p.resources.arrow = Math.max(p.resources.arrow || 0, QUIVER.REFILL_TO); p.sinceDamage = 99;
     p.invulnerable = initial ? 0 : 2.5; p.hurtT = 0; p.lastDmg = 0; p.blocking = false; p.blockCd = 0; p.respawnTimer = 0; p.lastHits.length = 0; p.lastCause = null;
     if (!initial) this.emit({ type: 'respawn', player: p });
   }
@@ -2864,7 +2895,7 @@ class GameServer {
     const t = TOOLS[tool];
     if (!t || t.dmg == null) return { ok: false, reason: 'bad-tool' };
     const wb = weaponBoost(p.look, tool), full = t.cd * p.mods.attackCooldown * (wb.speed || 1);
-    if (p.cooldowns.attack > full * 0.85) return { ok: false, reason: 'cooldown' };
+    if (p.cooldowns.attack > 0.05) return { ok: false, reason: 'cooldown' };          // no spam: a weapon swings only once it has fully recovered
     const target = this.playerMap.get(targetId) || this.mobs.find((m) => m.id === targetId);
     if (!target || !target.alive || target === p) return { ok: false, reason: 'no-target' };
     const e = p.eyePosition(), c = target.center();
@@ -2880,8 +2911,11 @@ class GameServer {
       const ax = p.pos.x - target.pos.x, az = p.pos.z - target.pos.z, l = Math.hypot(ax, az) || 1;
       if ((ax * -Math.sin(target.yaw) + az * -Math.cos(target.yaw)) / l < -0.3) dmg *= wb.backstab;
     }
-    const crit = strong && !p.onGround && p.vel.y < -0.5 && !sprint && !p.inWater && !p.inLava;
-    if (crit) dmg *= 1.5;
+    // crits: always on a falling (jump) hit, sometimes on any full-strength sword/axe hit. The axe hits hardest but swings slowest.
+    const jumpCrit = strong && !p.onGround && p.vel.y < -0.5 && !sprint && !p.inWater && !p.inLava;
+    const crit = jumpCrit || (strong && t.critChance && Math.random() < t.critChance);
+    if (crit) dmg *= t.crit || 1.5;
+    if (p.buffs && p.buffs.rage > 0) dmg *= 1.3;
     target.lastBlocked = false;
     const dealt = this.damage(target, dmg, { kind: 'melee', by: p.index, direct: true });
     if (dealt !== null) {
@@ -2909,11 +2943,14 @@ class GameServer {
   diff() { return DIFFICULTIES[this.difficulty] || DIFFICULTIES.normal; }
   shoot(p, { charge = 1 }) {
     if (p.cooldowns.shoot > 0) return { ok: false, reason: 'cooldown' };
+    if (!this.hasResource(p, 'arrow', 1)) return { ok: false, reason: 'no-arrows' };
+    this.spend(p, 'arrow', 1); p.sinceShot = 0;
     const T = TOOLS.bow, ch = clamp(charge, 0.15, 1);
     p.cooldowns.shoot = T.cd; p.swing = 0.6; p.swingKind = 'bow'; p.held = 'bow';
     const wb = weaponBoost(p.look, 'bow'), e = p.eyePosition(), d = p.lookDirection(), speed = T.speed * (0.5 + 0.5 * ch) * (wb.arrowSpeed || 1);
     const a = new Arrow(this.nextId(), e.x + d.x * 0.6, e.y + d.y * 0.6, e.z + d.z * 0.6, d.x * speed, d.y * speed, d.z * speed, p.index, T.dmg * (0.4 + 0.6 * ch) * p.mods.meleeDamage * (weaponBoost(p.look, 'bow').arrow || 1) * (p.bot && !p.proxy ? this.diff().botBow : 1));
     a.perk = wb; a.skin = p.look && p.look.weapons ? p.look.weapons.bow : null; a.charge = ch;
+    if (p.buffs && p.buffs.rage > 0) a.damage *= 1.3;
     this.arrows.push(a);
     this.emit({ type: 'shoot', by: p.id, arrow: a });
     return { ok: true };
@@ -2940,6 +2977,7 @@ class GameServer {
       const ax = attacker.pos.x - target.pos.x, az = attacker.pos.z - target.pos.z, l = Math.hypot(ax, az) || 1;
       if ((ax * -Math.sin(target.yaw) + az * -Math.cos(target.yaw)) / l > 0.2) { amount *= 0.35; target.lastBlocked = true; this.emit({ type: 'blocked', target, by: attacker.id }); }
     }
+    if (target.buffs && target.buffs.armor > 0) amount *= 0.6;
     if (src.kind === 'explosion') amount *= target.mods.explosionTaken;
     else if (src.kind === 'fall') amount *= target.mods.fall;
     else if (HAZARD_KINDS.has(src.kind)) amount *= target.mods.hazardTaken;
@@ -2993,7 +3031,8 @@ class GameServer {
       }
       if (!Object.keys(loot).length) loot = null;
     }
-    target.bounty = 0; target.bountyTime = 0; target.lastHits.length = 0;
+    target.bounty = 0; target.bountyTime = 0; target.lastHits.length = 0; target.streak = 0;
+    if (killer && killer !== target && killer.alive && this.phase !== 'build') this.addStreak(killer);
     target.respawnTimer = this.mode === 'sandbox' ? CONFIG.MATCH.SANDBOX_RESPAWN : (this.phase === 'war' || this.phase === 'chaos') && this.coreAlive(target.index) ? CONFIG.MATCH.CORE_RESPAWN : 0;
     this.emit({ type: 'death', victim: target, killer, kind: src.kind, detail: src.detail || null, bounty, tnt: viaTnt, loot });
     this.winCheckClock = 0.4;
@@ -3270,7 +3309,7 @@ class GameServer {
     this.machines.update(dt);
     this.updateDrains(dt);
     if (this.phase === 'chaos') this.updateEvents(dt);
-    if (live) { this.updateVault(dt); this.updateBounties(dt); this.updateProposals(); }
+    if (live) { this.updateVault(dt); this.updateBounties(dt); this.updateProposals(); this.updateDrops(dt); }
     this.winCheckClock -= dt;
     if (this.winCheckClock <= 0) { this.winCheckClock = 0.5; this.checkWinner(false); }
   }
@@ -3335,6 +3374,12 @@ class GameServer {
 
   tickPlayer(p, dt, env, live) {
     const wasAir = !p.onGround;
+    for (const k in p.buffs) if (p.buffs[k] > 0) p.buffs[k] = Math.max(0, p.buffs[k] - dt);
+    p.sinceShot += dt;
+    if (!this.unlimited && p.sinceShot > QUIVER.REFILL_AFTER && (p.resources.arrow || 0) < QUIVER.REFILL_TO) {
+      p.quiverT += dt;
+      if (p.quiverT >= QUIVER.REFILL_EVERY) { p.quiverT = 0; p.resources.arrow = (p.resources.arrow || 0) + 1; }
+    } else p.quiverT = 0;
     p.update(dt, p.controls, this.world, env);
     p.invulnerable = Math.max(0, p.invulnerable - dt);
     if (p.blocking) { p.blockT += dt; if (p.blockT > 2.5) { p.blocking = false; p.blockCd = 1.6; } } else p.blockCd = Math.max(0, p.blockCd - dt);
@@ -3549,6 +3594,86 @@ class GameServer {
       v.progress = Math.max(0, v.progress - dt / 6);
     }
   }
+  /* ---------------- supply drops, buffs and kill streaks ---------------- */
+  /** War and chaos: a crate parachutes onto neutral ground every so often. Standing on it (uncontested) claims the loot. */
+  updateDrops(dt) {
+    if (this.mode === 'sandbox' || (this.phase !== 'war' && this.phase !== 'chaos')) return;
+    this.dropClock -= dt;
+    if (this.dropClock <= 0 && this.drops.length < 2) { this.dropClock = CONFIG.MATCH.DROP_EVERY; this.spawnDrop(); }
+    for (const d of this.drops) {
+      d.t += dt;
+      if (d.state === 'falling') {
+        d.y -= 5 * dt;
+        if (d.y <= d.ground) { d.y = d.ground; d.state = 'landed'; d.t = 0; this.emit({ type: 'dropLanded', drop: { id: d.id, x: d.x, y: d.y, z: d.z } }); }
+        continue;
+      }
+      const near = this.players.filter((p) => p.alive && Math.hypot(p.pos.x - d.x, p.pos.z - d.z) < 1.9 && Math.abs(p.pos.y - d.y) < 2.6);
+      const teams = new Set(near.map((p) => p.team));
+      if (teams.size === 1) {
+        const team = near[0].team;
+        if (d.team !== team) { d.team = team; d.prog = 0; }
+        d.prog += dt / 2.5;
+        if (d.prog >= 1) { this.claimDrop(d, near.find((p) => !p.isBot) || near[0]); continue; }
+      } else if (!teams.size) d.prog = Math.max(0, d.prog - dt / 4);
+      if (d.t > 75) d.dead = true;
+    }
+    if (this.drops.some((d) => d.dead)) this.drops = this.drops.filter((d) => !d.dead);
+  }
+  spawnDrop() {
+    const w = this.world, v = this.map.vault, r = mulberry32((this.clock * 1000) | 0);
+    for (let tries = 0; tries < 40; tries++) {
+      const a = r() * Math.PI * 2, dist = 6 + r() * 26, x = Math.floor(v.x + Math.cos(a) * dist), z = Math.floor(v.z + Math.sin(a) * dist);
+      if (x < 2 || z < 2 || x >= w.sizeX - 2 || z >= w.sizeZ - 2) continue;
+      if (this.plots.some((pl) => this.inPlot(pl, x, z))) continue;                 // neutral ground only
+      let g = -1;
+      for (let y = w.sizeY - 2; y > 1; y--) if (w.isSolid(x, y, z)) { g = y + 1; break; }
+      if (g < 2 || w.get(x, g, z) !== AIR || w.get(x, g + 1, z) !== AIR) continue;
+      const loot = DROP_LOOT[Math.floor(r() * DROP_LOOT.length)];
+      const d = { id: 'd' + this.nextId(), x: x + 0.5, z: z + 0.5, ground: g, y: g + 45, state: 'falling', t: 0, prog: 0, team: -1, loot: loot.id };
+      this.drops.push(d);
+      this.emit({ type: 'dropIncoming', drop: { id: d.id, x: d.x, y: g, z: d.z, loot: loot.id } });
+      return d;
+    }
+    return null;
+  }
+  claimDrop(d, p) {
+    d.dead = true;
+    const L = DROP_LOOT_BY_ID[d.loot];
+    if (L.give) for (const [k, a] of Object.entries(L.give)) this.addResource(p, k, a);
+    if (L.heal) p.health = p.maxHealth;
+    if (L.buff) this.giveBuff(p, L.buff[0], L.buff[1]);
+    p.stats.objectives++; p.stats.score += 200;
+    this.emit({ type: 'dropClaimed', player: p, loot: d.loot, x: d.x, y: d.y, z: d.z });
+  }
+  giveBuff(p, k, t) { p.buffs[k] = Math.max(p.buffs[k] || 0, t); this.emit({ type: 'buff', player: p, buff: k, time: t }); }
+  addStreak(p) {
+    p.streak = (p.streak || 0) + 1;
+    const n = p.streak; let reward = null;
+    if (n === 2) { this.addResource(p, 'arrow', 5); reward = '+5 arrows'; }
+    else if (n === 3) { this.giveBuff(p, 'rage', 15); reward = 'RAGE: +30% damage'; }
+    else if (n === 5) reward = this.tntStrike(p) ? 'TNT STRIKE incoming' : null;
+    else if (n >= 7 && n % 2 === 1) { this.giveBuff(p, 'swift', 20); this.giveBuff(p, 'armor', 20); reward = 'UNSTOPPABLE: speed + iron skin'; }
+    if (n >= 2) this.emit({ type: 'streak', player: p, n, reward });
+  }
+  /** Kill streak reward: four TNT fall on the nearest standing enemy core (or the nearest enemy if no core is left). */
+  tntStrike(p) {
+    let best = null, bd = 1e9;
+    for (const pl of this.plots) {
+      const o = this.players[pl.owner];
+      if (!pl.core || !o || o === p || this.areAllies(p, o) || !this.coreAlive(pl.owner)) continue;
+      const d = Math.hypot(pl.core[0] - p.pos.x, pl.core[2] - p.pos.z);
+      if (d < bd) { bd = d; best = { x: pl.core[0] + 0.5, y: pl.core[1], z: pl.core[2] + 0.5 }; }
+    }
+    if (!best) for (const q of this.players) {
+      if (!q.alive || q === p || this.areAllies(p, q)) continue;
+      const d = Math.hypot(q.pos.x - p.pos.x, q.pos.z - p.pos.z);
+      if (d < bd) { bd = d; best = { x: q.pos.x, y: q.pos.y, z: q.pos.z }; }
+    }
+    if (!best) return false;
+    for (let i = 0; i < 4; i++) this.spawnTnt(best.x + (Math.random() - 0.5) * 4, best.y + 16 + i * 2, best.z + (Math.random() - 0.5) * 4, 3.2 + i * 0.3, p.index, 'strike', -6);
+    this.emit({ type: 'tntStrike', by: p, x: best.x, y: best.y, z: best.z });
+    return true;
+  }
   updateBounties(dt) { for (const p of this.players) if (p.bounty > 0) { p.bountyTime -= dt; if (p.bountyTime <= 0) { p.bounty = 0; this.emit({ type: 'bountyExpired', target: p }); } } }
   updateProposals() { this.proposals = this.proposals.filter((q) => q.from.alive && q.to.alive && this.clock - q.time < 60); }
 
@@ -3602,9 +3727,10 @@ class GameServer {
       players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, moving: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround, held: p.held, sk: p.swingKind, blocking: p.blocking, sprinting: p.sprinting, chilled: p.chillT > 0 })),
       tnts: this.tnts.map((t) => ({ x: L(t, 'x'), y: L(t, 'y'), z: L(t, 'z'), fuse: t.fuse })),
       groups: this.groups.map((g) => ({ g, off: g.off })),
-      arrows: this.arrows.filter((a) => a.alive).map((a) => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z, yaw: a.yaw, pitch: a.pitch })),
+      arrows: this.arrows.filter((a) => a.alive).map((a) => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z, yaw: a.yaw, pitch: a.pitch, skin: a.skin || 'default', stuck: a.stuck })),
       mobs: this.mobs.filter((m) => m.alive).map((m) => ({ id: m.id, type: m.type, fuse: m.fuse, x: L(m, 'x'), y: L(m, 'y'), z: L(m, 'z'), yaw: m.yaw, walk: m.walkPhase, swing: m.swing })),
       meteors: this.meteors.map((m) => ({ x: m.pos.x, y: m.pos.y, z: m.pos.z })),
+      drops: (this.drops || []).map((d) => ({ id: d.id, x: d.x, y: d.y, z: d.z, landed: d.state === 'landed', prog: d.prog })),
       banners: this.plots.filter((pl) => pl.owner >= 0 && this.players[pl.owner]).map((pl) => { const q = this.players[pl.owner]; return { x: pl.x + 3.5, y: pl.baseY + 1, z: pl.z + 3.5, color: q.color, banner: q.look.banner, bc: q.look.bannerColor }; }),
     };
   }
@@ -4151,11 +4277,12 @@ class HostSession {
       v: { progress: s.vault.progress, team: s.vault.team, cooldown: s.vault.cooldown, capturing: s.vault.capturing, captured: s.vault.captured },
       p: s.players.map((p) => ({
         i: p.index, x: p.pos.x, y: p.pos.y, z: p.pos.z, yw: p.yaw, pt: p.pitch, hp: p.health, al: p.alive ? 1 : 0, cr: p.crouching ? 1 : 0, bu: p.burnTime > 0 ? 1 : 0,
-        wk: p.walkPhase, sw: p.swing, bo: p.bounty, tm: p.team, bot: p.isBot ? 1 : 0, mv: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround ? 1 : 0, hd: p.held, sk: p.swingKind, bk: p.blocking ? 1 : 0, sp: p.sprinting ? 1 : 0, ci: p.chillT > 0 ? 1 : 0,
+        wk: p.walkPhase, sw: p.swing, bo: p.bounty, tm: p.team, bot: p.isBot ? 1 : 0, mv: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround ? 1 : 0, hd: p.held, sk: p.swingKind, bk: p.blocking ? 1 : 0, sp: p.sprinting ? 1 : 0, ci: p.chillT > 0 ? 1 : 0, bf: (p.buffs.rage > 0 ? 1 : 0) | (p.buffs.swift > 0 ? 2 : 0) | (p.buffs.armor > 0 ? 4 : 0), ks: p.streak || 0,
         st: [p.stats.score, p.stats.kills, p.stats.assists, p.stats.deaths, p.stats.damageDealt, p.stats.blocksDestroyed, p.stats.structuresDestroyed, p.stats.tntKills, p.stats.objectives],
       })),
       tn: s.tnts.filter((t) => t.alive).map((t) => [t.id, t.pos.x, t.pos.y, t.pos.z, t.fuse]),
-      ar: s.arrows.filter((a) => a.alive).map((a) => [a.pos.x, a.pos.y, a.pos.z, a.yaw, a.pitch]),
+      ar: s.arrows.filter((a) => a.alive).map((a) => [a.pos.x, a.pos.y, a.pos.z, a.yaw, a.pitch, WEAPON_SKIN_ORDER.indexOf(a.skin || 'default'), a.stuck ? 1 : 0]),
+      dr: (s.drops || []).map((d) => [d.id, d.x, d.y, d.z, d.state === 'landed' ? 1 : 0, +d.prog.toFixed(2)]),
       mb: s.mobs.filter((m) => m.alive).map((m) => [m.id, m.type, m.pos.x, m.pos.y, m.pos.z, m.yaw, m.walkPhase, m.swing, m.fuse]),
       mt: s.meteors.map((m) => [m.pos.x, m.pos.y, m.pos.z]),
       pm: s.pendingMeteors.filter((q) => !q.done).map((q) => [q.x, q.y, q.z, q.t]),
@@ -4167,7 +4294,7 @@ class HostSession {
   makeMe(peer) {
     const p = this.server.playerById(peer.id);
     if (!p) return null;
-    return { x: p.pos.x, y: p.pos.y, z: p.pos.z, vx: p.vel.x, vy: p.vel.y, vz: p.vel.z, og: p.onGround ? 1 : 0, ack: p.ackSeq | 0, res: p.resources, cd: [p.cooldowns.attack, p.cooldowns.place, p.cooldowns.shoot], inv: p.invulnerable, ch: p.chillT || 0 };
+    return { x: p.pos.x, y: p.pos.y, z: p.pos.z, vx: p.vel.x, vy: p.vel.y, vz: p.vel.z, og: p.onGround ? 1 : 0, ack: p.ackSeq | 0, res: p.resources, cd: [p.cooldowns.attack, p.cooldowns.place, p.cooldowns.shoot], inv: p.invulnerable, ch: p.chillT || 0, bf: p.buffs };
   }
 }
 
@@ -4219,7 +4346,7 @@ class NetServerView {
     this.groups = []; this.groupById = new Map(); this.droppedGroups = [];
     this.fluids = { pending: { size: 0 } }; this.fire = { fires: new Set() }; this.redstone = { mechs: new Set() };
     this.phase = 'countdown'; this.phaseTime = 0; this.clock = 0; this.darkness = 0; this.gravityScale = 1; this.mode = 'war'; this.allianceMode = false; this.unlimited = false;
-    this.event = null; this.vault = { progress: 0, team: -1, cooldown: 0, capturing: false, captured: 0 };
+    this.event = null; this.vault = { progress: 0, team: -1, cooldown: 0, capturing: false, captured: 0 }; this.drops = [];
     this.proposals = []; this.baseDestroyed = [false, false, false, false, false, false]; this.integ = [100, 100, 100, 100, 100, 100];
     this.map = null; this.plots = []; this.results = null; this.replayAvailable = false;
     this.seq = 0; this.pending = []; this.outInputs = []; this.me = null; this.lastTickNo = 0;
@@ -4284,7 +4411,7 @@ class NetServerView {
     this.me.yaw = Math.atan2(-(this.map.center.x - this.me.spawn.x), -(this.map.center.z - this.me.spawn.z)); this.me.pitch = -0.1;
     this.phase = 'countdown'; this.phaseTime = 0; this.clock = 0; this.event = null; this.darkness = 0; this.gravityScale = 1;
     this.results = null; this.baseDestroyed = [false, false, false, false, false, false]; this.integ = [100, 100, 100, 100, 100, 100];
-    this.vault = { progress: 0, team: -1, cooldown: 0, capturing: false, captured: 0 };
+    this.vault = { progress: 0, team: -1, cooldown: 0, capturing: false, captured: 0 }; this.drops = [];
     this.seq = 0; this.pending.length = 0; this.outInputs.length = 0; this.proposals = []; this.snapAt = performance_now(); this.hasSnap = false;
     return hashWorld(this.world);
   }
@@ -4325,13 +4452,15 @@ class NetServerView {
       if (!mineP) { p.prev.x = p.pos.x; p.prev.y = p.pos.y; p.prev.z = p.pos.z; p.pos.x = q.x; p.pos.y = q.y; p.pos.z = q.z; p.yaw = q.yw; p.pitch = q.pt; }
       if (p.alive && !q.al) p.alive = false; else if (!p.alive && q.al) { p.alive = true; if (mineP) { p.teleport(q.x, q.y, q.z); this.pending.length = 0; } }
       p.health = q.hp; p.crouching = !!q.cr; p.burnTime = q.bu ? 1 : 0; p.walkPhase = q.wk; p.swing = q.sw; p.bounty = q.bo; p.team = q.tm; p.isBot = !!q.bot;
-      p.moving = !!q.mv; p.held = q.hd || 'pickaxe'; p.swingKind = q.sk || 'sword'; p.sprinting = !!q.sp; if (!mineP) { p.blocking = !!q.bk; p.chillT = q.ci ? 1 : 0; }
+      p.moving = !!q.mv; p.held = q.hd || 'pickaxe'; p.swingKind = q.sk || 'sword'; p.sprinting = !!q.sp; if (!mineP) { p.blocking = !!q.bk; p.chillT = q.ci ? 1 : 0; p.buffs = { rage: q.bf & 1 ? 1 : 0, swift: q.bf & 2 ? 1 : 0, armor: q.bf & 4 ? 1 : 0 }; }
+      p.streak = q.ks || 0;
       const st = p.stats; [st.score, st.kills, st.assists, st.deaths, st.damageDealt, st.blocksDestroyed, st.structuresDestroyed, st.tntKills, st.objectives] = q.st;
     }
     // other bodies
     const seenT = new Set();
     this.tnts = s.tn.map((t) => { const old = this.tnts.find((x) => x.id === t[0]); const o = old || { id: t[0], pos: { x: t[1], y: t[2], z: t[3] }, prev: { x: t[1], y: t[2], z: t[3] }, vel: { x: 0, y: 0, z: 0 }, alive: true }; o.prev.x = o.pos.x; o.prev.y = o.pos.y; o.prev.z = o.pos.z; o.pos.x = t[1]; o.pos.y = t[2]; o.pos.z = t[3]; o.fuse = t[4]; seenT.add(o.id); return o; });
-    this.arrows = s.ar.map((a) => ({ pos: { x: a[0], y: a[1], z: a[2] }, yaw: a[3], pitch: a[4], alive: true }));
+    this.arrows = s.ar.map((a) => ({ pos: { x: a[0], y: a[1], z: a[2] }, yaw: a[3], pitch: a[4], alive: true, skin: WEAPON_SKIN_ORDER[a[5]] || 'default', stuck: !!a[6] }));
+    this.drops = (s.dr || []).map((d) => ({ id: d[0], x: d[1], y: d[2], z: d[3], state: d[4] ? 'landed' : 'falling', prog: d[5] }));
     this.meteors = s.mt.map((m) => ({ pos: { x: m[0], y: m[1], z: m[2] } }));
     this.pendingMeteors = s.pm.map((q) => ({ x: q[0], y: q[1], z: q[2], t: q[3] }));
     const mobs = [];
@@ -4352,7 +4481,7 @@ class NetServerView {
   }
   reconcile(a) {
     const me = this.me;
-    me.resources = a.res; me.invulnerable = a.inv; me.chillT = a.ch || 0;
+    me.resources = a.res; me.invulnerable = a.inv; me.chillT = a.ch || 0; me.buffs = a.bf || {};
     me.cooldowns.attack = Math.max(me.cooldowns.attack, a.cd[0]); me.cooldowns.place = Math.max(me.cooldowns.place, a.cd[1]); me.cooldowns.shoot = Math.max(me.cooldowns.shoot, a.cd[2]);
     while (this.pending.length && this.pending[0].seq <= a.ack) this.pending.shift();
     if (!me.alive) { me.pos.x = a.x; me.pos.y = a.y; me.pos.z = a.z; me.prev.x = a.x; me.prev.y = a.y; me.prev.z = a.z; return; }
@@ -4407,7 +4536,8 @@ class NetServerView {
       players: this.players.map((p) => ({ id: p.id, index: p.index, name: p.name, color: p.color, classId: p.classId, alive: p.alive, health: p.health, x: L(p, 'x'), y: L(p, 'y'), z: L(p, 'z'), yaw: p.yaw, pitch: p.pitch, walk: p.walkPhase, swing: p.swing, crouch: p.crouching, burning: p.burnTime > 0, isBot: p.isBot, team: p.team, bounty: p.bounty, look: p.look, held: p.held, sk: p.swingKind, blocking: p.blocking, sprinting: p.sprinting, chilled: p.chillT > 0, moving: p === me ? Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround : !!p.moving })),
       tnts: this.tnts.map((t) => ({ x: A(t, 'x'), y: A(t, 'y'), z: A(t, 'z'), fuse: t.fuse })),
       groups: this.groups.map((g) => ({ g, off: g.off })),
-      arrows: this.arrows.map((a) => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z, yaw: a.yaw, pitch: a.pitch })),
+      arrows: this.arrows.map((a) => ({ x: a.pos.x, y: a.pos.y, z: a.pos.z, yaw: a.yaw, pitch: a.pitch, skin: a.skin, stuck: a.stuck })),
+      drops: (this.drops || []).map((d) => ({ id: d.id, x: d.x, y: d.y, z: d.z, landed: d.state === 'landed', prog: d.prog })),
       mobs: this.mobs.filter((m) => m.alive).map((m) => ({ id: m.id, type: m.type, fuse: m.fuse, x: A(m, 'x'), y: A(m, 'y'), z: A(m, 'z'), yaw: m.yaw, walk: m.walkPhase, swing: m.swing })),
       meteors: this.meteors.map((m) => ({ x: m.pos.x, y: m.pos.y, z: m.pos.z })),
       banners: this.plots.filter((pl) => pl.owner >= 0 && this.players[pl.owner]).map((pl) => { const q = this.players[pl.owner]; return { x: pl.x + 3.5, y: pl.baseY + 1, z: pl.z + 3.5, color: q.color, banner: q.look.banner, bc: q.look.bannerColor }; }),
@@ -4896,14 +5026,17 @@ class Bot {
       const hurt = p.health < p.maxHealth * (T.nerve + (p.classId === 'survivalist' ? 0.12 : 0));
       const vaultReady = s.vault.cooldown <= 0 && s.phase !== 'build';
       const toVault = Math.hypot(s.map.vault.x - p.pos.x, s.map.vault.z - p.pos.z);
-      const wantRange = T.range > 0.45;
+      const wantRange = T.range > 0.45, hasArrows = s.unlimited || (p.resources.arrow || 0) >= 1;
+      let drop = null, dDrop = 1e9;                                             // supply crates draw everyone in
+      for (const dr of s.drops || []) { const dd = Math.hypot(dr.x - p.pos.x, dr.z - p.pos.z); if (dd < dDrop && (dr.state === 'landed' || dr.y - dr.ground < 25)) { dDrop = dd; drop = dr; } }
       const prev = this.mode;
       const keepSiege = prev === 'siege' && this.siegeCore && s.coreAlive(this.siegeCore.slot) && this.modeT < 70 && !intruder && !(t && d < 3.4 && this.hasLOS(t));
       if (keepSiege && !hurt) this.mode = 'siege';
       else if (hurt && t && d < 16) this.mode = 'retreat';
       else if (this.hitRun > 0 && t) this.mode = 'retreat';
       else if (t && d < 3.4 && this.hasLOS(t)) this.mode = 'melee';
-      else if (t && d < Math.min(D.bowRange, wantRange ? 36 : 22) && d > (wantRange ? 8 : 6) && this.hasLOS(t) && aggr > 0.25 && (wantRange || Math.random() < 0.6)) this.mode = 'shoot';
+      else if (hasArrows && t && d < Math.min(D.bowRange, wantRange ? 36 : 22) && d > (wantRange ? 8 : 6) && this.hasLOS(t) && aggr > 0.25 && (wantRange || Math.random() < 0.6)) this.mode = 'shoot';
+      else if (drop && dDrop < 60 && (!t || d > 9) && (prev === 'drop' || Math.random() < 0.45 + T.greed * 0.4)) { this.mode = 'drop'; this.drop = drop; }
       else if (vaultReady && T.greed > 0.4 && toVault < 70 && (!t || d > 12 || T.greed > 0.85)) this.mode = 'vault';
       else if (this.extra && this.queueIndex < this.queue.length) this.mode = 'fortify';
       else if (!s.unlimited && (p.resources.stone || 0) < 4 && (p.resources.wood || 0) < 4) this.mode = 'gather';
@@ -4959,6 +5092,7 @@ class Bot {
       }
       case 'shoot': {
         if (!t) break;
+        if (!s.unlimited && (p.resources.arrow || 0) < 1) { this.thinkClock = 0; this.mode = 'hunt'; break; }   // quiver empty
         const D = this.diff(), dist = this.dist(t);
         // one aiming error per arrow (re-rolled after each shot), not a fresh jitter every frame: this is what makes archers miss
         if (!this.aimErr) { const mag = D.aim * (0.4 + this.traits.sloppy) * (1 + dist / 18); this.aimErr = { x: (Math.random() - 0.5) * mag * 2, y: (Math.random() - 0.5) * mag, z: (Math.random() - 0.5) * mag * 2, lead: D.lead * (0.7 + Math.random() * 0.5) }; }
@@ -4971,6 +5105,13 @@ class Bot {
         this.strafeT -= dt; if (this.strafeT <= 0) { this.strafe = -this.strafe; this.strafeT = 1.5 + Math.random() * 1.5; this.strafeOn = Math.random() < 0.5; }
         if (this.strafeOn) { if (this.strafe > 0) c.right = true; else c.left = true; }
         if (this.shootCharge >= TOOLS.bow.draw * p.mods.bowDraw * (weaponBoost(p.look, 'bow').draw || 1) * D.draw && p.cooldowns.shoot <= 0) { s.handle(p.id, { type: 'shoot', charge: 1 }); this.shootCharge = 0; this.aimErr = null; this.shootWait = D.shootGap * (0.7 + Math.random() * 0.6); }
+        break;
+      }
+      case 'drop': {
+        const dr = this.drop;
+        if (!dr || dr.dead || !(s.drops || []).includes(dr) || this.modeT > 45) { this.drop = null; this.thinkClock = 0; this.mode = 'hunt'; break; }
+        if (dr.ground + 1 - p.pos.y > 2.2 && Math.hypot(dr.x - p.pos.x, dr.z - p.pos.z) < 6 && this.pillarUp(dt)) break;
+        this.walkTo(dr.x, dr.z, dt, 0.6, true, dr.ground);
         break;
       }
       case 'vault': {
@@ -5417,6 +5558,37 @@ class Renderer {
     const m = Mat4.chain(base, Mat4.translation(px, py, pz), Mat4.rotationX(rx), Mat4.translation(0, cy, 0), Mat4.scaling(w, h, d));
     this.box(m, color, 1);
   }
+  /** An arrow in its bow's skin: shaft, glowing head and fletching in the skin colours. */
+  arrow(a, time) {
+    const sk = WEAPON_SKINS[a.skin] || WEAPON_SKINS.default, P = sk.pal, c = (v) => [v[0] / 255, v[1] / 255, v[2] / 255, 1], fx = !!P.fx;
+    const base = Mat4.chain(Mat4.translation(a.x, a.y, a.z), Mat4.rotationY(a.yaw), Mat4.rotationX(a.pitch));
+    const part = (z, sx, sy, sz, col, lit = 1) => this.box(Mat4.chain(base, Mat4.translation(0, 0, z), Mat4.scaling(sx, sy, sz)), col, lit);
+    const shaft = a.skin && a.skin !== 'default' ? c(P.h1) : [0.55, 0.4, 0.25, 1];
+    part(0, 0.05, 0.05, 0.8, shaft);
+    const head = a.skin && a.skin !== 'default' ? c(P.hi) : [0.78, 0.78, 0.84, 1];
+    part(-0.46, 0.12, 0.12, 0.16, head, fx ? 0 : 1);
+    if (fx) part(-0.46, 0.17, 0.17, 0.08, c(P.mid), 0);                 // glowing collar behind the head
+    const fl = a.skin && a.skin !== 'default' ? c(P.mid) : [0.95, 0.95, 0.95, 1];
+    part(0.36, 0.2, 0.02, 0.18, fl); part(0.36, 0.02, 0.2, 0.18, fl);
+    if (a.skin === 'admin') part(-0.46, 0.14, 0.14, 0.14, [0.5 + 0.5 * Math.sin(time * 6), 0.4, 1, 1], 0);
+  }
+  /** Supply crate: wooden box with gold bands, a parachute while it falls. */
+  crate(d, time) {
+    const y = d.y, sw = d.landed ? 0 : Math.sin(time * 1.5) * 0.15;
+    this.boxAt(d.x, y + 0.45, d.z, 0.9, 0.9, 0.9, [0.62, 0.42, 0.22, 1], 1);
+    for (const h of [0.12, 0.78]) this.boxAt(d.x, y + h, d.z, 0.94, 0.1, 0.94, [0.95, 0.76, 0.2, 1], 1);
+    this.boxAt(d.x, y + 0.45, d.z, 0.94, 0.9, 0.12, [0.95, 0.76, 0.2, 1], 1); this.boxAt(d.x, y + 0.45, d.z, 0.12, 0.9, 0.94, [0.95, 0.76, 0.2, 1], 1);
+    this.boxAt(d.x, y + 0.92, d.z, 0.3, 0.06, 0.3, [0.35, 0.95, 1, 1], 0);
+    if (!d.landed) {
+      const cx = d.x + sw, cy = y + 3.4;
+      this.boxAt(cx, cy, d.z, 2.8, 0.22, 2.8, [0.92, 0.28, 0.22, 1], 1);
+      this.boxAt(cx, cy + 0.2, d.z, 1.8, 0.2, 1.8, [0.98, 0.95, 0.92, 1], 1);
+      for (const [ox, oz] of [[-1.2, -1.2], [1.2, -1.2], [-1.2, 1.2], [1.2, 1.2]]) {
+        const m = Mat4.chain(Mat4.translation((d.x + cx + ox) / 2, y + 2.1, d.z + oz / 2), Mat4.rotationZ(-ox * 0.22), Mat4.rotationX(oz * 0.22), Mat4.scaling(0.03, 2.6, 0.03));
+        this.box(m, [0.9, 0.9, 0.9, 1], 1);
+      }
+    }
+  }
   /** Player banner planted at the base: a pole, a team-coloured top bar and the equipped pattern. */
   banner(b, time) {
     const base = BANNER_COLORS[b.bc] || BANNER_COLORS[0], pat = COSMETICS.banner[b.banner] || COSMETICS.banner.solid, acc = pat.a || [1, 1, 1], acc2 = pat.b || [0.1, 0.1, 0.12], team = hexToRgb(b.color);
@@ -5584,10 +5756,8 @@ class Renderer {
         gl.enable(gl.CULL_FACE); this.heldQueue.length = 0; this.useProgram(sp);
       }
       if (snap.banners) for (const b of snap.banners) this.banner(b, time);
-      for (const a of snap.arrows) {
-        const m = Mat4.chain(Mat4.translation(a.x, a.y, a.z), Mat4.rotationY(a.yaw), Mat4.rotationX(a.pitch), Mat4.scaling(0.06, 0.06, 0.9));
-        this.box(m, [0.55, 0.4, 0.25, 1], 1);
-      }
+      for (const a of snap.arrows) this.arrow(a, time);
+      if (snap.drops) for (const d of snap.drops) this.crate(d, time);
       for (const m of snap.meteors) {
         const s = 2.4, r = Mat4.chain(Mat4.translation(m.x, m.y, m.z), Mat4.rotationY(time * 3), Mat4.rotationX(time * 2), Mat4.scaling(s, s, s));
         this.box(r, [1, 0.45, 0.1, 1], 0);
@@ -5605,6 +5775,12 @@ class Renderer {
     }
     if (scene.hints) for (const h of scene.hints) this.boxAt(h[0] + 0.5, h[1] + 0.5, h[2] + 0.5, 1.03, 1.03, 1.03, [1, 0.85, 0.2, 0.9], 0, true);
     if (scene.warnings) for (const wn of scene.warnings) { gl.depthMask(false); const pulse = 0.25 + 0.2 * Math.sin(time * 14); this.boxAt(wn.x, wn.y + 0.06, wn.z, 7, 0.12, 7, [1, 0.15, 0.1, pulse], 0); this.boxAt(wn.x, wn.y + 20, wn.z, 0.5, 40, 0.5, [1, 0.3, 0.1, 0.18], 0); gl.depthMask(true); }
+    if (snap && snap.drops) for (const d of snap.drops) {                 // supply drop beacons
+      gl.depthMask(false);
+      this.boxAt(d.x, d.y + 20, d.z, 0.5, 40, 0.5, [0.35, 0.95, 1, 0.16 + 0.06 * Math.sin(time * 4)], 0);
+      if (d.landed && d.prog > 0) this.boxAt(d.x, d.y + 0.06, d.z, 3.8 * d.prog, 0.08, 3.8 * d.prog, [1, 0.85, 0.3, 0.5], 0);
+      gl.depthMask(true);
+    }
     if (scene.vault) {
       const v = scene.vault, pulse = 0.5 + 0.5 * Math.sin(time * 3), col = v.cooldown > 0 ? [0.4, 0.4, 0.45, 0.14] : v.capturing ? [0.3, 1, 0.4, 0.3] : [1, 0.85, 0.2, 0.16 + 0.1 * pulse];
       gl.depthMask(false); this.boxAt(v.x, v.y + 12, v.z, 1.4, 26, 1.4, col, 0); gl.depthMask(true);
@@ -5884,7 +6060,7 @@ const Storage = {
 /* ================================ 15. UI ================================ */
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmtTime = (s) => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-const RES_ICON = { wood: 'W', stone: 'S', iron: 'I', glass: 'G', tnt: 'T', water: '~', lava: 'L', mech: 'M', earth: 'E' };
+const RES_ICON = { wood: 'W', stone: 'S', iron: 'I', glass: 'G', tnt: 'T', water: '~', lava: 'L', mech: 'M', earth: 'E', arrow: '&#8599;' };
 
 class UI {
   constructor() {
@@ -5945,6 +6121,7 @@ class UI {
         const it = ITEMS[id];
         let q = '', low = false;
         if (it.kind !== 'tool' && !server.unlimited) { const have = player.resources[it.res] || 0; q = Math.floor(have / (it.cost * (it.res === 'mech' ? player.mods.mechCost : 1) || 1)); low = q < 1; }
+        else if (id === 'bow' && !server.unlimited) { q = Math.floor(player.resources.arrow || 0); low = q < 1; }
         qty.textContent = q; el.classList.toggle('empty', low);
         el.title = it.label;
       } else qty.textContent = '';
@@ -6030,6 +6207,11 @@ class UI {
   renderProfileBar(career) {
     const L = levelFor(career.xp);
     this.$('profileBar').innerHTML = `<div class="ver">VERSION ${GAME_VERSION}</div><div class="lv"><span>LEVEL ${L.level}</span><span>${career.coins} coins</span></div><div class="xpbar"><i style="width:${Math.round(L.into / L.need * 100)}%"></i></div>`;
+    const box = this.$('dailyBox'), d = career.daily;
+    if (box && d && d.list) {
+      const now = new Date(), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), hrs = Math.max(1, Math.ceil((mid - now) / 3600000));
+      box.innerHTML = `<h5>DAILY CHALLENGES <small>new in ${hrs}h</small></h5>` + d.list.map((c) => { const D = DAILY_BY_ID[c.id]; return D ? `<div class="dc ${c.done ? 'done' : ''}"><span>${esc(D.text)} ${c.done ? '' : '(' + Math.min(c.p, D.n) + '/' + D.n + ')'}</span><em>${c.done ? 'DONE' : '+' + D.coins}</em></div>` : ''; }).join('');
+    }
   }
   renderStats(career, rows) {
     const L = levelFor(career.xp);
@@ -6159,6 +6341,23 @@ class UI {
       if (el._t !== n.text) { el._t = n.text; el.textContent = n.text; }
       el.className = 'fl ' + (n.cls || '');
     }
+  }
+  /** Swing cooldown ticker around the crosshair: v = recovery 0..1 (hidden when ready). */
+  setCooldown(v) {
+    const el = this.$('cdring'); if (!el) return;
+    const show = v > 0 && v < 1;
+    if (show) el.style.setProperty('--p', Math.round(v * 100));
+    if (!show && !el.classList.contains('hidden') && !el.classList.contains('deny')) { el.classList.add('ready'); el.style.setProperty('--p', 100); clearTimeout(this.cdT); this.cdT = setTimeout(() => { el.classList.add('hidden'); el.classList.remove('ready'); }, 140); return; }
+    if (show) { clearTimeout(this.cdT); el.classList.remove('hidden', 'ready'); }
+  }
+  denySwing() { const el = this.$('cdring'); if (!el) return; el.classList.remove('deny'); void el.offsetWidth; el.classList.add('deny'); clearTimeout(this.denyT); this.denyT = setTimeout(() => el.classList.remove('deny'), 320); }
+  setBuffs(p) {
+    const out = [];
+    if (p && p.alive) {
+      for (const k in BUFF_INFO) if (p.buffs && p.buffs[k] > 0) out.push(`<span style="--c:${BUFF_INFO[k].color}">${BUFF_INFO[k].name} ${Math.ceil(p.buffs[k])}s</span>`);
+      if (p.streak >= 2) out.push(`<span class="streak">${p.streak} KILL STREAK</span>`);
+    }
+    this.setHTML('buffs', out.join(''));
   }
   setCharge(v) { const el = this.$('charge'); el.classList.toggle('hidden', v <= 0); if (v > 0) this.setWidth('chargeFill', v * 100); }
   damageFlash(strength) { const fx = this.$('fx'); fx.style.setProperty('--hurt', clamp(strength, 0, 1).toFixed(2)); }
@@ -6399,7 +6598,7 @@ class Game {
     this.input.keyHandlers.push((e) => this.onKey(e));
     this.input.keyUpHandlers.push((e) => this.onKeyUp(e));
     this.audio.setVolume(this.settings.vol);
-    this.ui.renderProfileBar(this.career);
+    this.ensureDaily(); this.ui.renderProfileBar(this.career);
     this.ui.showOverlay('main');
     const jc = new URLSearchParams(location.search).get('join');
     if (jc) { this.ui.showPanel('multi'); this.ui.$('joinCode').value = cleanCode(jc); this.setNet('Invite code ' + cleanCode(jc) + ' loaded. Press JOIN.'); }
@@ -6637,7 +6836,31 @@ class Game {
     document.addEventListener('pointerlockerror', () => { if (this.state === 'paused' || this.state === 'menu') ui.showOverlay('pause'); });
     window.addEventListener('resize', () => this.renderer && this.renderer.resize());
   }
-  backToMain() { this.ui.showOverlay('main'); this.ui.renderProfileBar(this.career); this.state = 'menu'; }
+  /** Picks today's three challenges (seeded by the date) the first time the game opens each day. */
+  ensureDaily() {
+    const n = new Date(), day = n.getFullYear() + '-' + (n.getMonth() + 1) + '-' + n.getDate(), c = this.career;
+    if (c.daily && c.daily.day === day && Array.isArray(c.daily.list)) return;
+    let h = 0; for (const ch of day) h = (h * 31 + ch.charCodeAt(0)) | 0;
+    const r = mulberry32(h), ids = DAILY_POOL.map((d) => d.id).sort(() => r() - 0.5).slice(0, 3);
+    c.daily = { day, list: ids.map((id) => ({ id, p: 0, done: false })) };
+    this.saveCareer();
+  }
+  /** Counts progress toward today's challenges; pays coins the moment one is finished. */
+  dailyBump(kind, n = 1) {
+    if (!n || this.tut) return;
+    this.ensureDaily();
+    for (const c of this.career.daily.list) {
+      const D = DAILY_BY_ID[c.id];
+      if (!D || c.done || D.kind !== kind) continue;
+      c.p += n;
+      if (c.p >= D.n) {
+        c.done = true; this.career.coins += D.coins; this.career.totalCoins = (this.career.totalCoins || 0) + D.coins;
+        this.ui.toast(`<b>CHALLENGE COMPLETE</b> ${esc(D.text)} <em>+${D.coins} coins</em>`, 'good', 4000); this.audio.play('chime', null, 1);
+        this.saveCareer();
+      }
+    }
+  }
+  backToMain() { this.ui.showOverlay('main'); this.ensureDaily(); this.ui.renderProfileBar(this.career); this.state = 'menu'; }
   setNet(text, cls = '') { const el = this.ui.$('netMsg'); el.textContent = text; el.className = 'netmsg ' + cls; }
   copyText(text, ok) {
     const done = () => this.ui.toast(ok, 'good', 1800), fallback = () => { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ } t.remove(); };
@@ -6696,7 +6919,7 @@ class Game {
       } else if (a === 'coins') { this.career.coins += 10000; this.career.totalCoins += 10000; }
       else if (a === 'reset') { Object.assign(A, ADMIN_DEFAULTS); this.saveCareer(); this.renderAdmin(); this.applyAdmin(); $('adminMsg').textContent = 'Sliders reset.'; return; }
       msg.textContent = a === 'unlock' ? 'Everything is unlocked, including the Admin skin and Admin weapons. Equip them in the Locker.' : 'Added 10,000 coins.';
-      this.saveCareer(); this.pushLook(); this.ui.renderProfileBar(this.career);
+      this.saveCareer(); this.pushLook(); this.ensureDaily(); this.ui.renderProfileBar(this.career);
     }));
   }
   /** Re-applies class stats, then the admin multipliers, to the local player. Only on a server we run (single player or host). */
@@ -6772,7 +6995,7 @@ class Game {
     this.clearReplay();
     this.leaveSession(true); this.tut = null; this.ui.$('tutorial').classList.add('hidden');
     this.state = 'menu'; this.ui.showHud(false); this.ui.setPanelOpen('inventory', false); this.ui.setPanelOpen('diplomacy', false);
-    this.demoMatch(); this.ui.renderProfileBar(this.career); this.ui.showOverlay('main');
+    this.demoMatch(); this.ensureDaily(); this.ui.renderProfileBar(this.career); this.ui.showOverlay('main');
   }
   leaveMatch() { this.toMenu(); }
   releaseLock() { try { if (document.pointerLockElement) document.exitPointerLock(); } catch (e) { /* ignore */ } }
@@ -6991,6 +7214,11 @@ class Game {
           if (e.fx.includes('burn')) P.puff(hx, hy, hz, [1, 0.5, 0.1], 8, 0.6, 1.8, 0.2, 0.6);
           if (e.fx.includes('leech')) { const pl = this.server.players, a = typeof e.by === 'number' ? pl[e.by] : pl.find((q) => q.id === e.by); if (a && a.pos) P.puff(a.pos.x, a.pos.y + 1.2, a.pos.z, [0.95, 0.1, 0.2], 6, 0.5, 1.2, 0.12, 0.6); }
         }
+        if (mine && t !== me && !e.blocked) {
+          if (e.crit) this.dailyBump('crit', 1);
+          if (e.tool === 'bow') this.dailyBump('arrowHit', 1);
+          if (e.fx) for (const f of e.fx) this.dailyBump(f, 1);
+        }
         if (mine && t !== me) {
           this.ui.hitMarker(e.blocked ? 'block' : e.crit ? 'crit' : '');
           const d = this.lastDmgEvt && this.lastDmgEvt.target === t ? this.lastDmgEvt.amount : 0;
@@ -7049,10 +7277,35 @@ class Game {
         this.noteHighlight(this.server.map.vault.x, this.server.map.vault.y, this.server.map.vault.z, 'VAULT CAPTURED', 40);
         break;
       }
+      case 'streak': {
+        const q = e.player, mine = q === me;
+        this.ui.killfeed(`<b>${esc(q.name)}</b> is on a <b>${e.n} KILL STREAK</b>${e.reward ? ' <em>' + esc(e.reward) + '</em>' : ''}`, mine ? 'good' : '');
+        if (mine && e.reward) { this.ui.banner(e.n + ' KILL STREAK', e.reward, 'good', 2600); this.audio.play('chime', null, 0.9); }
+        if (mine && this.dailyBump) this.dailyBump('streak', e.n >= 3 ? 1 : 0);
+        break;
+      }
+      case 'tntStrike': {
+        const near = me && me.alive && Math.hypot(me.pos.x - e.x, me.pos.z - e.z) < 18;
+        if (e.by !== me) this.ui.killfeed(`<b>${esc(e.by.name)}</b> called a <b>TNT STRIKE</b>`, near ? 'bad' : '');
+        if (near && e.by !== me) { this.ui.banner('TNT STRIKE', 'TNT is falling on you. Move!', 'bad', 2400); this.audio.play('alarm', null, 0.7); }
+        break;
+      }
+      case 'dropIncoming': {
+        this.ui.banner('SUPPLY DROP', 'A crate is parachuting in. Stand on it to claim the loot!', 'good', 3000); this.audio.play('chime', null, 0.7);
+        break;
+      }
+      case 'dropClaimed': {
+        const L = DROP_LOOT_BY_ID[e.loot] || { name: 'loot', desc: '' };
+        this.ui.killfeed(`<b>${esc(e.player.name)}</b> claimed a SUPPLY DROP <em>${esc(L.name)}</em>`, e.player === me ? 'good' : '');
+        P.burst(e.x, e.y + 0.8, e.z, [1, 0.85, 0.3], 22, 4, 0.12);
+        if (e.player === me) { this.ui.banner(L.name.toUpperCase(), L.desc, 'good', 2600); this.audio.play('chime', null, 1); if (this.dailyBump) this.dailyBump('drop', 1); }
+        break;
+      }
       case 'suddenDeath': this.ui.banner('SUDDEN DEATH', 'Every core has crumbled. From now on, death is final.', 'bad', 3800); this.audio.play('crash', null, 0.8); this.shake = Math.max(this.shake, 1); break;
       case 'finalDuel': this.ui.killfeed('Only two teams left: <b>CHAOS starts now</b>', 'warn'); break;
       case 'botUnstuck': break;
       case 'baseDestroyed': {
+        if (e.by && e.by === me && !e.quiet) this.dailyBump('core', 1);
         if (e.quiet) break;
         const who = e.player; this.ui.killfeed(`<b style="color:${who.color}">${esc(who.name)}</b>'s CORE was destroyed${e.by ? ' by <b style="color:' + e.by.color + '">' + esc(e.by.name) + '</b> <em>+400</em>' : ''}`, 'bad');
         if (who === me) this.ui.banner('YOUR CORE IS DESTROYED', 'No more respawns. Stay alive.', 'bad', 3500);
@@ -7099,6 +7352,7 @@ class Game {
   }
   onDeath(e) {
     const me = this.player, U = this.ui, v = e.victim, k = e.killer;
+    if (k && k === me && v !== me) { this.dailyBump('kill', 1); if (e.tnt && e.kind === 'explosion') this.dailyBump('tntKill', 1); }
     const vn = `<b style="color:${v.color}">${esc(v.name)}</b>`;
     let txt;
     if (k) txt = `<b style="color:${k.color}">${esc(k.name)}</b> ${e.tnt && e.kind === 'explosion' ? 'blew up' : (KILL_VERB[e.kind] || 'killed')} ${vn}`;
@@ -7199,6 +7453,7 @@ class Game {
     if (!this.statsSaved && row) {
       this.statsSaved = true;
       const c = this.career, before = levelFor(c.xp).level, had = TITLE_ORDER.filter((id) => TITLES[id].ok(c));
+      this.dailyBump('play', 1); if (row.won) this.dailyBump('win', 1);
       c.matches++; if (row.won) c.wins++; c.kills += row.kills; c.deaths += row.deaths; c.xp += row.xp; c.coins += row.coins; c.totalCoins += row.coins; c.blocks += row.blocksDestroyed;
       c.tntKills += row.tntKills || 0; c.structures += row.structuresDestroyed || 0; c.damage += row.damageDealt || 0; c.best = Math.max(c.best, row.score);
       const after = levelFor(c.xp).level, now = TITLE_ORDER.filter((id) => TITLES[id].ok(c) && !had.includes(id));
@@ -7296,7 +7551,7 @@ class Game {
     this.charge = 0;
     if (item && item.id === 'bow') {
       if (left) { this.bowHeld = (this.bowHeld || 0) + dt; this.charge = clamp(this.bowHeld / (TOOLS.bow.draw * p.mods.bowDraw * (weaponBoost(p.look, 'bow').draw || 1)), 0, 1); }
-      else if (this.bowHeld) { const ch = clamp(this.bowHeld / (TOOLS.bow.draw * p.mods.bowDraw * (weaponBoost(p.look, 'bow').draw || 1)), 0, 1); this.bowHeld = 0; if (ch > 0.2) { s.handle(p.id, { type: 'shoot', charge: ch }); p.cooldowns.shoot = Math.max(p.cooldowns.shoot, 0.05); } }
+      else if (this.bowHeld) { const ch = clamp(this.bowHeld / (TOOLS.bow.draw * p.mods.bowDraw * (weaponBoost(p.look, 'bow').draw || 1)), 0, 1); this.bowHeld = 0; if (ch > 0.2) { if (!s.unlimited && (p.resources.arrow || 0) < 1) this.ui.toast('Out of arrows! Your quiver refills when you stop shooting.', 'bad', 1800); else { s.handle(p.id, { type: 'shoot', charge: ch }); p.cooldowns.shoot = Math.max(p.cooldowns.shoot, 0.05); } } }
       this.mining = null;
     } else {
       this.bowHeld = 0;
@@ -7305,7 +7560,8 @@ class Game {
         if (leftEdge && tgt) { const r = s.handle(p.id, { type: 'ignite', x: tgt.x, y: tgt.y, z: tgt.z, nx: tgt.nx, ny: tgt.ny, nz: tgt.nz }); if (!r.ok && r.reason === 'not-allowed') this.ui.toast('You cannot do that here right now.', 'bad', 1500); }
       } else if (left && ent) {
         this.mining = null;
-        if (leftEdge || p.cooldowns.attack <= 0) s.handle(p.id, { type: 'attack', targetId: ent.id, tool: T && T.dmg != null ? item.id : 'pickaxe' });
+        if (p.cooldowns.attack <= 0.05) s.handle(p.id, { type: 'attack', targetId: ent.id, tool: T && T.dmg != null ? item.id : 'pickaxe' });
+        else if (leftEdge) { this.ui.denySwing(); this.audio.play('click', null, 0.25); }                // still recovering: no swing
       } else if (left && tgt) {
         const key = tgt.x + ',' + tgt.y + ',' + tgt.z, def = w.def(tgt.x, tgt.y, tgt.z);
         if (!this.mining || this.mining.key !== key) this.mining = { key, progress: 0 };
@@ -7322,7 +7578,6 @@ class Game {
       } else this.mining = null;
     }
 
-    if (item && T && T.dmg != null && item.id !== 'bow' && p.cooldowns.attack > 0) this.charge = clamp(1 - p.cooldowns.attack / (T.cd * p.mods.attackCooldown * (weaponBoost(p.look, item.id).speed || 1)), 0, 1);      // attack-charge bar
 
     // ---- right button ----
     if (right && tgt) {
@@ -7365,6 +7620,7 @@ class Game {
       while (this.accumulator >= CONFIG.STEP && n++ < 6) { this.tick(CONFIG.STEP); this.accumulator -= CONFIG.STEP; }
       this.particles.update(dt, this.world);
       this.emitAmbient(dt);
+      this.arrowFx();
     } else if (this.state === 'results') { this.particles.update(dt, this.world); }
     if (this.replay) { this.replay.update(dt); if (this.replay.done) this.endReplay(); }
     this.shake = Math.max(0, this.shake - dt * 2.2); this.hurt = Math.max(0, this.hurt - dt * 1.3);
@@ -7372,6 +7628,9 @@ class Game {
     this.kick = Math.max(0, this.kick - dt * 5); this.equip = Math.min(1, this.equip + dt * 5.5);
     this.blockAmt = lerp(this.blockAmt, p && p.blocking ? 1 : 0, clamp(dt * 14, 0, 1));
     this.fovAdd = lerp(this.fovAdd || 0, this.state === 'playing' && p && p.sprinting ? 7 : 0, clamp(dt * 8, 0, 1));
+    { const id = this.hotbar[this.selected], T = TOOLS[id];                                 // swing cooldown ticker, every frame
+      this.cdFrac = this.state === 'playing' && p && p.alive && T && T.dmg != null && id !== 'bow' && p.cooldowns.attack > 0 ? clamp(1 - p.cooldowns.attack / (T.cd * p.mods.attackCooldown * (weaponBoost(p.look, id).speed || 1)), 0, 1) : 0;
+      this.ui.setCooldown(this.cdFrac); }
     if (this.state === 'playing' || this.state === 'panel') {
       this.hudClock -= dt;
       if (this.hudClock <= 0) { this.hudClock = 0.2; this.updateHud(); }
@@ -7387,6 +7646,17 @@ class Game {
   }
 
   /** Fire and smoke over burning blocks, trails behind meteors and lit TNT. */
+  /** Flying arrows leave a trail in their skin's colour. */
+  arrowFx() {
+    const P = this.particles, arrows = this.server.arrows || [];
+    this.fxFlip = !this.fxFlip;
+    for (const a of arrows) {
+      if (!a.alive || a.stuck || !a.pos) continue;
+      const sk = WEAPON_SKINS[a.skin], c = sk && sk.pal.fx;
+      if (c) P.puff(a.pos.x, a.pos.y, a.pos.z, a.skin === 'inferno' && Math.random() < 0.5 ? [1, 0.85, 0.3] : c, 1, 0.04, a.skin === 'blood' ? -0.6 : 0.15, 0.08, 0.4, a.skin !== 'blood');
+      else if (this.fxFlip) P.puff(a.pos.x, a.pos.y, a.pos.z, [0.9, 0.9, 0.9], 1, 0.02, 0, 0.04, 0.25, false);
+    }
+  }
   emitAmbient(dt) {
     const P = this.particles, s = this.server;
     this.ambClock = (this.ambClock || 0) - dt;
@@ -7404,6 +7674,10 @@ class Game {
     for (const t of s.tnts) P.puff(t.pos.x, t.pos.y + 1, t.pos.z, [1, 0.8, 0.3], 1, 0.15, 1.5, 0.1, 0.35);
     for (const m of s.meteors) P.puff(m.pos.x, m.pos.y, m.pos.z, [1, 0.5, 0.15], 4, 1.4, 0.5, 0.7, 0.9);
     for (const b of s.bodies()) if (b.burnTime > 0) P.puff(b.pos.x, b.pos.y + 1, b.pos.z, [1, 0.5, 0.1], 1, 0.5, 1.5, 0.15, 0.5);
+    for (const p of s.players) {                                       // buffs glow around players
+      if (!p.alive || !p.buffs) continue;
+      for (const k in BUFF_INFO) if (p.buffs[k] > 0) P.puff(p.pos.x, p.pos.y + 0.3 + Math.random() * 1.4, p.pos.z, hexToRgb(BUFF_INFO[k].color), 1, 0.6, 0.6, 0.09, 0.5);
+    }
     for (const p of s.players) {                                       // weapon skins glow in other players' hands
       if (!p.alive || p === this.player || !p.look || !p.look.weapons || Math.abs(p.pos.x - l.x) > 30 || Math.abs(p.pos.z - l.z) > 30) continue;
       const sk = p.look.weapons[p.held]; if (!sk || sk === 'default' || sk === 'titan') continue;
@@ -7437,7 +7711,7 @@ class Game {
     U.setPlayers(s.scoreboard().map((q) => ({ name: q.name, color: q.color, alive: q.alive, hp: q.health / q.maxHealth * 100, integ: s.integrity(q.index), core: !!(s.plots[q.index] && s.plots[q.index].core) && !s.baseDestroyed[q.index], score: Math.round(q.stats.score), me: q === p, ally: s.areAllies(q, p), bounty: q.bounty })));
     const v = s.vault, showV = s.phase === 'war' || s.phase === 'chaos' || s.phase === 'sandbox';
     U.setVault(showV, v.cooldown > 0 ? 1 - v.cooldown / 45 : v.progress, v.cooldown > 0 ? 'VAULT RECHARGING' : v.capturing ? 'CAPTURING...' : 'VAULT (centre of map)', v.cooldown > 0 ? 'cool' : v.capturing ? 'cap' : '');
-    U.setCharge(this.charge);
+    U.setCharge(this.charge); U.setBuffs(this.player);
     U.setDebug(this.debugVisible, this.debugText());
     // contextual hint
     let hint = '';
