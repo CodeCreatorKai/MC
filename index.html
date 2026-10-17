@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Minecraft Physics Wars</title>
-  <link rel="stylesheet" href="style.css?v=2.3">
+  <link rel="stylesheet" href="style.css?v=2.4">
 </head>
 <body>
   <canvas id="gl"></canvas>
@@ -32,6 +32,8 @@
     <div id="floaters"></div>
     <div id="hint"></div>
     <div id="charge" class="hidden"><i id="chargeFill"></i></div>
+    <div id="cdring" class="hidden"><i></i><b>WAIT</b></div>
+    <div id="buffs"></div>
     <div id="bottom">
       <div id="vitals">
         <div class="meter"><span class="lbl">HEALTH</span><div class="bar hp"><i id="hpFill"></i></div><b id="hpText">100</b></div>
@@ -80,6 +82,7 @@
 
       <div id="panelMain" class="panelview">
         <div id="profileBar"></div>
+        <div id="dailyBox"></div>
         <button id="btnPlay" class="btn primary">SINGLE PLAYER</button>
         <button id="btnTutorial" class="btn">TUTORIAL <small>(optional)</small></button>
         <button id="btnMulti" class="btn">MULTIPLAYER</button>
@@ -193,6 +196,11 @@
               <p><b>Machines (E menu):</b> Arrow Turret (right-click to refill), TNT Cannon (uses your TNT), Land Mine, Spike Trap, Flamethrower, Launch Pad, Conveyor, Sprinkler, Healing Beacon and TNT Dropper (wire it). They only hurt enemies, and only once the war starts.</p>
               <p><b>Combat:</b> like Minecraft: charge each swing, hit while falling for a critical, sprint into a hit for extra knockback, and a short immunity follows every hit.</p>
               <p><b>Physics:</b> blocks need support. Cut the base of a tower and it falls, crushing what is below. Sand and gravel fall. Water flows, lava burns, fire spreads on wood.</p>
+              <p><b>Swings and crits:</b> every weapon has a cooldown (the ring around your crosshair); you cannot swing again until it fills. Sword: fast, crits for 1.6x. Axe: slow, but crits for 2.1x. Jump-hits always crit.</p>
+              <p><b>Arrows:</b> your quiver holds a limited number of arrows (shown on the bow slot). It refills slowly when you stop shooting, and you take arrows from players you eliminate.</p>
+              <p><b>Supply drops:</b> during the war, crates parachute onto neutral ground (look for the blue beam). Stand on one to claim it: rage, speed, iron skin, a medkit, TNT or arrows.</p>
+              <p><b>Kill streaks:</b> 2 kills = +5 arrows, 3 = rage, 5 = a TNT strike on the nearest enemy core, 7+ = unstoppable. Dying resets your streak.</p>
+              <p><b>Daily challenges:</b> three new goals every day on the main menu, each worth bonus coins.</p>
               <p><b>Weapon skins (Locker):</b> buy skins for your sword, axe, pickaxe and bow with coins. Each collection plays differently: Glacier freezes, Inferno burns, Bloodmoon heals you, Voltage makes you faster, Titan hits hardest, Phantom backstabs. Every perk comes with a drawback.</p>
             </div>
           </div>
@@ -238,6 +246,6 @@
     </div>
   </div>
 
-  <script src="game.js?v=2.3"></script>
+  <script src="game.js?v=2.4"></script>
 </body>
 </html>
