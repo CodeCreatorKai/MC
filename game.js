@@ -67,7 +67,7 @@ const TILE_NAMES = ['grass_top', 'grass_side', 'dirt', 'stone', 'wood', 'glass',
   'wire_off', 'wire_on', 'plate_off', 'plate_on', 'lever_off', 'lever_on', 'button', 'tripwire',
   'piston_side', 'piston_front', 'piston_back', 'piston_head', 'door', 'timer', 'sensor', 'alarm',
   'vault', 'log_side', 'log_top', 'vault_top', 'icon_pickaxe', 'icon_sword', 'icon_axe', 'icon_bow', 'icon_staff', 'icon_lighter', 'brick', 'shingle', 'lamp', 'flower_red', 'flower_yellow', 'gold_ore',
-  'plotwall', 'turret', 'cannon', 'mine', 'spikes', 'jumppad', 'conv_0', 'conv_1', 'conv_2', 'conv_3', 'sprinkler', 'healer', 'flamer', 'dropper', 'core'];
+  'plotwall', 'turret', 'cannon', 'mine', 'spikes', 'jumppad', 'conv_0', 'conv_1', 'conv_2', 'conv_3', 'sprinkler', 'healer', 'flamer', 'dropper', 'core', 'vaultstone'];
 const TILE = {};
 TILE_NAMES.forEach((n, i) => { TILE[n.toUpperCase()] = i; });
 
@@ -106,7 +106,7 @@ const BlockRegistry = (() => {
   define({ type: 'air', solid: false, transparent: true, breakable: false, placeable: false, targetable: false, replaceable: true, hardness: 0, blastResistance: 0, weight: 0, tiles: null });
   define({ type: 'grass', hardness: 1, blastResistance: 1.5, weight: 3, color: [0.38, 0.66, 0.27], tiles: { top: TILE.GRASS_TOP, side: TILE.GRASS_SIDE, bottom: TILE.DIRT }, drop: ['earth', 1] });
   define({ type: 'dirt', hardness: 1, blastResistance: 1.5, weight: 3, color: [0.52, 0.38, 0.26], tiles: all(TILE.DIRT), drop: ['earth', 1] });
-  define({ type: 'stone', hardness: 5, blastResistance: 8, weight: 5, sound: 'stone', color: [0.49, 0.49, 0.51], tiles: all(TILE.STONE), drop: ['stone', 1] });
+  define({ type: 'stone', hardness: 8, blastResistance: 8, weight: 5, sound: 'stone', color: [0.49, 0.49, 0.51], tiles: all(TILE.STONE), drop: ['stone', 1] });
   define({ type: 'wood', hardness: 2.5, blastResistance: 3, weight: 3, sound: 'wood', color: [0.69, 0.54, 0.33], flammable: true, burnChance: 0.12, tiles: all(TILE.WOOD), drop: ['wood', 1] });
   define({ type: 'glass', hardness: 0.3, blastResistance: 0.3, weight: 1, sound: 'glass', color: [0.78, 0.92, 1.0], transparent: true, cullSame: true, tiles: all(TILE.GLASS), drop: ['glass', 1, 0.5] });
   define({ type: 'sand', hardness: 0.8, blastResistance: 1, weight: 3, color: [0.86, 0.80, 0.59], gravityAffected: true, tiles: all(TILE.SAND), drop: ['earth', 1] });
@@ -118,9 +118,9 @@ const BlockRegistry = (() => {
   define({ type: 'lava', shape: 'fluid', solid: false, transparent: true, breakable: false, placeable: false, targetable: false, replaceable: true, hardness: 0, blastResistance: 100, pushable: false, color: [1, 0.45, 0.1], fluid: { maxLevel: 4, alpha: 0.96 }, tiles: all(TILE.LAVA) });
   define({ type: 'leaves', hardness: 0.2, blastResistance: 0.2, weight: 0.5, color: [0.25, 0.55, 0.2], transparent: true, cullSame: true, flammable: true, burnChance: 0.3, placeable: false, tiles: all(TILE.LEAVES), drop: ['wood', 1, 0.3] });
   define({ type: 'log', hardness: 2.2, blastResistance: 3, weight: 3.5, sound: 'wood', color: [0.45, 0.33, 0.2], flammable: true, burnChance: 0.07, placeable: false, tiles: { top: TILE.LOG_TOP, side: TILE.LOG_SIDE, bottom: TILE.LOG_TOP }, drop: ['wood', 2] });
-  define({ type: 'iron_ore', hardness: 4, blastResistance: 6, weight: 5, sound: 'stone', color: [0.6, 0.5, 0.45], placeable: false, tiles: all(TILE.IRON_ORE), drop: ['iron', 1] });
-  define({ type: 'iron_block', hardness: 6, blastResistance: 12, weight: 8, sound: 'stone', color: [0.8, 0.8, 0.84], tiles: all(TILE.IRON_BLOCK), drop: ['iron', 1] });
-  define({ type: 'obsidian', hardness: 12, blastResistance: 40, weight: 6, sound: 'stone', color: [0.12, 0.08, 0.2], placeable: false, tiles: all(TILE.OBSIDIAN) });
+  define({ type: 'iron_ore', hardness: 9, blastResistance: 6, weight: 5, sound: 'stone', color: [0.6, 0.5, 0.45], placeable: false, tiles: all(TILE.IRON_ORE), drop: ['iron', 1] });
+  define({ type: 'iron_block', hardness: 11, blastResistance: 12, weight: 8, sound: 'stone', color: [0.8, 0.8, 0.84], tiles: all(TILE.IRON_BLOCK), drop: ['iron', 1] });
+  define({ type: 'obsidian', hardness: 18, blastResistance: 40, weight: 6, sound: 'stone', color: [0.12, 0.08, 0.2], placeable: false, tiles: all(TILE.OBSIDIAN) });
   define({ type: 'fire', shape: 'box', solid: false, transparent: true, hardness: 0, blastResistance: 0, weight: 0, targetable: true, replaceable: true, pushable: false, placeable: false, color: [1, 0.55, 0.1], tiles: all(TILE.FIRE), boxes: () => [[0.06, 0, 0.06, 0.94, 0.9, 0.94]] });
   define({ type: 'wire', shape: 'box', solid: false, transparent: true, hardness: 0.1, blastResistance: 0.1, weight: 0.2, mech: 'conductor', needsFloor: true, color: [0.8, 0.2, 0.2], tileFn: (m) => ((m & 1) ? TILE.WIRE_ON : TILE.WIRE_OFF), tiles: all(TILE.WIRE_OFF), boxes: () => [[0, 0, 0, 1, 0.08, 1]], drop: ['mech', 1, 0.8] });
   define({ type: 'plate', shape: 'box', solid: false, transparent: true, hardness: 0.1, blastResistance: 0.1, weight: 0.3, mech: 'source', needsFloor: true, color: [0.6, 0.6, 0.6], tileFn: (m) => ((m & 1) ? TILE.PLATE_ON : TILE.PLATE_OFF), tiles: all(TILE.PLATE_OFF), boxes: (m) => [[0.06, 0, 0.06, 0.94, (m & 1) ? 0.03 : 0.07, 0.94]], drop: ['mech', 1, 0.8] });
@@ -151,12 +151,12 @@ const BlockRegistry = (() => {
   define({ type: 'sensor', hardness: 1.5, blastResistance: 3, weight: 2, sound: 'stone', color: [0.3, 0.8, 0.7], mech: 'source', tiles: all(TILE.SENSOR), drop: ['mech', 2, 0.8] });
   define({ type: 'alarm', hardness: 1.5, blastResistance: 3, weight: 2, sound: 'stone', color: [0.9, 0.3, 0.3], mech: 'consumer', tiles: all(TILE.ALARM), drop: ['mech', 1, 0.8] });
   // --- decorative / extra resource blocks ---
-  define({ type: 'brick', hardness: 4, blastResistance: 7, weight: 4.5, sound: 'stone', color: [0.62, 0.3, 0.25], tiles: all(TILE.BRICK), drop: ['stone', 1] });
+  define({ type: 'brick', hardness: 6, blastResistance: 7, weight: 4.5, sound: 'stone', color: [0.62, 0.3, 0.25], tiles: all(TILE.BRICK), drop: ['stone', 1] });
   define({ type: 'shingle', hardness: 2, blastResistance: 3, weight: 2.5, sound: 'wood', color: [0.55, 0.25, 0.2], flammable: true, burnChance: 0.09, tiles: all(TILE.SHINGLE), drop: ['wood', 1] });
   define({ type: 'lamp', hardness: 0.6, blastResistance: 1, weight: 1.5, sound: 'glass', color: [1, 0.9, 0.5], transparent: true, cullSame: true, tiles: all(TILE.LAMP), drop: ['glass', 1, 0.5] });
   define({ type: 'flower_red', shape: 'box', solid: false, transparent: true, hardness: 0.05, blastResistance: 0.05, weight: 0.1, needsFloor: true, placeable: false, color: [0.9, 0.2, 0.25], tiles: all(TILE.FLOWER_RED), boxes: () => [[0.2, 0, 0.2, 0.8, 0.7, 0.8]] });
   define({ type: 'flower_yellow', shape: 'box', solid: false, transparent: true, hardness: 0.05, blastResistance: 0.05, weight: 0.1, needsFloor: true, placeable: false, color: [0.95, 0.8, 0.2], tiles: all(TILE.FLOWER_YELLOW), boxes: () => [[0.2, 0, 0.2, 0.8, 0.7, 0.8]] });
-  define({ type: 'gold_ore', hardness: 5, blastResistance: 6, weight: 5, sound: 'stone', color: [0.8, 0.7, 0.3], placeable: false, tiles: all(TILE.GOLD_ORE), drop: ['iron', 2] });
+  define({ type: 'gold_ore', hardness: 8, blastResistance: 6, weight: 5, sound: 'stone', color: [0.8, 0.7, 0.3], placeable: false, tiles: all(TILE.GOLD_ORE), drop: ['iron', 2] });
   // --- plot divider (build phase only), automatic machines, TNT dropper ---
   define({ type: 'plotwall', hardness: Infinity, blastResistance: Infinity, weight: 99, sound: 'stone', color: [0.25, 0.27, 0.34], breakable: false, placeable: false, pushable: false, tiles: all(TILE.PLOTWALL) });
   const MACH = { sound: 'stone', pushable: false, machine: true, shape: 'box', transparent: true };
@@ -172,6 +172,7 @@ const BlockRegistry = (() => {
   define({ type: 'dropper', hardness: 2, blastResistance: 4, weight: 3, sound: 'stone', color: [0.75, 0.3, 0.2], mech: 'consumer', tiles: all(TILE.DROPPER), drop: ['mech', 2, 0.8] });
   // each player's base core: while it stands its owner respawns; enemies must mine it (slowly) or blow it up
   define({ type: 'core', hardness: 25, blastResistance: 7, weight: 10, sound: 'stone', color: [0.7, 0.35, 1], placeable: false, pushable: false, tiles: { top: TILE.CORE, side: TILE.CORE, bottom: TILE.OBSIDIAN } });
+  define({ type: 'vaultstone', hardness: Infinity, blastResistance: Infinity, weight: 20, sound: 'stone', color: [0.22, 0.21, 0.28], breakable: false, placeable: false, pushable: false, tiles: all(TILE.VAULTSTONE) });
   define({ type: 'vault', hardness: Infinity, blastResistance: Infinity, weight: 20, sound: 'stone', color: [1, 0.8, 0.2], breakable: false, placeable: false, pushable: false, tiles: { top: TILE.VAULT_TOP, side: TILE.VAULT, bottom: TILE.VAULT } });
 
   return {
@@ -578,6 +579,7 @@ function generateAtlas() {
     if (d < 5.2) return [255, 255, 255];
     return noisy(r, 190, 52, 52, 14);
   });
+  paint(TILE.VAULTSTONE, 46, (x, y, r) => { const row = y >> 2, off = (row % 2) * 4; return (y % 4 === 3 || (x + off) % 8 === 7) ? [200, 160, 50] : noisy(r, 52, 50, 66, 10); });   // dark slate bricks, gold mortar
   paint(TILE.VAULT, 45, (x, y, r) => (edge(x, y) ? [120, 90, 20] : ((x === 3 || x === 12) && (y === 3 || y === 12)) ? [70, 50, 10] : noisy(r, 236, 196, 52, 12)));
   paint(TILE.LOG_SIDE, 46, (x, y, r) => ((x % 4 === 1) ? [78, 56, 32] : noisy(r, 110, 82, 50, 16)));
   paint(TILE.LOG_TOP, 47, (x, y, r) => { const d = Math.hypot(x - 7.5, y - 7.5); return (Math.floor(d) % 3 === 0) ? [140, 104, 62] : noisy(r, 176, 138, 86, 12); });
@@ -962,8 +964,8 @@ class Player extends Body {
     const px = this.pos.x, pz = this.pos.z;
 
     this.simulate(dt, wx, wz, speed, !!controls.jump, P.JUMP * this.mods.jump, world, env);
-    if (this.jumped && this.sprinting) {                         // sprint-jump: a burst of forward speed, like Minecraft
-      const l = Math.hypot(wx, wz) || 1; this.vel.x += wx / l * 2; this.vel.z += wz / l * 2;
+    if (this.jumped && this.sprinting) {                         // sprint-jump: only a tiny nudge, so jumping is never faster than running
+      const l = Math.hypot(wx, wz) || 1; this.vel.x += wx / l * 0.3; this.vel.z += wz / l * 0.3;
     }
     this.hurtT = Math.max(0, this.hurtT - dt);
 
@@ -1678,19 +1680,24 @@ const ITEM_ORDER = Object.keys(ITEMS);
 /** Combat numbers follow Minecraft's feel (scaled to 100 HP): sword about 7 hits, axe heavy and slow; slowed down so fights last several seconds, sprint hits knock back harder, crits while falling.
  *  cd = seconds for a full attack charge, kb = horizontal knockback speed (blocks/s). */
 const TOOLS = {
-  pickaxe: { dmg: 9,  cd: 1.0,  crit: 1.3,  reach: 3.2, kb: 7,  mine: 2.6 },
-  sword:   { dmg: 15, cd: 0.8,  crit: 1.6, critChance: 0.15,  reach: 3.3, kb: 7,  mine: 1.2 },
-  axe:     { dmg: 21, cd: 1.25, crit: 2.1, critChance: 0.15, reach: 3.1, kb: 7,  mine: 1.0, woodMine: 2.5 },
+  pickaxe: { dmg: 9,  cd: 1.0,  crit: 1.5,  reach: 3.2, kb: 7,  mine: 2.6 },
+  sword:   { dmg: 15, cd: 0.8,  crit: 1.5,  reach: 3.3, kb: 7,  mine: 1.2 },
+  axe:     { dmg: 21, cd: 1.25, crit: 2.0,  reach: 3.1, kb: 7,  mine: 1.0, woodMine: 2.5 },
   staff:   { dmg: 4,  cd: 0.9,  reach: 3.4, kb: 18, mine: 1.0 },
   bow:     { dmg: 18, cd: 0.9,  draw: 1.2, speed: 26, mine: 1.0 },   // full draw takes 1 s, like Minecraft
   lighter: { mine: 1.0 },
 };
 /** Seconds to break `def` by hand/tool (used by both the client progress bar and bots). */
-function mineTime(def, toolId, mods, look) {
-  const t = TOOLS[toolId] || { mine: 1 };
-  let mult = (t.mine || 1) * (weaponBoost(look, toolId).mine || 1);
+function mineTime(def, toolId, mods, look, ctx) {
+  const t = TOOLS[toolId] || { mine: 1 }, b = weaponBoost(look, toolId);
+  let mult = t.mine || 1;
   if (t.woodMine && (def.sound === 'wood')) mult = t.woodMine;
   else if (toolId === 'pickaxe' && (def.sound === 'soft')) mult = 1.6;
+  mult *= b.mine || 1;                                                       // pickaxe skins: mining perks
+  const hard = def.sound === 'stone' || def.sound === 'metal', soft = def.sound === 'soft' || def.sound === 'wood';
+  if (b.mineHard && hard) mult *= b.mineHard;
+  if (b.mineSoft && soft) mult *= b.mineSoft;
+  if (b.raid && ctx && ctx.enemy) mult *= b.raid;
   if (mods) mult *= mods.mineSpeed;
   return Math.max(CONFIG.MINE.MIN_TIME, def.hardness * CONFIG.MINE.TIME_PER_HARDNESS / mult);
 }
@@ -1813,6 +1820,67 @@ const BOT_NAMES = ['RYZU', 'KAI', 'MOSS', 'BLITZ', 'NOVA', 'TORCH'];
 const PLOT_BASE_RADIUS = 12;
 const sy = (world) => world.sizeY;     // base-integrity zone around each spawn pad
 
+/**
+ * The centre vault: an unbreakable obstacle course with three capture pads, each worth more than the last.
+ *   Stage 1 THE GATE   courtyard wall with four gates, lava pits, a room with one narrow door; pad on the room floor.
+ *   Stage 2 THE ROOF   parkour pillars around the room up to its roof; pad in the far roof corner.
+ *   Stage 3 THE SPIRE  three more pillars on the roof up to the spire; pad on the very top.
+ * Nobody can build inside the vault zone, so the course has to be run. Returns the map's vault description
+ * (pads + the waypoint course bots follow). Coordinates in cells relative to the centre (dx, dz).
+ */
+const VAULT_ZONE = 10;
+function buildVault(world, cx, cz, CENTER) {
+  const put = (dx, y, dz, type, meta = 0) => world.set(cx + dx, y, cz + dz, ID[type], true, meta, 0);
+  const air = (dx, y, dz) => world.set(cx + dx, y, cz + dz, AIR, true);
+  const G = CENTER + 1;                                            // feet level on the courtyard floor
+  for (let dz = -VAULT_ZONE; dz <= VAULT_ZONE; dz++) for (let dx = -VAULT_ZONE; dx <= VAULT_ZONE; dx++) {
+    for (let y = CENTER - 3; y <= CENTER; y++) put(dx, y, dz, y === CENTER ? 'stone' : 'stone');
+    for (let y = G; y <= CENTER + 16; y++) air(dx, y, dz);
+  }
+  const D = (dx, dz) => Math.max(Math.abs(dx), Math.abs(dz));
+  for (let dz = -9; dz <= 9; dz++) for (let dx = -9; dx <= 9; dx++) {
+    const d = D(dx, dz);
+    if (d === 9 && Math.min(Math.abs(dx), Math.abs(dz)) > 1) for (let y = G; y < G + 3; y++) put(dx, y, dz, 'vaultstone');     // courtyard wall, 3-wide gates mid-side
+    if (d <= 9) put(dx, CENTER, dz, 'vaultstone');                                                                                // course floor
+    if (d === 3) for (let y = G; y < G + 5; y++) put(dx, y, dz, 'vaultstone');                                                    // the room
+    if (d <= 3) put(dx, G + 5, dz, 'vaultstone');                                                                                 // its roof
+    if (d <= 1) { put(dx, CENTER, dz, 'vault'); for (let y = G + 6; y <= G + 9; y++) put(dx, y, dz, 'vaultstone'); put(dx, G + 9, dz, 'vault'); }   // pad 1 + the spire (pad 3 on top)
+  }
+  air(3, G, 0); air(3, G + 1, 0);                                    // one narrow door
+  for (const dz of [-2, 2]) put(3, G + 2, dz, 'glass');               // windows
+  for (const dx of [-3, 3]) put(dx, G + 2, -2, 'glass');
+  for (const [dx, dz] of [[-3, -3], [-2, -3], [-3, -2], [-2, -2]]) put(dx, G + 5, dz, 'vault');   // pad 2: far roof corner
+  for (const [dx, dz] of [[8, 4], [8, -4], [-8, 4], [-8, -4], [4, 8], [-4, -8]]) put(dx, CENTER, dz, 'lava', 16);   // lava pits by the wall
+  const climb = [[5, 3, 1], [5, 5, 2], [3, 5, 3], [1, 5, 4], [-1, 5, 5]];       // parkour pillars to the roof: [dx, dz, height]
+  for (const [dx, dz, h] of climb) for (let y = G; y < G + h; y++) put(dx, y, dz, 'vaultstone');
+  const spire = [[3, 3, 7], [3, 1, 8], [3, -1, 9]];                               // pillars on the roof (heights above the floor)
+  for (const [dx, dz, h] of spire) for (let y = G + 6; y < G + h; y++) put(dx, y, dz, 'vaultstone');
+  for (const [dx, dz] of [[9, 9], [9, -9], [-9, 9], [-9, -9]]) put(dx, G + 3, dz, 'lamp');
+  const W = (dx, dz, y) => ({ x: cx + dx + 0.5, z: cz + dz + 0.5, y });
+  const pads = [{ x: cx + 0.5, y: G, z: cz + 0.5, r: 1.6 }, { x: cx - 2, y: G + 6, z: cz - 2, r: 1.3 }, { x: cx + 0.5, y: G + 10, z: cz + 0.5, r: 1.6 }];
+  const entries = {
+    px: [W(9, 0, G), W(6, 0, G)], nx: [W(-9, 0, G), W(-6, 0, G), W(-6, -6, G), W(6, -6, G), W(6, 0, G)],
+    pz: [W(0, 9, G), W(0, 6, G), W(6, 6, G), W(6, 0, G)], nz: [W(0, -9, G), W(0, -6, G), W(6, -6, G), W(6, 0, G)],
+  };
+  const room = [W(4, 0, G), W(3, 0, G), W(1, 0, G), W(0, 0, G)];
+  const toRoof = [W(6, 2, G), ...climb.map(([dx, dz, h]) => W(dx, dz, G + h)), W(-1, 3, G + 6), W(-2, 3, G + 6), W(-2, -1, G + 6), { x: cx - 2, z: cz - 2, y: G + 6 }];
+  const toSpire = [W(-2, 3, G + 6), W(2, 3, G + 6), ...spire.map(([dx, dz, h]) => W(dx, dz, G + h)), W(1, -1, G + 10), W(0, 0, G + 10)];
+  return { x: cx + 0.5, y: G, z: cz + 0.5, block: [cx, CENTER, cz], radius: 1.6, cx, cz, floorY: CENTER, pads, entries, room, toRoof, toSpire };
+}
+/** Bot course for vault stage `stage` (0-2), entering through the gate nearest to (x, z). */
+function vaultCourse(m, stage, x, z) {
+  const dx = x - m.x, dz = z - m.z, gate = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'px' : 'nx') : (dz > 0 ? 'pz' : 'nz');
+  const inRoom = Math.max(Math.abs(dx), Math.abs(dz)) < 3 && Math.abs(dz) < 3, exit = [...m.room].reverse().concat([{ x: m.cx + 6.5, z: m.cz + 0.5, y: m.y }]);
+  const entry = inRoom ? exit : m.entries[gate];
+  if (stage === 0) return inRoom ? m.room.slice(-2) : [...entry, ...m.room];
+  return stage === 1 ? [...entry, ...m.toRoof] : [...entry, ...m.toRoof, ...m.toSpire];
+}
+const VAULT_STAGES = [
+  { name: 'THE GATE', time: 6, score: 150, give: { tnt: 1, arrow: 5, mech: 2 } },
+  { name: 'THE ROOF', time: 7, score: 300, give: { tnt: 2, iron: 3, mech: 4, arrow: 8 }, buffs: [['swift', 15]] },
+  { name: 'THE SPIRE', time: 8, score: 600, give: { tnt: 4, lava: 2, iron: 5, mech: 8, arrow: 12 }, buffs: [['rage', 20], ['armor', 20]] },
+];
+const vaultRewardText = (st) => Object.entries(st.give).map(([k, a]) => '+' + a + ' ' + RESOURCES[k].label.toLowerCase()).join(', ') + (st.buffs ? ', ' + st.buffs.map((b) => BUFF_INFO[b[0]].name.toLowerCase()).join(' + ') : '');
 /** Playable maps. All three keep the plot ring and the centre vault, so every class/land/bot logic still applies. */
 const MAPS = {
   plains:  { name: 'Plains',  icon: '#5fae45', blurb: 'Open terrain with boulders and lone trees. Good for learning the ropes.' },
@@ -2031,24 +2099,8 @@ const MapGenerator = {
       plots.push({ index: s.index, landId: land, owner, x: px, z: pz, baseY: base, outward: o, core });
     }
 
-    // ---- centre vault: hollow stone building with doors, windows, glass roof and the vault core ----
-    for (let dz = -4; dz <= 4; dz++) {
-      for (let dx = -4; dx <= 4; dx++) {
-        const edge = Math.max(Math.abs(dx), Math.abs(dz)) === 4;
-        put(cx + dx, CENTER, cz + dz, 'stone');
-        for (let k = 1; k <= 4; k++) world.set(cx + dx, CENTER + k, cz + dz, AIR, true);
-        if (edge) {
-          for (let k = 1; k <= 4; k++) put(cx + dx, CENTER + k, cz + dz, 'stone');
-          const along = Math.abs(dx) === 4 ? dz : dx;
-          if (along === 0) { world.set(cx + dx, CENTER + 1, cz + dz, AIR, true); world.set(cx + dx, CENTER + 2, cz + dz, AIR, true); }
-          if (Math.abs(along) === 2) put(cx + dx, CENTER + 3, cz + dz, 'glass');
-        }
-        put(cx + dx, CENTER + 5, cz + dz, 'glass');
-      }
-    }
-    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) put(cx + dx, CENTER + 1, cz + dz, 'stone');
-    put(cx, CENTER + 2, cz, 'vault');
-    const vault = { x: cx + 0.5, y: CENTER + 2, z: cz + 0.5, block: [cx, CENTER + 2, cz], radius: 4.2 };
+    // ---- centre vault: a three-stage obstacle course (courtyard + locked room, parkour to the roof, the spire) ----
+    const vault = buildVault(world, cx, cz, CENTER);
 
     // ---- natural boulders and a few lone trees for cover on the neutral ground ----
     for (let n = 0; n < 16; n++) {
@@ -2259,6 +2311,18 @@ const COSMETICS = {
     golden:  { name: 'Golden',  cost: 900, level: 10, skin: [1.0, 0.88, 0.45], shirt: [0.96, 0.78, 0.2],  legs: [0.62, 0.45, 0.1] },
     admin:   { name: 'Admin',   cost: 0, level: 1, admin: true, skin: [0.95, 0.8, 1], shirt: [0.92, 0.18, 0.85], legs: [0.12, 0.08, 0.16] },
     leaf:    { name: 'Woodland', cost: 350, level: 5, skin: [0.78, 0.66, 0.46], shirt: [0.28, 0.56, 0.24], legs: [0.34, 0.26, 0.14] },
+    // ---- the silly ones (bots love these). face: eyes / mouth / nose / top describe the head ----
+    chicken: { name: 'Chicken', cost: 150, level: 1, funny: true, joke: 'Bawk. Comes with a comb.', skin: [0.97, 0.97, 0.95], shirt: [0.95, 0.95, 0.92], legs: [0.98, 0.78, 0.2], face: { eyes: 'dot', mouth: 'beak', top: 'comb' } },
+    banana:  { name: 'Banana Man', cost: 200, level: 1, funny: true, joke: 'Appeal guaranteed.', skin: [1, 0.9, 0.3], shirt: [1, 0.86, 0.22], legs: [0.95, 0.8, 0.2], face: { eyes: 'big', mouth: 'smile', top: 'stem' } },
+    clown:   { name: 'Honk', cost: 250, level: 2, funny: true, joke: 'Honk honk. Red nose included.', skin: [0.98, 0.97, 0.97], shirt: [0.62, 0.3, 0.85], legs: [0.25, 0.75, 0.3], face: { eyes: 'big', mouth: 'grin', nose: [0.95, 0.12, 0.12], top: 'hair', topColor: [1, 0.45, 0.1] } },
+    nerd:    { name: 'Big Brain', cost: 250, level: 2, funny: true, joke: 'Glasses +10 IQ. Teeth not included.', skin: [0.96, 0.8, 0.66], shirt: [0.3, 0.55, 0.35], legs: [0.45, 0.35, 0.25], face: { eyes: 'glasses', mouth: 'teeth', top: 'hair', topColor: [0.35, 0.22, 0.12] } },
+    frog:    { name: 'Frog Prince', cost: 300, level: 3, funny: true, joke: 'Kiss not required.', skin: [0.35, 0.75, 0.3], shirt: [0.3, 0.65, 0.28], legs: [0.25, 0.5, 0.2], face: { eyes: 'big', mouth: 'line', top: 'crown' } },
+    robot:   { name: 'Beep Boop', cost: 300, level: 3, funny: true, joke: 'Beep. Boop. Antenna blinks.', skin: [0.7, 0.72, 0.76], shirt: [0.5, 0.52, 0.58], legs: [0.35, 0.36, 0.4], face: { eyes: 'visor', mouth: 'none', top: 'antenna' } },
+    pig:     { name: 'Bacon', cost: 300, level: 4, funny: true, joke: 'Oink. Big snout energy.', skin: [0.98, 0.68, 0.72], shirt: [0.95, 0.6, 0.66], legs: [0.88, 0.5, 0.56], face: { eyes: 'dot', mouth: 'smile', nose: 'snout', top: 'ears', topColor: [0.95, 0.58, 0.64] } },
+    grandpa: { name: 'Grandpa', cost: 350, level: 4, funny: true, joke: 'Back in my day we mined by hand.', skin: [0.95, 0.8, 0.68], shirt: [0.55, 0.38, 0.25], legs: [0.35, 0.33, 0.3], face: { eyes: 'glasses', mouth: 'mustache', top: 'hair', topColor: [0.94, 0.94, 0.94] } },
+    derp:    { name: 'Derp', cost: 200, level: 2, funny: true, joke: 'Eyes looking two ways at once.', skin: [0.96, 0.82, 0.62], shirt: [0.95, 0.4, 0.6], legs: [0.3, 0.4, 0.85], face: { eyes: 'derp', mouth: 'tongue', top: 'party' } },
+    imp:     { name: 'Lil Imp', cost: 400, level: 5, funny: true, joke: 'Tiny horns, big trouble.', skin: [0.88, 0.25, 0.2], shirt: [0.25, 0.1, 0.12], legs: [0.15, 0.06, 0.08], face: { eyes: 'angry', mouth: 'grin', top: 'horns' } },
+    chef:    { name: 'Le Chef', cost: 400, level: 6, funny: true, joke: 'Sleepy chef with a fancy mustache.', skin: [0.96, 0.8, 0.66], shirt: [0.97, 0.97, 0.97], legs: [0.2, 0.2, 0.24], face: { eyes: 'sleepy', mouth: 'mustache', top: 'chef' } },
   },
   trail: {
     none:    { name: 'No Trail', cost: 0, level: 1 },
@@ -2309,27 +2373,27 @@ const WEAPON_TOOLS = ['sword', 'axe', 'pickaxe', 'bow'];
 const WEAPON_SKINS = {
   default: { name: 'Standard', cost: 0, level: 1, tag: 'Plain steel. No perk, no drawback.', perk: {},
     pal: { hi: [240, 242, 250], mid: [196, 200, 212], lo: [128, 132, 148], h1: [134, 94, 56], h2: [96, 64, 38], gd: [150, 150, 162], ol: [34, 34, 42] } },
-  frost: { name: 'Glacier', cost: 500, level: 2, tag: 'Ice crystal. Hits freeze enemies in place.',
-    perk: { sword: { chill: 1.6, dmg: 0.9 }, axe: { chill: 2.2, dmg: 0.9 }, pickaxe: { chill: 1.4, dmg: 0.9, mine: 1.1 }, bow: { chill: 2, arrow: 0.9 } },
+  frost: { name: 'Glacier', cost: 500, level: 2, tag: 'Ice crystal. Hits freeze enemies in place.', pickTag: 'Cryo drill: tears through stone and ore, sluggish in dirt.',
+    perk: { sword: { chill: 1.6, dmg: 0.9 }, axe: { chill: 2.2, dmg: 0.9 }, pickaxe: { mineHard: 1.35, mineSoft: 0.8 }, bow: { chill: 2, arrow: 0.9 } },
     pal: { hi: [240, 252, 255], mid: [150, 215, 250], lo: [70, 140, 210], h1: [210, 235, 250], h2: [120, 170, 210], gd: [180, 230, 255], gem: [255, 255, 255], fx: [0.7, 0.9, 1], ol: [18, 48, 92] } },
-  inferno: { name: 'Inferno', cost: 600, level: 3, tag: 'Living flame. Sets enemies on fire, but swings slower.', fire: true,
-    perk: { sword: { burn: 3, speed: 1.12 }, axe: { burn: 3.5, speed: 1.12 }, pickaxe: { burn: 2, mine: 1.2, speed: 1.1 }, bow: { burn: 4, draw: 1.15 } },
+  inferno: { name: 'Inferno', cost: 600, level: 3, tag: 'Living flame. Sets enemies on fire, but swings slower.', pickTag: 'Melts rock fast, but some blocks burn up and drop nothing.', fire: true,
+    perk: { sword: { burn: 3, speed: 1.12 }, axe: { burn: 3.5, speed: 1.12 }, pickaxe: { mine: 1.25, scorch: 0.2 }, bow: { burn: 4, draw: 1.15 } },
     pal: { hi: [255, 236, 120], mid: [255, 140, 40], lo: [190, 40, 20], h1: [74, 42, 30], h2: [42, 22, 18], gd: [64, 40, 40], gem: [255, 220, 90], fx: [1, 0.55, 0.12], ol: [52, 10, 4] } },
-  blood: { name: 'Bloodmoon', cost: 700, level: 4, tag: 'Cursed crimson. Heals you on every hit, hits a bit softer.',
-    perk: { sword: { leech: 0.3, dmg: 0.9 }, axe: { leech: 0.25, dmg: 0.92 }, pickaxe: { leech: 0.3, mine: 0.9 }, bow: { leech: 0.25, arrow: 0.9 } },
+  blood: { name: 'Bloodmoon', cost: 700, level: 4, tag: 'Cursed crimson. Heals you on every hit, hits a bit softer.', pickTag: 'Every block you mine heals you a little.',
+    perk: { sword: { leech: 0.3, dmg: 0.9 }, axe: { leech: 0.25, dmg: 0.92 }, pickaxe: { mineHeal: 2, mine: 0.9 }, bow: { leech: 0.25, arrow: 0.9 } },
     pal: { hi: [255, 120, 128], mid: [204, 32, 54], lo: [112, 10, 30], h1: [48, 36, 48], h2: [26, 20, 30], gd: [74, 62, 80], gem: [255, 60, 84], fx: [0.9, 0.08, 0.15], ol: [30, 0, 10] } },
-  volt: { name: 'Voltage', cost: 700, level: 5, tag: 'Neon lightning. Run faster with it out, hits lighter.',
-    perk: { sword: { move: 1.15, speed: 0.9, dmg: 0.85 }, axe: { move: 1.12, speed: 0.92, dmg: 0.88 }, pickaxe: { move: 1.15, mine: 1.15, dmg: 0.85 }, bow: { arrowSpeed: 1.4, draw: 0.9, arrow: 0.85 } },
+  volt: { name: 'Voltage', cost: 700, level: 5, tag: 'Neon lightning. Run faster with it out, hits lighter.', pickTag: 'Zips through dirt, sand and wood, and you run faster.',
+    perk: { sword: { move: 1.15, speed: 0.9, dmg: 0.85 }, axe: { move: 1.12, speed: 0.92, dmg: 0.88 }, pickaxe: { mineSoft: 1.4, move: 1.1, mineHard: 0.9 }, bow: { arrowSpeed: 1.4, draw: 0.9, arrow: 0.85 } },
     pal: { hi: [255, 255, 190], mid: [255, 230, 60], lo: [40, 190, 255], h1: [54, 54, 74], h2: [30, 30, 44], gd: [40, 200, 255], gem: [150, 255, 255], fx: [0.55, 1, 1], ol: [16, 16, 40] } },
-  titan: { name: 'Titan', cost: 800, level: 6, tag: 'Heavy bronze. Huge hits and knockback, but slow.',
-    perk: { sword: { dmg: 1.15, kb: 1.7, speed: 1.15, move: 0.92 }, axe: { dmg: 1.2, kb: 1.8, speed: 1.2, move: 0.9 }, pickaxe: { mine: 1.4, speed: 1.1, move: 0.9 }, bow: { arrow: 1.25, kb: 2.2, draw: 1.3 } },
+  titan: { name: 'Titan', cost: 800, level: 6, tag: 'Heavy bronze. Huge hits and knockback, but slow.', pickTag: 'Breaks two blocks deep in one go, but each swing is slow.',
+    perk: { sword: { dmg: 1.15, kb: 1.7, speed: 1.15, move: 0.92 }, axe: { dmg: 1.2, kb: 1.8, speed: 1.2, move: 0.9 }, pickaxe: { deep: true, mine: 0.75 }, bow: { arrow: 1.25, kb: 2.2, draw: 1.3 } },
     pal: { hi: [200, 200, 210], mid: [146, 146, 156], lo: [92, 92, 102], h1: [156, 108, 52], h2: [112, 76, 36], gd: [226, 176, 62], gem: [255, 218, 86], fx: [1, 0.85, 0.35], ol: [30, 28, 30] } },
-  phantom: { name: 'Phantom', cost: 900, level: 8, tag: 'Spectral blade. Deadly from behind, weaker head-on.',
-    perk: { sword: { backstab: 1.6, dmg: 0.92 }, axe: { backstab: 1.5, dmg: 0.92 }, pickaxe: { mine: 1.1, move: 1.08, dmg: 0.9 }, bow: { grav: 0.35, arrow: 0.92 } },
+  phantom: { name: 'Phantom', cost: 900, level: 8, tag: 'Spectral blade. Deadly from behind, weaker head-on.', pickTag: 'A thief\'s tool: much faster inside enemy land.',
+    perk: { sword: { backstab: 1.6, dmg: 0.92 }, axe: { backstab: 1.5, dmg: 0.92 }, pickaxe: { raid: 1.5, mine: 0.9 }, bow: { grav: 0.35, arrow: 0.92 } },
     pal: { hi: [246, 236, 255], mid: [190, 160, 255], lo: [120, 80, 210], h1: [54, 42, 74], h2: [30, 24, 46], gd: [150, 120, 220], gem: [240, 220, 255], fx: [0.8, 0.65, 1], ol: [30, 14, 62] } },
-  admin: { name: 'Admin', cost: 0, level: 1, admin: true, tag: 'Every perk at once. Admins only.', rainbow: true,
+  admin: { name: 'Admin', cost: 0, level: 1, admin: true, tag: 'Every perk at once. Admins only.', pickTag: 'Mines 3x faster, double drops, 2 deep.', rainbow: true,
     perk: { sword: { dmg: 1.5, speed: 0.7, chill: 1.5, burn: 3, leech: 0.3, kb: 1.5, move: 1.15 }, axe: { dmg: 1.5, speed: 0.7, chill: 1.5, burn: 3, leech: 0.3, kb: 1.5 },
-      pickaxe: { mine: 3, move: 1.15 }, bow: { draw: 0.5, arrow: 1.5, arrowSpeed: 1.3, burn: 3, chill: 1.5 } },
+      pickaxe: { mine: 3, double: true, mineHeal: 2, deep: true }, bow: { draw: 0.5, arrow: 1.5, arrowSpeed: 1.3, burn: 3, chill: 1.5 } },
     pal: { hi: [255, 190, 250], mid: [255, 70, 225], lo: [130, 0, 170], h1: [34, 34, 38], h2: [16, 16, 20], gd: [34, 34, 38], gem: [255, 255, 255], fx: [1, 0.45, 0.95], ol: [10, 0, 22] } },
 };
 const WEAPON_SKIN_ORDER = Object.keys(WEAPON_SKINS);
@@ -2359,11 +2423,18 @@ function perkLines(b) {
   if (b.draw) out.push(b.draw < 1 ? ['Draw speed +' + pct(1 / b.draw), true] : ['Draw speed -' + pct(1 / b.draw), false]);
   if (b.mine) up(b.mine, 'Mining speed', 'Mining speed');
   if (b.move) up(b.move, 'Move speed while held', 'Move speed while held');
+  if (b.mineHard) up(b.mineHard, 'Mining stone and ore', 'Mining stone and ore');
+  if (b.mineSoft) up(b.mineSoft, 'Mining dirt, sand and wood', 'Mining dirt, sand and wood');
+  if (b.raid) out.push(['+' + pct(b.raid) + ' mining speed in enemy land', true]);
+  if (b.deep) out.push(['Breaks the block behind too (2 deep)', true]);
+  if (b.mineHeal) out.push(['Heal ' + b.mineHeal + ' HP per block mined', true]);
+  if (b.double) out.push(['Double resources from mining', true]);
+  if (b.scorch) out.push([Math.round(b.scorch * 100) + '% of mined blocks drop nothing', false]);
   return out.filter((l) => l[1]).concat(out.filter((l) => !l[1]));       // perks first, then drawbacks
 }
 const COSMETIC_SLOTS = ['skin', 'trail', 'kill', 'banner'];
 /** Admin panel: opened by typing this as a join code. Anyone who reads game.js can see it, so it is a fun extra, not security. */
-const GAME_VERSION = '2.4 (Oct 17)';   // shown on the main menu so players can tell an old cached copy apart
+const GAME_VERSION = '2.5 (Oct 17)';   // shown on the main menu so players can tell an old cached copy apart
 const ADMIN_CODE = 'LN1';
 const ADMIN_DEFAULTS = { speed: 1, jump: 1, damage: 1, mine: 1, health: 100, regen: 1, draw: 1, god: false, infinite: false };
 const ADMIN_SLIDERS = [                                         // [key, label, min, max, step, format]
@@ -2429,7 +2500,8 @@ function sanitizeLook(l) {
 function randomLook(rng = Math.random) {
   const pick = (slot) => { const ids = Object.keys(COSMETICS[slot]).filter((id) => !COSMETICS[slot][id].admin); return ids[Math.floor(rng() * ids.length)]; };
   const weapons = {}; for (const t of WEAPON_TOOLS) weapons[t] = rng() < 0.5 ? 'default' : ['frost', 'inferno', 'blood', 'volt', 'titan', 'phantom'][Math.floor(rng() * 6)];
-  return sanitizeLook({ weapons, skin: rng() < 0.45 ? 'default' : pick('skin'), trail: rng() < 0.6 ? 'none' : pick('trail'), kill: pick('kill'), banner: pick('banner'), bannerColor: Math.floor(rng() * BANNER_COLORS.length), title: TITLE_ORDER[Math.floor(rng() * 4)], emotes: DEFAULT_EMOTES });
+  const funny = Object.keys(COSMETICS.skin).filter((id) => COSMETICS.skin[id].funny);
+  return sanitizeLook({ weapons, skin: rng() < 0.8 ? funny[Math.floor(rng() * funny.length)] : rng() < 0.5 ? 'default' : pick('skin'), trail: rng() < 0.6 ? 'none' : pick('trail'), kill: pick('kill'), banner: pick('banner'), bannerColor: Math.floor(rng() * BANNER_COLORS.length), title: TITLE_ORDER[Math.floor(rng() * 4)], emotes: DEFAULT_EMOTES });
 }
 
 /* =========================== 11. GAME SERVER ============================ */
@@ -2592,7 +2664,7 @@ class GameServer {
     this.unlimited = true; this.allianceMode = false;
     this.map = null; this.plots = [];
     this.event = null; this.eventGap = 2; this.lastEventType = null;
-    this.vault = { progress: 0, team: -1, cooldown: 0, capturing: false, captured: 0 }; this.drops = [];
+    this.vault = { progress: 0, team: -1, cooldown: 0, capturing: false, captured: 0, stage: 0, stageT: 0 }; this.drops = [];
     this.drops = []; this.dropClock = CONFIG.MATCH.DROP_FIRST;
     this.baseCount = [0, 0, 0, 0, 0, 0]; this.baseRef = [0, 0, 0, 0, 0, 0]; this.baseDestroyed = [false, false, false, false, false, false];
     this.recentBreaks = new Map();
@@ -2772,8 +2844,20 @@ class GameServer {
       case 'emote': return this.emote(p, msg);
       case 'hold': if (ITEMS[msg.item]) p.held = msg.item; return { ok: true };
       case 'block': return this.setBlock(p, !!msg.on);
+      case 'swing': return this.swingAir(p, msg);
       default: return { ok: false, reason: 'unknown-action' };
     }
+  }
+  /** A swing that hits nothing (air, or a mining stroke). Weapons still pay their cooldown on an air swing, like Minecraft. */
+  swingAir(p, { tool, mining }) {
+    const T = TOOLS[tool];
+    if (!mining && T && T.cd && T.dmg != null) {
+      const full = T.cd * p.mods.attackCooldown * (weaponBoost(p.look, tool).speed || 1);
+      if (p.cooldowns.attack > 0.05) return { ok: false, reason: 'cooldown' };
+      p.cooldowns.attack = full;
+    }
+    if (p.swing <= 0.15) { p.swing = 1; p.swingKind = TOOLS[tool] ? tool : 'pickaxe'; }
+    return { ok: true };
   }
   /** Equipped emotes appear as a speech bubble and a feed line. Rate limited. */
   emote(p, { slot }) {
@@ -2803,9 +2887,23 @@ class GameServer {
     this.cause = p.index;
     w.set(x, y, z, AIR);
     this.cause = null;
-    this.dropFor(p, def);
+    const pk = p.held === 'pickaxe' ? weaponBoost(p.look, 'pickaxe') : {};
+    if (!(pk.scorch && Math.random() < pk.scorch)) this.dropFor(p, def);
+    if (pk.double) this.dropFor(p, def);
+    if (pk.mineHeal && p.alive) p.health = Math.min(p.maxHealth, p.health + pk.mineHeal);
     p.stats.blocksDestroyed++; p.stats.score += 1;
+    if (p.swing <= 0.2) { p.swing = 1; p.swingKind = 'pickaxe'; }
     this.emit({ type: 'blockBroken', x, y, z, block: def, by: p.id });
+    if (pk.deep) {                                                       // Titan pickaxe: also breaks the block behind (along the dominant look axis)
+      const d = p.lookDirection(), ax = Math.abs(d.x), ay = Math.abs(d.y), az = Math.abs(d.z);
+      const bx = x + (ax >= ay && ax >= az ? Math.sign(d.x) : 0), by = y + (ay > ax && ay >= az ? Math.sign(d.y) : 0), bz = z + (az > ax && az > ay ? Math.sign(d.z) : 0);
+      const id2 = w.inBounds(bx, by, bz) ? w.get(bx, by, bz) : AIR, d2 = BLOCKS[id2];
+      if (id2 !== AIR && d2.breakable && id2 !== ID.core && d2.shape !== 'fluid' && this.canModify(p, bx, by, bz)) {
+        this.cause = p.index; w.set(bx, by, bz, AIR); this.cause = null;
+        this.dropFor(p, d2); p.stats.blocksDestroyed++;
+        this.emit({ type: 'blockBroken', x: bx, y: by, z: bz, block: d2, by: p.id });
+      }
+    }
     return { ok: true };
   }
 
@@ -2819,6 +2917,7 @@ class GameServer {
     if (p.cooldowns.place > 0) return { ok: false, reason: 'cooldown' };
     if (!this.withinReach(p, x, y, z)) return { ok: false, reason: 'too-far' };
     if (!this.canModify(p, x, y, z)) return { ok: false, reason: 'not-allowed' };
+    if (this.mode !== 'sandbox' && this.inVaultZone(x, y, z)) return { ok: false, reason: 'vault-zone' };
     let supported = false;
     for (const d of DIRS6) if (BLOCKS[w.get(x + d[0], y + d[1], z + d[2])].solid) { supported = true; break; }
     if (!supported) return { ok: false, reason: 'no-support' };
@@ -2912,8 +3011,7 @@ class GameServer {
       if ((ax * -Math.sin(target.yaw) + az * -Math.cos(target.yaw)) / l < -0.3) dmg *= wb.backstab;
     }
     // crits: always on a falling (jump) hit, sometimes on any full-strength sword/axe hit. The axe hits hardest but swings slowest.
-    const jumpCrit = strong && !p.onGround && p.vel.y < -0.5 && !sprint && !p.inWater && !p.inLava;
-    const crit = jumpCrit || (strong && t.critChance && Math.random() < t.critChance);
+    const crit = strong && !p.onGround && p.vel.y < -0.5 && !sprint && !p.inWater && !p.inLava;   // Minecraft rule: jump-hits only
     if (crit) dmg *= t.crit || 1.5;
     if (p.buffs && p.buffs.rage > 0) dmg *= 1.3;
     target.lastBlocked = false;
@@ -3574,26 +3672,35 @@ class GameServer {
   /* ---------------------------- objective vault ---------------------------- */
   updateVault(dt) {
     const v = this.vault, m = this.map.vault;
+    if (v.stage == null) { v.stage = 0; v.stageT = 0; }
     if (v.cooldown > 0) { v.cooldown -= dt; v.progress = 0; v.capturing = false; return; }
-    const inside = this.players.filter((p) => p.alive && Math.hypot(p.pos.x - m.x, p.pos.z - m.z) <= m.radius && p.pos.y > m.y - 3.5 && p.pos.y < m.y + 3);
+    if (v.stage > 0 && (v.stageT += dt) > 75) { v.stage = 0; v.stageT = 0; v.progress = 0; this.emit({ type: 'vaultReset' }); }   // the course resets if nobody pushes on
+    const pad = m.pads[v.stage], st = VAULT_STAGES[v.stage];
+    const inside = this.players.filter((p) => p.alive && Math.hypot(p.pos.x - pad.x, p.pos.z - pad.z) <= pad.r && Math.abs(p.pos.y - pad.y) < 1.3);
     const teams = new Set(inside.map((p) => p.team));
     if (teams.size === 1) {
       const team = inside[0].team;
       if (v.team !== team) { v.team = team; v.progress = 0; }
-      v.progress += dt / 10; v.capturing = true;
+      v.progress += dt / st.time; v.capturing = true;
       if (v.progress >= 1) {
-        v.progress = 0; v.cooldown = 45; v.capturing = false; v.captured++;
+        v.progress = 0; v.capturing = false; v.captured++;
         for (const p of inside) {
-          p.stats.objectives++; p.stats.score += 250;
-          for (const [k, a] of Object.entries({ tnt: 2, iron: 3, mech: 4, lava: 1, water: 1, glass: 4 })) this.addResource(p, k, a);
+          p.stats.objectives++; p.stats.score += st.score;
+          for (const [k, a] of Object.entries(st.give)) this.addResource(p, k, a);
+          if (st.buffs) for (const [k, t] of st.buffs) this.giveBuff(p, k, t);
         }
-        this.emit({ type: 'vaultCaptured', players: inside });
+        const stage = v.stage;
+        v.stage = (v.stage + 1) % VAULT_STAGES.length; v.stageT = 0;
+        if (v.stage === 0) v.cooldown = 50;                              // conquered the spire: the vault recharges
+        this.emit({ type: 'vaultCaptured', players: inside, stage, final: stage === VAULT_STAGES.length - 1 });
       }
     } else {
       v.capturing = false;
       v.progress = Math.max(0, v.progress - dt / 6);
     }
   }
+  /** Inside the vault course nothing can be built: it has to be run, not pillared. */
+  inVaultZone(x, y, z) { const m = this.map && this.map.vault; return !!m && m.cx != null && Math.max(Math.abs(x - m.cx), Math.abs(z - m.cz)) <= 9 && y >= m.floorY; }
   /* ---------------- supply drops, buffs and kill streaks ---------------- */
   /** War and chaos: a crate parachutes onto neutral ground every so often. Standing on it (uncontested) claims the loot. */
   updateDrops(dt) {
@@ -3622,7 +3729,7 @@ class GameServer {
   spawnDrop() {
     const w = this.world, v = this.map.vault, r = mulberry32((this.clock * 1000) | 0);
     for (let tries = 0; tries < 40; tries++) {
-      const a = r() * Math.PI * 2, dist = 6 + r() * 26, x = Math.floor(v.x + Math.cos(a) * dist), z = Math.floor(v.z + Math.sin(a) * dist);
+      const a = r() * Math.PI * 2, dist = 14 + r() * 20, x = Math.floor(v.x + Math.cos(a) * dist), z = Math.floor(v.z + Math.sin(a) * dist);
       if (x < 2 || z < 2 || x >= w.sizeX - 2 || z >= w.sizeZ - 2) continue;
       if (this.plots.some((pl) => this.inPlot(pl, x, z))) continue;                 // neutral ground only
       let g = -1;
@@ -4221,7 +4328,7 @@ class HostSession {
     const p = this.server.playerById(peer.id);
     if (!p || !p.isRemote || !m.m || typeof m.m !== 'object' || this.state !== 'playing') return;
     const msg = m.m;
-    if (!['break', 'place', 'use', 'attack', 'shoot', 'ignite', 'propose', 'respond', 'leaveAlliance', 'bounty', 'emote', 'hold', 'block'].includes(msg.type)) return;
+    if (!['break', 'place', 'use', 'attack', 'shoot', 'ignite', 'propose', 'respond', 'leaveAlliance', 'bounty', 'emote', 'hold', 'block', 'swing'].includes(msg.type)) return;
     for (const k of ['x', 'y', 'z']) if (k in msg && !Number.isInteger(msg[k])) return;
     if (msg.type === 'place' && !ITEMS[msg.item]) return;
     if (msg.type === 'shoot') msg.charge = clamp(+msg.charge || 0, 0, 1);
@@ -4274,7 +4381,7 @@ class HostSession {
     return {
       c: s.clock, ph: s.phase, pt: s.phaseTime, dk: s.darkness, gs: s.gravityScale,
       ev: s.event ? { type: s.event.type, name: s.event.name, state: s.event.state, duration: s.event.duration, t: s.event.t } : null,
-      v: { progress: s.vault.progress, team: s.vault.team, cooldown: s.vault.cooldown, capturing: s.vault.capturing, captured: s.vault.captured },
+      v: { progress: s.vault.progress, team: s.vault.team, cooldown: s.vault.cooldown, capturing: s.vault.capturing, captured: s.vault.captured, stage: s.vault.stage || 0 },
       p: s.players.map((p) => ({
         i: p.index, x: p.pos.x, y: p.pos.y, z: p.pos.z, yw: p.yaw, pt: p.pitch, hp: p.health, al: p.alive ? 1 : 0, cr: p.crouching ? 1 : 0, bu: p.burnTime > 0 ? 1 : 0,
         wk: p.walkPhase, sw: p.swing, bo: p.bounty, tm: p.team, bot: p.isBot ? 1 : 0, mv: Math.hypot(p.vel.x, p.vel.z) > 1.2 && p.onGround ? 1 : 0, hd: p.held, sk: p.swingKind, bk: p.blocking ? 1 : 0, sp: p.sprinting ? 1 : 0, ci: p.chillT > 0 ? 1 : 0, bf: (p.buffs.rage > 0 ? 1 : 0) | (p.buffs.swift > 0 ? 2 : 0) | (p.buffs.armor > 0 ? 4 : 0), ks: p.streak || 0,
@@ -4451,7 +4558,7 @@ class NetServerView {
       const mineP = p === this.me;
       if (!mineP) { p.prev.x = p.pos.x; p.prev.y = p.pos.y; p.prev.z = p.pos.z; p.pos.x = q.x; p.pos.y = q.y; p.pos.z = q.z; p.yaw = q.yw; p.pitch = q.pt; }
       if (p.alive && !q.al) p.alive = false; else if (!p.alive && q.al) { p.alive = true; if (mineP) { p.teleport(q.x, q.y, q.z); this.pending.length = 0; } }
-      p.health = q.hp; p.crouching = !!q.cr; p.burnTime = q.bu ? 1 : 0; p.walkPhase = q.wk; p.swing = q.sw; p.bounty = q.bo; p.team = q.tm; p.isBot = !!q.bot;
+      p.health = q.hp; p.crouching = !!q.cr; p.burnTime = q.bu ? 1 : 0; p.walkPhase = q.wk; if (!mineP) p.swing = q.sw; p.bounty = q.bo; p.team = q.tm; p.isBot = !!q.bot;
       p.moving = !!q.mv; p.held = q.hd || 'pickaxe'; p.swingKind = q.sk || 'sword'; p.sprinting = !!q.sp; if (!mineP) { p.blocking = !!q.bk; p.chillT = q.ci ? 1 : 0; p.buffs = { rage: q.bf & 1 ? 1 : 0, swift: q.bf & 2 ? 1 : 0, armor: q.bf & 4 ? 1 : 0 }; }
       p.streak = q.ks || 0;
       const st = p.stats; [st.score, st.kills, st.assists, st.deaths, st.damageDealt, st.blocksDestroyed, st.structuresDestroyed, st.tntKills, st.objectives] = q.st;
@@ -4520,6 +4627,7 @@ class NetServerView {
     if (!this.me.alive) return { ok: false, reason: 'dead' };
     if (msg.type === 'hold') this.me.held = msg.item;
     else if (msg.type === 'block') { if (msg.on) { if (this.me.blockCd <= 0 && !this.me.blocking) { this.me.blocking = true; this.me.blockT = 0; } } else if (this.me.blocking) { this.me.blocking = false; this.me.blockCd = 0.35; } }
+    if (msg.type === 'swing' && !msg.mining) { const T = TOOLS[msg.tool]; if (T && T.cd && T.dmg != null) this.me.cooldowns.attack = T.cd * this.me.mods.attackCooldown * (weaponBoost(this.me.look, msg.tool).speed || 1); }
     if (msg.type === 'attack') { const T = TOOLS[msg.tool]; this.me.cooldowns.attack = T && T.cd ? T.cd * this.me.mods.attackCooldown * (weaponBoost(this.me.look, msg.tool).speed || 1) : 0.5; }
     else if (msg.type === 'place') this.me.cooldowns.place = Math.max(this.me.cooldowns.place, 0.15 * this.me.mods.placeCooldown);
     else if (msg.type === 'shoot') this.me.cooldowns.shoot = Math.max(this.me.cooldowns.shoot, 0.4);
@@ -4718,6 +4826,53 @@ class Bot {
 
   /* ---------- movement ---------- */
   /** Steers toward (x, z), jumping steps, digging walls and bridging gaps. `stopAt` = distance at which it stops. */
+  /** Standing in lava: head for the nearest neighbouring cell that is not lava and jump out. */
+  escapeLava() {
+    const p = this.p, c = p.controls, w = this.s.world, fy = Math.floor(p.pos.y + 0.05), px = Math.floor(p.pos.x), pz = Math.floor(p.pos.z);
+    let best = null, bd = 9;
+    for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+      if (!dx && !dz) continue;
+      for (const y of [fy, fy + 1]) {
+        const x = px + dx, z = pz + dz;
+        if (w.get(x, y, z) === ID.lava || w.isSolid(x, y, z) || w.isSolid(x, y + 1, z) || !w.isSolid(x, y - 1, z) || w.get(x, y - 1, z) === ID.lava) continue;
+        const d = Math.hypot(x + 0.5 - p.pos.x, z + 0.5 - p.pos.z) + (y - fy) * 0.3;
+        if (d < bd) { bd = d; best = { x: x + 0.5, z: z + 0.5 }; }
+      }
+    }
+    if (!best) return;
+    p.yaw = Math.atan2(-(best.x - p.pos.x), -(best.z - p.pos.z));
+    c.forward = true; c.sprint = true; c.jump = true; c.back = c.left = c.right = false;
+    this.followingPath = true;
+  }
+  /** Runs the vault obstacle course: waypoint by waypoint, jumping up pillars and over gaps. Restarts from the nearest point after a fall. */
+  runCourse(dt, m, stage) {
+    const p = this.p, c = p.controls, w = this.s.world;
+    if (this.courseStage !== stage || !this.course) { this.course = vaultCourse(m, stage, p.pos.x, p.pos.z); this.courseStage = stage; this.cwp = -1; }
+    const C = this.course;
+    if (this.cwp < 0 || (p.onGround && p.pos.y < C[this.cwp].y - 1.5)) {        // (re)join: nearest waypoint at or below our height
+      let best = 0, bd = 1e9;
+      for (let i = 0; i < C.length; i++) { if (C[i].y > p.pos.y + 0.6) continue; const d = Math.hypot(C[i].x - p.pos.x, C[i].z - p.pos.z) + Math.abs(C[i].y - p.pos.y) * 3 - i * 0.05; if (d < bd) { bd = d; best = i; } }
+      this.cwp = best;
+    }
+    let wp = C[this.cwp];
+    const hd = Math.hypot(wp.x - p.pos.x, wp.z - p.pos.z);
+    if (hd < 0.45 && Math.abs(p.pos.y - wp.y) < 0.6 && p.onGround) { if (this.cwp < C.length - 1) { this.cwp++; wp = C[this.cwp]; } else { c.forward = false; return; } }
+    const dx = wp.x - p.pos.x, dz = wp.z - p.pos.z, d = Math.hypot(dx, dz) || 1, up = wp.y - p.pos.y;
+    p.yaw = Math.atan2(-dx, -dz); p.pitch *= 0.8;
+    const next = C[this.cwp + 1], hop = up > 0.4 || (next && next.y > wp.y + 0.4);   // short precise hops: no sprinting
+    c.forward = d > 0.15; c.sprint = !hop && d > 0.8;
+    const spd = Math.hypot(p.vel.x, p.vel.z);
+    if (p.onGround && c.forward && spd < 0.8) this.courseStuck = (this.courseStuck || 0) + dt; else this.courseStuck = 0;
+    if (this.courseStuck > 0.5) { this.courseSide = Math.random() < 0.5 ? 1 : -1; this.courseSideT = 0.45; this.courseStuck = 0; }
+    if ((this.courseSideT = (this.courseSideT || 0) - dt) > 0) { if (this.courseSide > 0) c.right = true; else c.left = true; }
+    const ux = dx / d, uz = dz / d, fy = Math.floor(p.pos.y + 0.05);
+    const toward = p.vel.x * ux + p.vel.z * uz;                                       // speed toward the waypoint
+    const blocked = w.isSolid(Math.floor(p.pos.x + ux * 0.6), fy, Math.floor(p.pos.z + uz * 0.6)) && !w.isSolid(Math.floor(p.pos.x + ux * 0.6), fy + 1, Math.floor(p.pos.z + uz * 0.6));
+    const gapAhead = !w.isSolid(Math.floor(p.pos.x + ux * 0.65), fy - 1, Math.floor(p.pos.z + uz * 0.65)) && up > -0.5;
+    if (p.onGround && (blocked || (up > 0.4 && d < 1.55 && toward > 2) || (gapAhead && d > 1 && toward > 2.5))) c.jump = true;
+    if (!p.onGround) { c.forward = true; c.sprint = false; }   // in the air keep steering at the pillar: this also brakes an overshoot
+    this.followingPath = true;
+  }
   walkTo(x, z, dt, stopAt = 0.6, allowDig = true, goalY = null) {
     const p = this.p, w = this.s.world, c = p.controls;
     const dx = x - p.pos.x, dz = z - p.pos.z, d = Math.hypot(dx, dz);
@@ -4768,7 +4923,7 @@ class Bot {
     if (!floor) return false;
     this.face(fx + 0.5, fy + 0.5, fz + 0.5, true);
     if (!this.mine || this.mine.y !== fy || this.mine.x !== fx || this.mine.z !== fz) this.mine = { x: fx, y: fy, z: fz, t: 0, need: mineTime(BLOCKS[below], 'pickaxe', p.mods, p.look) };
-    this.mine.t += dt;
+    this.mine.t += dt; if (this.p.swing <= 0) { this.p.swing = 1; this.p.swingKind = 'pickaxe'; }
     if (this.mine.t >= this.mine.need) { s.handle(p.id, { type: 'break', x: fx, y: fy, z: fz }); this.mine = null; }
     return true;
   }
@@ -4781,7 +4936,7 @@ class Bot {
       if (!s.canModify(p, fx, fy + 2, fz) || !BLOCKS[w.get(fx, fy + 2, fz)].breakable) return false;
       this.face(fx + 0.5, fy + 2.5, fz + 0.5, true);
       if (!this.mine || this.mine.y !== fy + 2 || this.mine.x !== fx || this.mine.z !== fz) this.mine = { x: fx, y: fy + 2, z: fz, t: 0, need: mineTime(BLOCKS[w.get(fx, fy + 2, fz)], 'pickaxe', p.mods, p.look) };
-      this.mine.t += dt;
+      this.mine.t += dt; if (this.p.swing <= 0) { this.p.swing = 1; this.p.swingKind = 'pickaxe'; }
       if (this.mine.t >= this.mine.need) { s.handle(p.id, { type: 'break', x: fx, y: fy + 2, z: fz }); this.mine = null; }
       return true;
     }
@@ -4807,7 +4962,7 @@ class Bot {
     c.forward = false;
     if (!this.mine || this.mine.x !== x || this.mine.y !== ty || this.mine.z !== z) this.mine = { x, y: ty, z, t: 0, need: mineTime(def, 'pickaxe', p.mods, p.look) };
     this.face(x + 0.5, ty + 0.5, z + 0.5);
-    this.mine.t += dt;
+    this.mine.t += dt; if (this.p.swing <= 0) { this.p.swing = 1; this.p.swingKind = 'pickaxe'; }
     if (this.mine.t >= this.mine.need) {
       const r = this.s.handle(p.id, { type: 'break', x, y: ty, z });
       if (!r.ok) { this.detour = 1.4; this.detourT = 1; }
@@ -4920,7 +5075,7 @@ class Bot {
       if (Math.hypot(job.x + 0.5 - e0.x, gy + 0.5 - e0.y, job.z + 0.5 - e0.z) > 4.4) { this.walkTo(job.x + 0.5, job.z + 0.5, dt, 3, false); return; }
       this.face(job.x + 0.5, gy + 0.5, job.z + 0.5, true);
       if (!this.mine || this.mine.x !== job.x || this.mine.z !== job.z) this.mine = { x: job.x, y: gy, z: job.z, t: 0, need: mineTime(def, 'pickaxe', p.mods, p.look) };
-      this.mine.t += dt;
+      this.mine.t += dt; if (this.p.swing <= 0) { this.p.swing = 1; this.p.swingKind = 'pickaxe'; }
       if (this.mine.t >= this.mine.need) { s.handle(p.id, { type: 'break', x: job.x, y: gy, z: job.z }); this.mine = null; this.queueIndex++; }
       return;
     }
@@ -4981,7 +5136,7 @@ class Bot {
     const def = BLOCKS[w.get(t.x, t.y, t.z)];
     if (!this.mine || this.mine.x !== t.x || this.mine.y !== t.y || this.mine.z !== t.z) this.mine = { x: t.x, y: t.y, z: t.z, t: 0, need: mineTime(def, def.sound === 'wood' ? 'axe' : 'pickaxe', p.mods, p.look) };
     this.face(t.x + 0.5, t.y + 0.5, t.z + 0.5);
-    this.mine.t += dt;
+    this.mine.t += dt; if (this.p.swing <= 0) { this.p.swing = 1; this.p.swingKind = 'pickaxe'; }
     if (this.mine.t >= this.mine.need) { this.s.handle(p.id, { type: 'break', x: t.x, y: t.y, z: t.z }); this.mine = null; this.gatherTarget = null; }
     return true;
   }
@@ -5049,7 +5204,7 @@ class Bot {
       else if (siege && (!t || d > 10 || !this.hasLOS(t)) && Math.random() < 0.25 + 0.35 * T.tnt + 0.25 * aggr) { this.mode = 'siege'; this.siegeCore = siege; }
       else if (t && (aggr > 0.45 || d < 30)) this.mode = 'hunt';
       else this.mode = 'gather';
-      if (this.mode !== prev) { this.modeT = 0; if (this.mode === 'hunt') { this.approach = pickOf(ARCHETYPES[this.archetype].approach); this.tunnelT = 0; } }
+      if (this.mode !== prev) { this.modeT = 0; this.course = null; if (this.mode === 'hunt') { this.approach = pickOf(ARCHETYPES[this.archetype].approach); this.tunnelT = 0; } }
     }
     this.modeT = (this.modeT || 0) + dt;
     this.hitRun = Math.max(0, this.hitRun - dt);
@@ -5083,7 +5238,11 @@ class Bot {
         this.blockT = (this.blockT || 0) - dt;
         if (p.blocking && this.blockT <= 0) s.handle(p.id, { type: 'block', on: false });
         else if (!p.blocking && t.swing > 0.5 && Math.random() < 0.05 * this.diff().block * (1 - this.traits.sloppy) && tool !== 'bow') { if (s.handle(p.id, { type: 'block', on: true }).ok) this.blockT = 0.4 + Math.random() * 0.5; }
-        if (!p.blocking && p.cooldowns.attack <= 0 && Math.random() < this.diff().rate) {
+        // Minecraft-style crit: hop as the swing recovers and strike on the way down
+        if (tool !== 'staff' && p.onGround && p.cooldowns.attack < 0.3 && this.dist(t) < 3 && Math.random() < 0.08 * this.diff().rate) { c.jump = true; this.critJump = 0.8; }
+        this.critJump = Math.max(0, (this.critJump || 0) - dt);
+        const waitCrit = this.critJump > 0 && !p.onGround && p.vel.y > -0.6;
+        if (!waitCrit && !p.blocking && p.cooldowns.attack <= 0 && Math.random() < this.diff().rate) {
           s.handle(p.id, { type: 'attack', targetId: t.id, tool });
           if (p.classId === 'scout' && Math.random() < 0.35) this.hitRun = 0.8 + Math.random() * 0.8;      // scouts strike and slip away
           else if (Math.random() < 0.08 * this.traits.sloppy) this.hitRun = 0.6;
@@ -5115,9 +5274,9 @@ class Bot {
         break;
       }
       case 'vault': {
-        const v = s.map.vault;
-        if (v.y + 1 - p.pos.y > 2.2 && Math.hypot(v.x - p.pos.x, v.z - p.pos.z) < 8 && this.pillarUp(dt)) break;
-        this.walkTo(v.x, v.z, dt, 1.2, true, v.y + 1);
+        const m = s.map.vault;
+        if (!m.pads) { this.walkTo(m.x, m.z, dt, 1.2, true, m.y + 1); break; }
+        this.runCourse(dt, m, s.vault.stage || 0);
         break;
       }
       case 'fortify': {                                                    // lay traps / patch the base while the war rages
@@ -5253,7 +5412,7 @@ class Bot {
     if (!hit || !BLOCKS[w.get(hit.x, hit.y, hit.z)].breakable || !s.canModify(p, hit.x, hit.y, hit.z)) return false;
     this.face(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, true);
     if (!this.mine || this.mine.x !== hit.x || this.mine.y !== hit.y || this.mine.z !== hit.z) this.mine = { x: hit.x, y: hit.y, z: hit.z, t: 0, need: mineTime(w.def(hit.x, hit.y, hit.z), 'pickaxe', p.mods, p.look) };
-    this.mine.t += dt;
+    this.mine.t += dt; if (this.p.swing <= 0) { this.p.swing = 1; this.p.swingKind = 'pickaxe'; }
     if (this.mine.t >= this.mine.need) { s.handle(p.id, { type: 'break', x: hit.x, y: hit.y, z: hit.z }); this.mine = null; }
     return true;
   }
@@ -5315,6 +5474,7 @@ class Bot {
     if (s.phase === 'build') this.buildUpdate(dt);
     else if (s.phase === 'war' || s.phase === 'chaos' || s.phase === 'sandbox') { this.warUpdate(dt); this.watchStall(dt); }
     if (p.inLava || p.inWater) c.jump = true;
+    if (p.inLava) this.escapeLava();
     this.guardEdges();
     if (p.onGround && this.skyBase != null && this.mode !== 'hunt') this.skyBase = null;
   }
@@ -5619,8 +5779,54 @@ class Renderer {
     this.part(base, 0.1, 1.5, -0.235, 0, 0, 0.1, 0.1, 0.03, [0.02, 0.02, 0.02]);
     this.part(base, 0, 1.4, -0.235, 0, 0, 0.12, 0.16, 0.03, [0.02, 0.02, 0.02]);
   }
+  /** A face on the FRONT of a head (so you can always tell which way someone is looking), plus silly hats. H = head-centre matrix. */
+  face(H, f, tint, time) {
+    const Z = -0.213;                                                    // the front of the head (models face -z)
+    const B = (x, y, w, h, c, z = 0, d = 0.02, lit = 1) => this.box(Mat4.chain(H, Mat4.translation(x, y, Z - z), Mat4.scaling(w, h, d)), lit ? tint(c) : c, lit);
+    const R = (x, y, z, w, h, d, c, rz = 0, lit = 1) => this.box(Mat4.chain(H, Mat4.translation(x, y, z), Mat4.rotationZ(rz), Mat4.scaling(w, h, d)), lit ? tint(c) : c, lit);
+    const W = [0.97, 0.97, 0.97], K = [0.06, 0.06, 0.08], blink = (time * 0.37 + (H[12] * 0.13)) % 4 < 0.12;
+    const eyes = (ew, eh, px, py, pw, ph) => { for (const sx of [-1, 1]) { B(sx * 0.09, 0.03, ew, blink ? 0.015 : eh, W); if (!blink) B(sx * 0.09 + px * sx, py, pw, ph, K, 0.006); } };
+    switch (f.eyes || 'dot') {
+      case 'big': eyes(0.13, 0.12, -0.015, 0.045, 0.06, 0.07); break;
+      case 'derp': B(-0.09, 0.03, 0.11, 0.1, W); B(0.09, 0.03, 0.11, 0.1, W); B(-0.06, 0.0, 0.05, 0.05, K, 0.006); B(0.12, 0.06, 0.05, 0.05, K, 0.006); break;
+      case 'shades': B(0, 0.04, 0.34, 0.03, K); B(-0.09, 0.03, 0.13, 0.08, K); B(0.09, 0.03, 0.13, 0.08, K); break;
+      case 'visor': B(0, 0.03, 0.36, 0.09, [0.3, 0.95, 1], 0, 0.02, 0); break;
+      case 'sleepy': B(-0.09, 0.02, 0.1, 0.04, W); B(0.09, 0.02, 0.1, 0.04, W); B(-0.08, 0.01, 0.05, 0.025, K, 0.006); B(0.08, 0.01, 0.05, 0.025, K, 0.006); break;
+      case 'angry': eyes(0.1, 0.07, -0.015, 0.02, 0.05, 0.05); R(-0.09, 0.1, Z - 0.004, 0.12, 0.03, 0.02, K, -0.4); R(0.09, 0.1, Z - 0.004, 0.12, 0.03, 0.02, K, 0.4); break;
+      case 'glasses': B(-0.09, 0.03, 0.14, 0.12, K); B(0.09, 0.03, 0.14, 0.12, K); B(-0.09, 0.03, 0.1, 0.08, [0.85, 0.95, 1], 0.004); B(0.09, 0.03, 0.1, 0.08, [0.85, 0.95, 1], 0.004); B(-0.08, 0.025, 0.04, 0.05, K, 0.008); B(0.08, 0.025, 0.04, 0.05, K, 0.008); break;
+      case 'zombie': B(-0.09, 0.03, 0.1, 0.06, K); B(0.09, 0.03, 0.1, 0.06, K); break;
+      default: eyes(0.1, 0.08, -0.015, 0.025, 0.05, 0.06);
+    }
+    const RED = [0.55, 0.08, 0.1];
+    switch (f.mouth || 'line') {
+      case 'smile': B(0, -0.11, 0.1, 0.03, K); B(-0.065, -0.09, 0.03, 0.03, K); B(0.065, -0.09, 0.03, 0.03, K); break;
+      case 'grin': B(0, -0.1, 0.24, 0.06, RED); B(0, -0.09, 0.2, 0.02, W, 0.004); break;
+      case 'o': B(0, -0.11, 0.07, 0.07, K); break;
+      case 'teeth': B(0, -0.09, 0.14, 0.03, K); B(-0.018, -0.12, 0.03, 0.04, W); B(0.018, -0.12, 0.03, 0.04, W); break;
+      case 'beak': R(0, -0.04, Z - 0.06, 0.12, 0.07, 0.12, [1, 0.62, 0.1]); R(0, -0.12, Z - 0.015, 0.05, 0.07, 0.03, [0.9, 0.12, 0.1]); break;
+      case 'mustache': B(0, -0.07, 0.2, 0.045, [0.88, 0.88, 0.86].map((v, i) => (f.top === 'chef' ? [0.25, 0.15, 0.08][i] : v))); B(-0.11, -0.095, 0.04, 0.05, f.top === 'chef' ? [0.25, 0.15, 0.08] : [0.88, 0.88, 0.86]); B(0.11, -0.095, 0.04, 0.05, f.top === 'chef' ? [0.25, 0.15, 0.08] : [0.88, 0.88, 0.86]); break;
+      case 'tongue': B(0, -0.1, 0.14, 0.03, K); B(0.035, -0.13, 0.05, 0.05, [0.95, 0.45, 0.55], 0.004); break;
+      case 'frown': B(0, -0.09, 0.1, 0.03, K); B(-0.065, -0.11, 0.03, 0.03, K); B(0.065, -0.11, 0.03, 0.03, K); break;
+      case 'none': break;
+      default: B(0, -0.1, 0.14, 0.03, K);
+    }
+    if (f.nose === 'snout') { R(0, -0.04, Z - 0.035, 0.15, 0.1, 0.07, [0.95, 0.55, 0.62]); B(-0.035, -0.04, 0.03, 0.04, [0.45, 0.15, 0.2], 0.072); B(0.035, -0.04, 0.03, 0.04, [0.45, 0.15, 0.2], 0.072); }
+    else if (f.nose) R(0, -0.03, Z - 0.04, 0.08, 0.08, 0.08, f.nose);
+    const tc = f.topColor || [0.9, 0.15, 0.12];
+    switch (f.top) {
+      case 'comb': for (const [z, h] of [[-0.12, 0.08], [-0.04, 0.11], [0.04, 0.09]]) R(0, 0.21 + h / 2, z, 0.05, h, 0.07, [0.92, 0.12, 0.1]); break;
+      case 'stem': R(0.02, 0.27, 0, 0.05, 0.12, 0.05, [0.4, 0.28, 0.12], 0.2); break;
+      case 'hair': R(0, 0.235, 0.01, 0.46, 0.07, 0.46, tc); R(0, 0.1, 0.215, 0.46, 0.28, 0.04, tc); R(-0.225, 0.13, 0.05, 0.03, 0.22, 0.36, tc); R(0.225, 0.13, 0.05, 0.03, 0.22, 0.36, tc); break;
+      case 'ears': R(-0.15, 0.24, 0, 0.09, 0.09, 0.05, tc, 0.3); R(0.15, 0.24, 0, 0.09, 0.09, 0.05, tc, -0.3); break;
+      case 'party': [[0.25, 0.2, [0.3, 0.6, 1]], [0.33, 0.14, [1, 0.85, 0.2]], [0.4, 0.08, [0.95, 0.3, 0.6]], [0.46, 0.04, [1, 1, 1]]].forEach(([y, w, c]) => R(0, y, 0, w, 0.08, w, c)); break;
+      case 'antenna': R(0, 0.29, 0, 0.025, 0.16, 0.025, [0.3, 0.3, 0.32]); R(0, 0.39, 0, 0.06, 0.06, 0.06, Math.sin(time * 6) > 0 ? [1, 0.2, 0.2] : [0.5, 0.1, 0.1], 0, 0); break;
+      case 'crown': R(0, 0.245, 0, 0.3, 0.07, 0.3, [1, 0.82, 0.2]); for (const [x, z] of [[-0.12, -0.12], [0.12, -0.12], [-0.12, 0.12], [0.12, 0.12], [0, -0.12]]) R(x, 0.3, z, 0.05, 0.06, 0.05, [1, 0.82, 0.2]); R(0, 0.25, -0.155, 0.05, 0.04, 0.02, [0.9, 0.1, 0.2], 0, 0); break;
+      case 'horns': R(-0.14, 0.27, -0.02, 0.06, 0.12, 0.06, [0.15, 0.05, 0.05], 0.35); R(0.14, 0.27, -0.02, 0.06, 0.12, 0.06, [0.15, 0.05, 0.05], -0.35); break;
+      case 'chef': R(0, 0.24, 0, 0.36, 0.05, 0.36, [0.98, 0.98, 0.98]); R(0, 0.34, 0, 0.32, 0.16, 0.32, [0.98, 0.98, 0.98]); break;
+    }
+  }
   /** Matrix of an arm: shoulder pivot, swung out sideways (rz) then forward/back (rx). */
-  limb(base, px, py, rx, rz) { return Mat4.chain(base, Mat4.translation(px, py, 0), Mat4.rotationZ(rz || 0), Mat4.rotationX(rx)); }
+  limb(base, px, py, rx, rz) { return Mat4.chain(base, Mat4.translation(px, py, 0), Mat4.rotationZ(rz || 0), Mat4.rotationX(-rx)); }   // negative rx = raised FORWARD (models face -z)
   /** A held item at the end of an arm. Tools are 3D pixel models (queued, drawn after the solid pass); blocks are small cubes. */
   heldProp(arm, id, thrust, roll, tint, look) {
     const it = ITEMS[id];
@@ -5628,12 +5834,12 @@ class Renderer {
       const tile = WEAPON_TOOLS.includes(id) ? weaponTile(id, look && look.weapons ? look.weapons[id] : 'default') : TILE['ICON_' + String(id).toUpperCase()];
       if (tile == null) return;
       const bow = id === 'bow', sc = bow ? 0.8 : 0.72, g = bow ? [0.156, -0.156] : [0.28, 0.28];
-      this.heldQueue.push({ tile, m: Mat4.chain(arm, Mat4.translation(0, -0.6 - thrust, 0.02), Mat4.rotationY(-Math.PI / 2), Mat4.rotationZ(-Math.PI / 4 + (roll || 0)), Mat4.scaling(sc, bow ? -sc : sc, sc), Mat4.translation(g[0], g[1], 0)) });
+      this.heldQueue.push({ tile, m: Mat4.chain(arm, Mat4.translation(0, -0.6 - thrust, -0.02), Mat4.rotationY(Math.PI / 2), Mat4.rotationZ(-Math.PI / 4 + (roll || 0)), Mat4.scaling(sc, bow ? -sc : sc, sc), Mat4.translation(g[0], g[1], 0)) });
       return;
     }
     if (it && it.block) { const d = BlockRegistry.byType(it.block); if (d) this.box(Mat4.chain(arm, Mat4.translation(0, -0.78 - thrust, 0.08), Mat4.scaling(0.22, 0.22, 0.22)), tint(d.color || [0.6, 0.6, 0.6]), 1); }
   }
-  humanoid(e, skin, shirt, legs, zombie, time, accent) {
+  humanoid(e, skin, shirt, legs, zombie, time, accent, face) {
     const swing = zombie ? 0 : e.swing || 0, ph = (e.walk || 0) * 3.2, fl = e.flash || 0;
     const crouch = e.crouch ? 0.14 : 0, burn = e.burning ? 0.25 + 0.25 * Math.sin(time * 18) : 0, chill = e.chilled ? 0.35 : 0;
     const tint = (c) => {
@@ -5649,9 +5855,10 @@ class Renderer {
     const armSwing = zombie ? -1.35 + Math.sin(ph) * 0.15 : null;
     this.part(base, -0.14, 0.7, 0, sw, -0.35, 0.27, 0.7, 0.27, tint(legs));
     this.part(base, 0.14, 0.7, 0, -sw, -0.35, 0.27, 0.7, 0.27, tint(legs));
-    this.part(base, 0, 1.05 - crouch, 0, crouch * 2 + lean, 0, 0.58, 0.7, 0.3, tint(shirt));
-    if (accent) this.part(base, 0, 0.8 - crouch * 0.6, 0, crouch * 2, 0, 0.6, 0.12, 0.32, tint(accent));
-    this.part(base, 0, 1.4 - crouch, 0, (e.pitch ? clamp(e.pitch, -1.2, 1.2) : 0) + lean, 0.21, 0.42, 0.42, 0.42, tint(skin));
+    this.part(base, 0, 1.05 - crouch, 0, -(crouch * 2 + lean), 0, 0.58, 0.7, 0.3, tint(shirt));          // sneaking and sprinting lean forward
+    if (accent) this.part(base, 0, 0.8 - crouch * 0.6, 0, -crouch * 2, 0, 0.6, 0.12, 0.32, tint(accent));
+    this.part(base, 0, 1.4 - crouch, 0, (e.pitch ? clamp(e.pitch, -1.2, 1.2) : 0), 0.21, 0.42, 0.42, 0.42, tint(skin));
+    this.face(Mat4.chain(base, Mat4.translation(0, 1.4 - crouch, 0), Mat4.rotationX((e.pitch ? clamp(e.pitch, -1.2, 1.2) : 0)), Mat4.translation(0, 0.21, 0)), zombie ? { eyes: 'zombie', mouth: 'frown' } : face || {}, tint, time);
     let ra, la, raz = 0, laz = 0, roll = 0, thrust = 0, rp = e.held || 'pickaxe', lp = null;
     if (zombie) { ra = la = armSwing; }
     else {
@@ -5746,8 +5953,8 @@ class Renderer {
       for (const p of snap.players) {
         if (!p.alive || p.index === scene.selfIndex) continue;
         const col = hexToRgb(p.color), sk = p.look && p.look.skin !== 'default' ? COSMETICS.skin[p.look.skin] : null;
-        if (sk) this.humanoid(p, sk.skin, sk.shirt, sk.legs, false, time, col);
-        else this.humanoid(p, HUMAN_SKIN, col, [0.2, 0.22, 0.4], false, time);
+        if (sk) this.humanoid(p, sk.skin, sk.shirt, sk.legs, false, time, col, sk.face);
+        else this.humanoid(p, HUMAN_SKIN, col, [0.2, 0.22, 0.4], false, time, null, null);
       }
       for (const m of snap.mobs) { if (m.type === 'creeper') this.creeper(m, time); else this.humanoid({ x: m.x, y: m.y, z: m.z, yaw: m.yaw, walk: m.walk, swing: m.swing, pitch: 0 }, ZOMBIE_SKIN, [0.2, 0.42, 0.5], [0.22, 0.25, 0.5], true, time); }
       if (this.heldQueue.length) {                                     // held weapons: textured pixel models, so switch to the world shader briefly
@@ -6241,7 +6448,7 @@ class UI {
             : W.admin ? '<span class="req">Admin only</span>'
             : lvlOk ? `<button class="btn tiny" data-act="wbuy" data-id="${key}" ${career.coins >= W.cost ? '' : 'disabled'}>BUY ${W.cost}</button>` : `<span class="req">Unlocks at level ${W.level}</span>`;
           const perks = perkLines(W.perk[tool] || {}).map(([t, good]) => `<li class="${good ? 'pk-good' : 'pk-bad'}">${good ? '+' : '-'} ${esc(t)}</li>`).join('');
-          return `<div class="lk wsk ${on2 ? 'on' : ''} ${owned || lvlOk ? '' : 'locked'}"><div class="wsk-h">${this.iconHTML(weaponTile(tool, sk), 48)}<div><h4>${esc(W.name)}</h4><span class="req">${esc(W.tag)}</span></div></div>${perks ? `<ul class="pk">${perks}</ul>` : ''}${btn}</div>`;
+          return `<div class="lk wsk ${on2 ? 'on' : ''} ${owned || lvlOk ? '' : 'locked'}"><div class="wsk-h">${this.iconHTML(weaponTile(tool, sk), 48)}<div><h4>${esc(W.name)}</h4><span class="req">${esc(tool === 'pickaxe' && W.pickTag ? W.pickTag : W.tag)}</span></div></div>${perks ? `<ul class="pk">${perks}</ul>` : ''}${btn}</div>`;
         }).join('');
       }
     } else if (tab === 'title') {
@@ -6261,7 +6468,7 @@ class UI {
         else if (owned) btn = `<button class="btn tiny" data-act="equip" data-id="${id}">${eq[tab] === id ? 'EQUIPPED' : 'EQUIP'}</button>`;
         else btn = lvlOk ? `<button class="btn tiny" data-act="buy" data-id="${id}" ${canBuy ? '' : 'disabled'}>BUY ${it.cost}</button>` : `<span class="req">Unlocks at level ${it.level}</span>`;
         const prev = tab === 'skin' && it.shirt ? `style="--c1:${hex(it.shirt)};--c2:${hex(it.skin)};--c3:${hex(it.legs)}"` : tab === 'banner' ? `style="--c1:${hex(BANNER_COLORS[eq.bannerColor])};--c2:${hex(it.a || [1, 1, 1])};--c3:${hex(BANNER_COLORS[eq.bannerColor])}"` : tab === 'trail' && it.color ? `style="--c1:#222;--c2:${hex(it.color)};--c3:#222"` : '';
-        return `<div class="lk ${(tab === 'emote' ? false : eq[tab] === id) ? 'on' : ''} ${owned || lvlOk ? '' : 'locked'}"><div class="prev" ${prev}></div><h4>${esc(it.name)}</h4>${btn}</div>`;
+        return `<div class="lk ${(tab === 'emote' ? false : eq[tab] === id) ? 'on' : ''} ${owned || lvlOk ? '' : 'locked'}"><div class="prev" ${prev}></div><h4>${esc(it.name)}</h4>${it.joke ? `<span class="req" style="display:block">${esc(it.joke)}</span>` : ''}${btn}</div>`;
       }).join('');
     }
     grid.innerHTML = html;
@@ -7271,10 +7478,10 @@ class Game {
       case 'phase': this.onPhase(e); break;
       case 'respawn': if (e.player === me) { this.ui.toast('Respawned', '', 1500); this.spectateIndex = -1; } break;
       case 'vaultCaptured': {
-        const names = e.players.map((p) => p.name).join(' & ');
-        this.ui.killfeed(`<b>${esc(names)}</b> captured the VAULT <em>+250</em>`, 'good'); this.audio.play('chime', null, 0.8);
-        if (e.players.includes(me)) this.ui.banner('VAULT CAPTURED', '+250 score and a loot drop', 'good', 2800);
-        this.noteHighlight(this.server.map.vault.x, this.server.map.vault.y, this.server.map.vault.z, 'VAULT CAPTURED', 40);
+        const names = e.players.map((p) => p.name).join(' & '), st = VAULT_STAGES[e.stage || 0] || VAULT_STAGES[0], pad = this.server.map.vault.pads ? this.server.map.vault.pads[e.stage || 0] : this.server.map.vault;
+        this.ui.killfeed(`<b>${esc(names)}</b> beat VAULT STAGE ${(e.stage || 0) + 1}: ${st.name} <em>+${st.score}</em>`, 'good'); this.audio.play('chime', null, 0.8);
+        if (e.players.includes(me)) this.ui.banner(e.final ? 'VAULT CONQUERED!' : 'STAGE ' + ((e.stage || 0) + 1) + ' CLEARED', vaultRewardText(st) + (e.final ? '' : '. Next: ' + VAULT_STAGES[(e.stage || 0) + 1].name), 'good', 3200);
+        this.noteHighlight(pad.x, pad.y, pad.z, 'STAGE ' + ((e.stage || 0) + 1), 40);
         break;
       }
       case 'streak': {
@@ -7560,13 +7767,19 @@ class Game {
         if (leftEdge && tgt) { const r = s.handle(p.id, { type: 'ignite', x: tgt.x, y: tgt.y, z: tgt.z, nx: tgt.nx, ny: tgt.ny, nz: tgt.nz }); if (!r.ok && r.reason === 'not-allowed') this.ui.toast('You cannot do that here right now.', 'bad', 1500); }
       } else if (left && ent) {
         this.mining = null;
-        if (p.cooldowns.attack <= 0.05) s.handle(p.id, { type: 'attack', targetId: ent.id, tool: T && T.dmg != null ? item.id : 'pickaxe' });
+        if (p.cooldowns.attack <= 0.05) { s.handle(p.id, { type: 'attack', targetId: ent.id, tool: T && T.dmg != null ? item.id : 'pickaxe' }); p.swing = 1; p.swingKind = T && T.dmg != null ? item.id : 'pickaxe'; }
         else if (leftEdge) { this.ui.denySwing(); this.audio.play('click', null, 0.25); }                // still recovering: no swing
+      } else if (leftEdge && !tgt && !ent && item && T && T.dmg != null) {             // swinging at thin air: the animation plays and weapons pay their cooldown
+        this.mining = null;
+        if (p.cooldowns.attack <= 0.05) { s.handle(p.id, { type: 'swing', tool: item.id }); p.swing = 1; p.swingKind = item.id; }
+        else { this.ui.denySwing(); }
       } else if (left && tgt) {
         const key = tgt.x + ',' + tgt.y + ',' + tgt.z, def = w.def(tgt.x, tgt.y, tgt.z);
         if (!this.mining || this.mining.key !== key) this.mining = { key, progress: 0 };
         if (def.breakable) {
-          this.mining.progress += dt / mineTime(def, item && item.def.kind === 'tool' ? item.id : null, p.mods, p.look);
+          if (p.swing <= 0) { p.swing = 1; p.swingKind = item && TOOLS[item.id] && item.id !== 'bow' ? item.id : 'pickaxe'; s.handle(p.id, { type: 'swing', tool: p.swingKind, mining: true }); }   // chop, chop, chop
+          const plot = (s.plots || []).find((pl) => Math.hypot(tgt.x + 0.5 - pl.x, tgt.z + 0.5 - pl.z) <= CONFIG.PLOT_RADIUS), foe = plot && plot.owner >= 0 && plot.owner !== p.index && !s.areAllies(p, s.players[plot.owner]);
+          this.mining.progress += dt / mineTime(def, item && item.def.kind === 'tool' ? item.id : null, p.mods, p.look, { enemy: !!foe });
           if (this.mining.progress >= 1) {
             const r = s.handle(p.id, { type: 'break', x: tgt.x, y: tgt.y, z: tgt.z });
             if (!r.ok && r.reason === 'not-allowed') this.ui.toast(s.phase === 'build' ? 'Build phase: you can only edit your own land.' : 'You cannot do that right now.', 'bad', 1800);
@@ -7586,7 +7799,7 @@ class Game {
       else if (item && item.def.kind !== 'tool' && (tgt.nx || tgt.ny || tgt.nz)) {
         const r = s.handle(p.id, { type: 'place', x: tgt.x + tgt.nx, y: tgt.y + tgt.ny, z: tgt.z + tgt.nz, item: item.id, against: { x: tgt.x, y: tgt.y, z: tgt.z } });
         if (!r.ok && rightEdge) {
-          const msg = { 'no-resource': 'Out of ' + RESOURCES[item.def.res].label.toLowerCase() + '!', 'not-allowed': s.phase === 'build' ? 'Build phase: you can only edit your own land.' : 'You cannot build yet.', 'no-support': 'Needs something to attach to.', 'no-floor': 'Needs solid ground below it.', 'player-in-way': 'Someone is in the way.' }[r.reason];
+          const msg = { 'no-resource': 'Out of ' + RESOURCES[item.def.res].label.toLowerCase() + '!', 'not-allowed': s.phase === 'build' ? 'Build phase: you can only edit your own land.' : 'You cannot build yet.', 'no-support': 'Needs something to attach to.', 'no-floor': 'Needs solid ground below it.', 'player-in-way': 'Someone is in the way.', 'vault-zone': 'No building inside the vault: run the course!' }[r.reason];
           if (msg) this.ui.toast(msg, 'bad', 1500);
         }
       }
@@ -7710,7 +7923,8 @@ class Game {
     U.setResources(s, p);
     U.setPlayers(s.scoreboard().map((q) => ({ name: q.name, color: q.color, alive: q.alive, hp: q.health / q.maxHealth * 100, integ: s.integrity(q.index), core: !!(s.plots[q.index] && s.plots[q.index].core) && !s.baseDestroyed[q.index], score: Math.round(q.stats.score), me: q === p, ally: s.areAllies(q, p), bounty: q.bounty })));
     const v = s.vault, showV = s.phase === 'war' || s.phase === 'chaos' || s.phase === 'sandbox';
-    U.setVault(showV, v.cooldown > 0 ? 1 - v.cooldown / 45 : v.progress, v.cooldown > 0 ? 'VAULT RECHARGING' : v.capturing ? 'CAPTURING...' : 'VAULT (centre of map)', v.cooldown > 0 ? 'cool' : v.capturing ? 'cap' : '');
+    const vst = VAULT_STAGES[v.stage || 0];
+    U.setVault(showV, v.cooldown > 0 ? 1 - v.cooldown / 50 : v.progress, v.cooldown > 0 ? 'VAULT RECHARGING' : (v.capturing ? 'CAPTURING ' : 'VAULT ') + ((v.stage || 0) + 1) + '/3: ' + vst.name, v.cooldown > 0 ? 'cool' : v.capturing ? 'cap' : '');
     U.setCharge(this.charge); U.setBuffs(this.player);
     U.setDebug(this.debugVisible, this.debugText());
     // contextual hint
@@ -7780,7 +7994,7 @@ class Game {
     return {
       chunks: this.chunks, cam, snap, selfIndex, target: this.target, mining: this.mining ? clamp(this.mining.progress, 0, 1) : 0,
       particles: this.particles, darkness: this.dark, time: this.time, held, swing: p.swing > 0 ? 1 - p.swing : 0,
-      hints: this.hints, vault: m && live ? { x: m.x, y: m.y, z: m.z, cooldown: s.vault.cooldown, capturing: s.vault.capturing } : null,
+      hints: this.hints, vault: m && live ? Object.assign({}, m.pads ? m.pads[s.vault.stage || 0] : m, { cooldown: s.vault.cooldown, capturing: s.vault.capturing }) : null,
       warnings: s.pendingMeteors.filter((q) => !q.done),
     };
   }
