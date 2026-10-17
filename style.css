@@ -396,3 +396,23 @@ body.killcam #crosshair, body.killcam #hotbar { display: none !important; }
 .pk { list-style: none; margin: 6px 0 0; padding: 0; font-size: 11px; line-height: 1.45; }
 .pk-good { color: #7ee07a; }
 .pk-bad { color: #ff7a6e; }
+
+/* swing cooldown ticker: a ring around the crosshair that fills as the weapon recovers */
+#cdring { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; transform: translate(-50%, -50%); pointer-events: none; }
+#cdring i { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(var(--cdc, #ffd23f) calc(var(--p, 0) * 1%), rgba(0, 0, 0, 0.35) 0); -webkit-mask: radial-gradient(circle, transparent 15px, #000 16px); mask: radial-gradient(circle, transparent 15px, #000 16px); }
+#cdring b { position: absolute; left: 50%; top: 46px; transform: translateX(-50%); font-size: 10px; letter-spacing: 2px; color: #fff; text-shadow: 0 1px 0 #000, 0 0 4px #000; opacity: 0; }
+#cdring.deny i { --cdc: #ff4a3a; }
+#cdring.deny b { opacity: 1; color: #ff6a5a; }
+#cdring.deny { animation: cdshake 0.25s; }
+#cdring.ready i { --cdc: #7ee07a; }
+@keyframes cdshake { 0%, 100% { transform: translate(-50%, -50%); } 25% { transform: translate(-56%, -50%); } 75% { transform: translate(-44%, -50%); } }
+#buffs { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); display: flex; gap: 6px; pointer-events: none; }
+#buffs span { padding: 3px 8px; font-size: 11px; font-weight: 800; letter-spacing: 1px; background: rgba(0, 0, 0, 0.55); border: 2px solid var(--c); color: var(--c); }
+#buffs span.streak { --c: #ff9f2e; }
+/* daily challenges on the main menu */
+#dailyBox { width: min(320px, 90%); margin: 6px 0 10px; font-size: 11px; }
+#dailyBox h5 { margin: 0 0 4px; font-size: 11px; letter-spacing: 2px; color: var(--accent); display: flex; justify-content: space-between; }
+#dailyBox h5 small { color: var(--muted); letter-spacing: 1px; font-weight: 400; }
+#dailyBox .dc { display: flex; justify-content: space-between; gap: 8px; padding: 3px 6px; margin-bottom: 2px; background: rgba(0, 0, 0, 0.35); border-left: 3px solid var(--slate); color: var(--text); }
+#dailyBox .dc.done { border-left-color: var(--good); color: var(--muted); text-decoration: line-through; }
+#dailyBox .dc em { font-style: normal; color: #ffd23f; white-space: nowrap; }
