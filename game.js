@@ -46,6 +46,7 @@ const CONFIG = {
   STEP: 1 / 60,                 // fixed physics timestep (seconds)
   MOUSE_SENS: 0.0022,           // radians per pixel at sensitivity 1.0
   MINE: { TIME_PER_HARDNESS: 0.45, MIN_TIME: 0.15, PLACE_COOLDOWN: 0.25 }, // stone ~0.7 s with a pickaxe, close to Minecraft
+  WATER: { AIR: 5, NATURAL_AIR: 10, DROWN_DPS: 9, SWIM_UP: 1.6 },              // breath (s), drowning damage per second, max swim-up speed (deep water holds you)
   HEALTH: { MAX: 100, REGEN_DELAY: 10, REGEN_RATE: 0.8, FALL_SAFE: 13, FALL_DMG: 4.5 },
   PLOT_RADIUS: 18,
   MATCH: {
@@ -67,13 +68,14 @@ const TILE_NAMES = ['grass_top', 'grass_side', 'dirt', 'stone', 'wood', 'glass',
   'wire_off', 'wire_on', 'plate_off', 'plate_on', 'lever_off', 'lever_on', 'button', 'tripwire',
   'piston_side', 'piston_front', 'piston_back', 'piston_head', 'door', 'timer', 'sensor', 'alarm',
   'vault', 'log_side', 'log_top', 'vault_top', 'icon_pickaxe', 'icon_sword', 'icon_axe', 'icon_bow', 'icon_staff', 'icon_lighter', 'brick', 'shingle', 'lamp', 'flower_red', 'flower_yellow', 'gold_ore',
-  'plotwall', 'turret', 'cannon', 'mine', 'spikes', 'jumppad', 'conv_0', 'conv_1', 'conv_2', 'conv_3', 'sprinkler', 'healer', 'flamer', 'dropper', 'core', 'vaultstone'];
+  'plotwall', 'turret', 'cannon', 'mine', 'spikes', 'jumppad', 'conv_0', 'conv_1', 'conv_2', 'conv_3', 'sprinkler', 'healer', 'flamer', 'dropper', 'core', 'vaultstone', 'icon_bucket'];
 const TILE = {};
 TILE_NAMES.forEach((n, i) => { TILE[n.toUpperCase()] = i; });
 
 /*
  * Metadata (world.meta, 16 bits per cell) conventions:
- *   fluids      : bits0-3 level, bit4 (16) = permanent source
+ *   fluids      : bits0-3 level, bit4 (16) = permanent source, bit5 (32) = flood water, bit6 (64) = poured by a player.
+ *                 Flood and poured water (and what flows out of it) is DEADLY_WATER: heavy and drowning; natural water is not
  *   wire        : bit0 powered
  *   plate/button/lever/tripwire/sensor : bit0 active output
  *   piston      : bit0 extended, bit1 powered, bits2-4 facing (DIRS6 index)
@@ -455,6 +457,21 @@ function weaponSprite(tool, skinId) {
       if (P.gem) at(21, 0, P.gem);
     }
     if (sk === 'admin' || sk === 'phantom') at(1, 1, P.gem);
+  } else if (tool === 'staff') {
+    // long shaft with a big orb on top; each skin swaps the head
+    grip(1, 18);
+    if (sk !== 'default') { at(9, 0, P.gd); at(10, -1, P.gd); at(10, 1, P.gd); }      // grip wrap
+    const orb = (cN, r, f) => { for (let N = cN - 6; N <= cN + 6; N++) for (let M = -6; M <= 6; M++) if (((N + M) & 1) === 0) { const d = Math.sqrt(((N - cN) ** 2 + M * M) / 2); if (d <= r) at(N, M, f(d, N - cN, M)); } };
+    if (sk === 'titan') band(18, 24, -3, 3, (N, M) => (Math.abs(M) >= 3 || N >= 24 ? P.lo : N === 18 ? P.gd : P.mid));          // sledge head
+    else if (sk === 'phantom') { orb(21, 1.6, () => P.gem); for (const [N, M] of [[19, -4], [21, -5], [23, -5], [25, -3], [26, -1]]) at(N, M, P.mid); }   // crescent hook
+    else {
+      const glow = sk === 'default' ? [255, 120, 60] : S.rainbow ? hue(0.8, 0.6) : P.mid;
+      orb(22, 2.3, (d) => (d < 1 ? (P.gem || [255, 230, 160]) : d < 1.8 ? (sk === 'default' ? [255, 170, 90] : P.hi) : glow));
+      if (sk === 'frost') for (const [N, M] of [[26, 0], [22, -4], [22, 4], [25, -3]]) at(N, M, P.hi);
+      if (sk === 'inferno') for (const [N, M] of [[26, 0], [25, -1], [27, -1], [24, -3], [24, 3]]) at(N, M, N > 25 ? P.hi : P.mid);
+      if (sk === 'blood') for (const [N, M] of [[19, -2], [19, 2], [25, -3], [25, 3]]) at(N, M, P.lo);
+      if (sk === 'volt') for (const [N, M] of [[26, 0], [25, 3], [21, -4], [23, 4]]) at(N, M, P.gem);
+    }
   } else if (tool === 'bow') {
     // limb arc on the upper-left, string straight along M = +3
     const thick = sk === 'titan' ? 2 : 1;
@@ -637,6 +654,17 @@ function generateAtlas() {
   icon(TILE.ICON_LIGHTER, [
     '................', '................', '.......ff.......', '......ffff......', '......ffyf......', '.....ssssss.....', '.....sddddss....', '.....sdddds.....',
     '.....sdddds.....', '.....sdddds.....', '.....sdddds.....', '.....sddddss....', '.....ssssss.....', '................', '................', '................'], { f: [255, 150, 40], y: [255, 230, 120], s: [190, 190, 200], d: [110, 110, 124] });
+  icon(TILE.ICON_BUCKET, [
+    '................', '.....oooooo.....', '....o......o....', '...o........o...', '..oooooooooooo..', '..osswwwwwwsso..', '..oslwwwwwwsdo..', '...oslllllsdo...',
+    '...oslssssddo...', '...osssssssdo...', '....osssssdo....', '....osssssdo....', '....ossssddo....', '.....oooooo.....', '................', '................'], { o: [40, 42, 50], s: [176, 180, 192], l: [226, 230, 238], d: [120, 124, 136], w: [70, 130, 255] });
+  const CHEST = ['................', '...aa......aa...', '..aaba....abaa..', '..abbbaaaabbba..', '..abbbbbbbbbba..', '...abbbbbbbba...', '...abtbbbbtba...', '...abbbbbbbba...',
+    '...abbbbbbbba...', '...abtttttb.a...', '...abbbbbbbba...', '...abbbbbbbba...', '....abbbbbba....', '....aaaaaaaa....', '................', '................'];
+  const c255 = (c) => [c[0] * 255, c[1] * 255, c[2] * 255];
+  for (const id of ARMOR_ORDER) {                                    // armor icons for the Locker
+    const A = ARMOR[id];
+    if (id === 'none') { icon(armorTile(id), CHEST, { a: [70, 70, 80], b: [120, 120, 130], t: [120, 120, 130] }); continue; }
+    icon(armorTile(id), CHEST, { a: c255(A.c2).map((v) => v * 0.6), b: c255(A.c1), t: c255(A.trim) });
+  }
   for (const tool of WEAPON_TOOLS) for (const sk of WEAPON_SKIN_ORDER) {                // weapons: every skin is its own drawing
     const spr = weaponSprite(tool, sk);
     paint(weaponTile(tool, sk), 7, (x, y) => spr[y][x] || undefined);
@@ -811,6 +839,8 @@ class Body {
     const x = Math.floor(this.pos.x), z = Math.floor(this.pos.z);
     const feet = world.get(x, Math.floor(this.pos.y + 0.15), z), chest = world.get(x, Math.floor(this.pos.y + this.height * 0.6), z);
     this.inWater = feet === ID.water || chest === ID.water;
+    const fy = Math.floor(this.pos.y + 0.15), cy = Math.floor(this.pos.y + this.height * 0.6);
+    this.deadlyWater = (feet === ID.water && !!(world.getMeta(x, fy, z) & DEADLY_WATER)) || (chest === ID.water && !!(world.getMeta(x, cy, z) & DEADLY_WATER));
     this.inLava = feet === ID.lava || chest === ID.lava;
     this.submerged = chest === ID.water || chest === ID.lava;
   }
@@ -851,6 +881,7 @@ class Body {
 
     if (wantJump) {
       if (this.onGround) { this.vel.y = jumpPower; this.onGround = false; this.jumped = true; }
+      else if (this.inWater && this.deadlyWater) this.vel.y = Math.min(this.vel.y + 30 * dt, this.submerged ? CONFIG.WATER.SWIM_UP : 0.4);   // flood / poured water is heavy: you rise to the surface but never pop out
       else if (this.inWater) this.vel.y = Math.min(this.vel.y + 36 * dt, 5.5);
       else if (this.inLava) this.vel.y = Math.min(this.vel.y + 24 * dt, 3.2);
     }
@@ -959,7 +990,7 @@ class Player extends Body {
     const wx = f * -Math.sin(this.yaw) + s * Math.cos(this.yaw);
     const wz = f * -Math.cos(this.yaw) + s * -Math.sin(this.yaw);
     this.sprinting = !!controls.sprint && f > 0 && !this.crouching && !this.blocking && !this.inWater && !this.inLava;
-    const speed = (this.crouching ? P.CROUCH : P.WALK) * this.mods.speed * (this.sprinting ? 1.3 : 1) * (this.blocking ? 0.6 : 1) * (weaponBoost(this.look, this.held).move || 1) * (this.chillT > 0 ? 0.6 : 1) * (this.buffs && this.buffs.swift > 0 ? 1.3 : 1);
+    const speed = (this.crouching ? P.CROUCH : P.WALK) * this.mods.speed * (this.sprinting ? 1.3 : 1) * (this.blocking ? 0.6 : 1) * (weaponBoost(this.look, this.held).move || 1) * (this.chillT > 0 ? 0.6 : 1) * (this.buffs && this.buffs.swift > 0 ? 1.3 : 1) * (armorPerk(this.look).move || 1) * (this.inWater ? armorPerk(this.look).swim || 1 : 1);
     if (this.chillT > 0) this.chillT -= dt;
     const px = this.pos.x, pz = this.pos.z;
 
@@ -1081,27 +1112,28 @@ class FluidSystem {
         if (w.get(x + d[0], y, z + d[2]) === id) feed = Math.max(feed, (w.getMeta(x + d[0], y, z + d[2]) & 15) - 1);
       }
       if (feed <= 0) { w.set(x, y, z, AIR); return; }
-      if (feed !== level) { w.setMeta(x, y, z, feed); level = feed; }
+      if (feed !== level) { w.setMeta(x, y, z, (meta & DEADLY_WATER) | feed); level = feed; }
     }
 
     const below = y > 0 ? w.get(x, y - 1, z) : ID.bedrock, bd = BLOCKS[below];
-    if (y > 0 && (bd.replaceable || bd.shape === 'fluid') && below !== id) { this.flowInto(x, y - 1, z, id, maxL); return; }
+    const bits = meta & DEADLY_WATER;                              // flood / poured water stays deadly as it spreads
+    if (y > 0 && (bd.replaceable || bd.shape === 'fluid') && below !== id) { this.flowInto(x, y - 1, z, id, maxL, bits); return; }
     if (level > 1 && (bd.solid || bd.shape === 'fluid' || !bd.replaceable)) {
-      for (let i = 0; i < 4; i++) { const d = DIRS6[i < 2 ? i : i + 2]; this.flowInto(x + d[0], y, z + d[2], id, level - 1); }
+      for (let i = 0; i < 4; i++) { const d = DIRS6[i < 2 ? i : i + 2]; this.flowInto(x + d[0], y, z + d[2], id, level - 1, bits); }
     }
   }
-  flowInto(x, y, z, fluidId, newLevel) {
+  flowInto(x, y, z, fluidId, newLevel, bits = 0) {
     const w = this.world;
     if (!w.inBounds(x, y, z)) return;
     const t = w.get(x, y, z), td = BLOCKS[t];
-    if (t === fluidId) { const m = w.getMeta(x, y, z); if (!(m & 16) && (m & 15) < newLevel) w.setMeta(x, y, z, newLevel); return; }
+    if (t === fluidId) { const m = w.getMeta(x, y, z); if (!(m & 16) && (m & 15) < newLevel) w.setMeta(x, y, z, (m & DEADLY_WATER) | bits | newLevel); return; }
     if (td.shape === 'fluid') {                                   // water meets lava
       if (fluidId === ID.water) w.set(x, y, z, (w.getMeta(x, y, z) & 16) ? ID.obsidian : ID.stone);
       else w.set(x, y, z, ID.stone);
       this.server.emit({ type: 'steam', x, y, z });
       return;
     }
-    if (td.replaceable || (td.needsFloor && !td.solid)) w.set(x, y, z, fluidId, false, newLevel);
+    if (td.replaceable || (td.needsFloor && !td.solid)) w.set(x, y, z, fluidId, false, newLevel | bits);
   }
 }
 
@@ -1643,6 +1675,7 @@ const ITEMS = {
   bow:     { kind: 'tool', label: 'Bow' },
   staff:   { kind: 'tool', label: 'Knockback Staff' },
   lighter: { kind: 'tool', label: 'Lighter' },
+  bucket:  { kind: 'tool', label: 'Bucket (scoop / pour)' },
   stone:   { kind: 'block', label: 'Stone', block: 'stone', res: 'stone', cost: 1 },
   wood:    { kind: 'block', label: 'Wood', block: 'wood', res: 'wood', cost: 1 },
   glass:   { kind: 'block', label: 'Glass', block: 'glass', res: 'glass', cost: 1 },
@@ -2369,30 +2402,30 @@ const COSMETICS = {
  *   backstab  damage x from behind   draw  bow draw time x   arrow  arrow damage x   arrowSpeed  arrow speed x   grav  arrow drop x
  * pal = colours for the pixel art (hi/mid/lo blade, h1/h2 grip, gd guard, gem, fx particles, ol outline).
  */
-const WEAPON_TOOLS = ['sword', 'axe', 'pickaxe', 'bow'];
+const WEAPON_TOOLS = ['sword', 'axe', 'pickaxe', 'bow', 'staff'];
 const WEAPON_SKINS = {
   default: { name: 'Standard', cost: 0, level: 1, tag: 'Plain steel. No perk, no drawback.', perk: {},
     pal: { hi: [240, 242, 250], mid: [196, 200, 212], lo: [128, 132, 148], h1: [134, 94, 56], h2: [96, 64, 38], gd: [150, 150, 162], ol: [34, 34, 42] } },
-  frost: { name: 'Glacier', cost: 500, level: 2, tag: 'Ice crystal. Hits freeze enemies in place.', pickTag: 'Cryo drill: tears through stone and ore, sluggish in dirt.',
-    perk: { sword: { chill: 1.6, dmg: 0.9 }, axe: { chill: 2.2, dmg: 0.9 }, pickaxe: { mineHard: 1.35, mineSoft: 0.8 }, bow: { chill: 2, arrow: 0.9 } },
+  frost: { name: 'Glacier', cost: 500, level: 2, tag: 'Ice crystal. Hits freeze enemies in place.', staffTag: 'Freeze ray: hits slow enemies, pushes a little less.', pickTag: 'Cryo drill: tears through stone and ore, sluggish in dirt.',
+    perk: { staff: { chill: 1.2, kb: 0.85 }, sword: { chill: 1.6, dmg: 0.9 }, axe: { chill: 2.2, dmg: 0.9 }, pickaxe: { mineHard: 1.35, mineSoft: 0.8 }, bow: { chill: 2, arrow: 0.9 } },
     pal: { hi: [240, 252, 255], mid: [150, 215, 250], lo: [70, 140, 210], h1: [210, 235, 250], h2: [120, 170, 210], gd: [180, 230, 255], gem: [255, 255, 255], fx: [0.7, 0.9, 1], ol: [18, 48, 92] } },
-  inferno: { name: 'Inferno', cost: 600, level: 3, tag: 'Living flame. Sets enemies on fire, but swings slower.', pickTag: 'Melts rock fast, but some blocks burn up and drop nothing.', fire: true,
-    perk: { sword: { burn: 3, speed: 1.12 }, axe: { burn: 3.5, speed: 1.12 }, pickaxe: { mine: 1.25, scorch: 0.2 }, bow: { burn: 4, draw: 1.15 } },
+  inferno: { name: 'Inferno', cost: 600, level: 3, tag: 'Living flame. Sets enemies on fire, but swings slower.', staffTag: 'Blowtorch: knocked-back enemies catch fire.', pickTag: 'Melts rock fast, but some blocks burn up and drop nothing.', fire: true,
+    perk: { staff: { burn: 2, kb: 0.9 }, sword: { burn: 3, speed: 1.12 }, axe: { burn: 3.5, speed: 1.12 }, pickaxe: { mine: 1.25, scorch: 0.2 }, bow: { burn: 4, draw: 1.15 } },
     pal: { hi: [255, 236, 120], mid: [255, 140, 40], lo: [190, 40, 20], h1: [74, 42, 30], h2: [42, 22, 18], gd: [64, 40, 40], gem: [255, 220, 90], fx: [1, 0.55, 0.12], ol: [52, 10, 4] } },
-  blood: { name: 'Bloodmoon', cost: 700, level: 4, tag: 'Cursed crimson. Heals you on every hit, hits a bit softer.', pickTag: 'Every block you mine heals you a little.',
-    perk: { sword: { leech: 0.3, dmg: 0.9 }, axe: { leech: 0.25, dmg: 0.92 }, pickaxe: { mineHeal: 2, mine: 0.9 }, bow: { leech: 0.25, arrow: 0.9 } },
+  blood: { name: 'Bloodmoon', cost: 700, level: 4, tag: 'Cursed crimson. Heals you on every hit, hits a bit softer.', staffTag: 'Leech rod: every bonk heals you as much as it hurts them.', pickTag: 'Every block you mine heals you a little.',
+    perk: { staff: { leech: 1, kb: 0.9 }, sword: { leech: 0.3, dmg: 0.9 }, axe: { leech: 0.25, dmg: 0.92 }, pickaxe: { mineHeal: 2, mine: 0.9 }, bow: { leech: 0.25, arrow: 0.9 } },
     pal: { hi: [255, 120, 128], mid: [204, 32, 54], lo: [112, 10, 30], h1: [48, 36, 48], h2: [26, 20, 30], gd: [74, 62, 80], gem: [255, 60, 84], fx: [0.9, 0.08, 0.15], ol: [30, 0, 10] } },
-  volt: { name: 'Voltage', cost: 700, level: 5, tag: 'Neon lightning. Run faster with it out, hits lighter.', pickTag: 'Zips through dirt, sand and wood, and you run faster.',
-    perk: { sword: { move: 1.15, speed: 0.9, dmg: 0.85 }, axe: { move: 1.12, speed: 0.92, dmg: 0.88 }, pickaxe: { mineSoft: 1.4, move: 1.1, mineHard: 0.9 }, bow: { arrowSpeed: 1.4, draw: 0.9, arrow: 0.85 } },
+  volt: { name: 'Voltage', cost: 700, level: 5, tag: 'Neon lightning. Run faster with it out, hits lighter.', staffTag: 'Shock prod: +20% knockback, slightly slower swings.', pickTag: 'Zips through dirt, sand and wood, and you run faster.',
+    perk: { staff: { kb: 1.2, speed: 1.12 }, sword: { move: 1.15, speed: 0.9, dmg: 0.85 }, axe: { move: 1.12, speed: 0.92, dmg: 0.88 }, pickaxe: { mineSoft: 1.4, move: 1.1, mineHard: 0.9 }, bow: { arrowSpeed: 1.4, draw: 0.9, arrow: 0.85 } },
     pal: { hi: [255, 255, 190], mid: [255, 230, 60], lo: [40, 190, 255], h1: [54, 54, 74], h2: [30, 30, 44], gd: [40, 200, 255], gem: [150, 255, 255], fx: [0.55, 1, 1], ol: [16, 16, 40] } },
-  titan: { name: 'Titan', cost: 800, level: 6, tag: 'Heavy bronze. Huge hits and knockback, but slow.', pickTag: 'Breaks two blocks deep in one go, but each swing is slow.',
-    perk: { sword: { dmg: 1.15, kb: 1.7, speed: 1.15, move: 0.92 }, axe: { dmg: 1.2, kb: 1.8, speed: 1.2, move: 0.9 }, pickaxe: { deep: true, mine: 0.75 }, bow: { arrow: 1.25, kb: 2.2, draw: 1.3 } },
+  titan: { name: 'Titan', cost: 800, level: 6, tag: 'Heavy bronze. Huge hits and knockback, but slow.', staffTag: 'Wrecking ball: launches enemies far, but heavy and slow.', pickTag: 'Breaks two blocks deep in one go, but each swing is slow.',
+    perk: { staff: { kb: 1.6, speed: 1.25, move: 0.92 }, sword: { dmg: 1.15, kb: 1.7, speed: 1.15, move: 0.92 }, axe: { dmg: 1.2, kb: 1.8, speed: 1.2, move: 0.9 }, pickaxe: { deep: true, mine: 0.75 }, bow: { arrow: 1.25, kb: 2.2, draw: 1.3 } },
     pal: { hi: [200, 200, 210], mid: [146, 146, 156], lo: [92, 92, 102], h1: [156, 108, 52], h2: [112, 76, 36], gd: [226, 176, 62], gem: [255, 218, 86], fx: [1, 0.85, 0.35], ol: [30, 28, 30] } },
-  phantom: { name: 'Phantom', cost: 900, level: 8, tag: 'Spectral blade. Deadly from behind, weaker head-on.', pickTag: 'A thief\'s tool: much faster inside enemy land.',
-    perk: { sword: { backstab: 1.6, dmg: 0.92 }, axe: { backstab: 1.5, dmg: 0.92 }, pickaxe: { raid: 1.5, mine: 0.9 }, bow: { grav: 0.35, arrow: 0.92 } },
+  phantom: { name: 'Phantom', cost: 900, level: 8, tag: 'Spectral blade. Deadly from behind, weaker head-on.', staffTag: 'Uppercut: sends enemies flying UP instead of away.', pickTag: 'A thief\'s tool: much faster inside enemy land.',
+    perk: { staff: { launch: 1.7, kb: 0.8 }, sword: { backstab: 1.6, dmg: 0.92 }, axe: { backstab: 1.5, dmg: 0.92 }, pickaxe: { raid: 1.5, mine: 0.9 }, bow: { grav: 0.35, arrow: 0.92 } },
     pal: { hi: [246, 236, 255], mid: [190, 160, 255], lo: [120, 80, 210], h1: [54, 42, 74], h2: [30, 24, 46], gd: [150, 120, 220], gem: [240, 220, 255], fx: [0.8, 0.65, 1], ol: [30, 14, 62] } },
-  admin: { name: 'Admin', cost: 0, level: 1, admin: true, tag: 'Every perk at once. Admins only.', pickTag: 'Mines 3x faster, double drops, 2 deep.', rainbow: true,
-    perk: { sword: { dmg: 1.5, speed: 0.7, chill: 1.5, burn: 3, leech: 0.3, kb: 1.5, move: 1.15 }, axe: { dmg: 1.5, speed: 0.7, chill: 1.5, burn: 3, leech: 0.3, kb: 1.5 },
+  admin: { name: 'Admin', cost: 0, level: 1, admin: true, tag: 'Every perk at once. Admins only.', staffTag: 'Yeets everything. Admins only.', pickTag: 'Mines 3x faster, double drops, 2 deep.', rainbow: true,
+    perk: { staff: { kb: 2, launch: 1.5, chill: 1.5, burn: 2 }, sword: { dmg: 1.5, speed: 0.7, chill: 1.5, burn: 3, leech: 0.3, kb: 1.5, move: 1.15 }, axe: { dmg: 1.5, speed: 0.7, chill: 1.5, burn: 3, leech: 0.3, kb: 1.5 },
       pickaxe: { mine: 3, double: true, mineHeal: 2, deep: true }, bow: { draw: 0.5, arrow: 1.5, arrowSpeed: 1.3, burn: 3, chill: 1.5 } },
     pal: { hi: [255, 190, 250], mid: [255, 70, 225], lo: [130, 0, 170], h1: [34, 34, 38], h2: [16, 16, 20], gd: [34, 34, 38], gem: [255, 255, 255], fx: [1, 0.45, 0.95], ol: [10, 0, 22] } },
 };
@@ -2414,6 +2447,7 @@ function perkLines(b) {
   if (b.burn) out.push(['Hits set enemies on fire (' + b.burn + 's)', true]);
   if (b.leech) out.push(['Heal ' + Math.round(b.leech * 100) + '% of damage dealt', true]);
   if (b.backstab) out.push(['+' + pct(b.backstab) + ' damage from behind', true]);
+  if (b.launch) out.push(['Launches enemies ' + pct(b.launch) + ' higher', true]);
   if (b.grav) out.push(['Arrows fly almost straight', true]);
   if (b.arrowSpeed) up(b.arrowSpeed, 'Arrow speed', 'Arrow speed');
   if (b.kb) up(b.kb, 'Knockback', 'Knockback');
@@ -2433,8 +2467,46 @@ function perkLines(b) {
   return out.filter((l) => l[1]).concat(out.filter((l) => !l[1]));       // perks first, then drawbacks
 }
 const COSMETIC_SLOTS = ['skin', 'trail', 'kill', 'banner'];
+/**
+ * Armor sets (Locker > ARMOR). Like weapon skins, every set has a perk and a drawback.
+ * perk: guard = damage taken x, move = walk speed x, swim = speed in water x, air = breath x, drown = drowning damage x,
+ *       fireproof = fire/lava damage x, fall = fall damage x, regen = healing x, kbRes = knockback taken x,
+ *       chillBack = melee attackers get slowed, stealth = name tag hidden from enemies beyond 10 blocks.
+ * c1 / c2 / trim = colours of the plates.
+ */
+const ARMOR = {
+  none:    { name: 'No Armor', cost: 0, level: 1, tag: 'Just your shirt. Light as a feather.', perk: {} },
+  leather: { name: 'Leather', cost: 150, level: 1, tag: 'Cheap and light: a little protection.', perk: { guard: 0.92 }, c1: [0.55, 0.36, 0.2], c2: [0.42, 0.26, 0.14], trim: [0.72, 0.52, 0.3] },
+  chain:   { name: 'Chainmail', cost: 300, level: 2, tag: 'Solid rings of steel, a bit heavy.', perk: { guard: 0.85, move: 0.97 }, c1: [0.62, 0.64, 0.68], c2: [0.45, 0.47, 0.5], trim: [0.82, 0.82, 0.86] },
+  diver:   { name: 'Diving Suit', cost: 350, level: 3, tag: 'Hold your breath 3x longer and swim fast.', perk: { air: 3, swim: 1.5, guard: 1.05 }, c1: [0.86, 0.6, 0.24], c2: [0.24, 0.34, 0.46], trim: [0.96, 0.82, 0.4], visor: true },
+  frost:   { name: 'Glacier Plate', cost: 500, level: 4, tag: 'Anyone who hits you in melee is frozen.', perk: { chillBack: 1.2, guard: 0.95, move: 0.97 }, c1: [0.62, 0.86, 1], c2: [0.3, 0.55, 0.86], trim: [0.97, 0.99, 1] },
+  inferno: { name: 'Magma Mail', cost: 500, level: 5, tag: 'Fire and lava barely hurt. Water is your enemy.', perk: { fireproof: 0.35, drown: 1.6 }, c1: [0.76, 0.2, 0.08], c2: [0.3, 0.08, 0.05], trim: [1, 0.62, 0.15] },
+  blood:   { name: 'Vampire Coat', cost: 550, level: 5, tag: 'Heal twice as fast, but take more damage.', perk: { regen: 2, guard: 1.1 }, c1: [0.45, 0.04, 0.1], c2: [0.15, 0.03, 0.06], trim: [0.85, 0.15, 0.2] },
+  volt:    { name: 'Volt Suit', cost: 600, level: 6, tag: 'Run faster. Slightly fragile.', perk: { move: 1.08, guard: 1.05 }, c1: [0.2, 0.2, 0.28], c2: [0.12, 0.12, 0.18], trim: [1, 0.9, 0.2] },
+  phantom: { name: 'Shadow Cloak', cost: 800, level: 7, tag: 'Hidden name tag at range and soft landings.', perk: { stealth: true, fall: 0.4 }, c1: [0.22, 0.16, 0.34], c2: [0.12, 0.08, 0.2], trim: [0.7, 0.55, 1] },
+  titan:   { name: 'Titan Plate', cost: 900, level: 8, tag: 'Huge protection and barely any knockback. Slow.', perk: { guard: 0.7, kbRes: 0.5, move: 0.88 }, c1: [0.58, 0.56, 0.52], c2: [0.38, 0.36, 0.34], trim: [0.95, 0.75, 0.25] },
+  admin:   { name: 'Admin Aegis', cost: 0, level: 1, admin: true, tag: 'Everything at once. Admins only.', perk: { guard: 0.3, kbRes: 0.2, fireproof: 0.2, air: 5, regen: 2.5, swim: 1.5 }, c1: [0.95, 0.25, 0.85], c2: [0.4, 0.05, 0.5], trim: [1, 1, 1] },
+};
+const ARMOR_ORDER = Object.keys(ARMOR);
+const armorTile = (id) => 140 + Math.max(0, ARMOR_ORDER.indexOf(id));
+const armorPerk = (look) => (look && ARMOR[look.armor] ? ARMOR[look.armor].perk : {});
+function armorPerkLines(b) {
+  const pct = (v) => Math.round(Math.abs(v - 1) * 100) + '%', out = [];
+  if (b.guard) out.push(b.guard < 1 ? ['Damage taken -' + pct(b.guard), true] : ['Damage taken +' + pct(b.guard), false]);
+  if (b.kbRes) out.push(['Knockback taken -' + pct(b.kbRes), true]);
+  if (b.fireproof) out.push(['Fire and lava damage -' + pct(b.fireproof), true]);
+  if (b.air) out.push(['Breath lasts ' + b.air + 'x longer', true]);
+  if (b.swim) out.push(['Swim speed +' + pct(b.swim), true]);
+  if (b.regen) out.push(['Healing +' + pct(b.regen), true]);
+  if (b.chillBack) out.push(['Melee attackers are slowed', true]);
+  if (b.stealth) out.push(['Name tag hidden from far enemies', true]);
+  if (b.fall) out.push(['Fall damage -' + pct(b.fall), true]);
+  if (b.move) out.push(b.move > 1 ? ['Move speed +' + pct(b.move), true] : ['Move speed -' + pct(b.move), false]);
+  if (b.drown) out.push(['Drown ' + pct(b.drown) + ' faster', false]);
+  return out.filter((l) => l[1]).concat(out.filter((l) => !l[1]));
+}
 /** Admin panel: opened by typing this as a join code. Anyone who reads game.js can see it, so it is a fun extra, not security. */
-const GAME_VERSION = '2.5 (Oct 17)';   // shown on the main menu so players can tell an old cached copy apart
+const GAME_VERSION = '2.6 (Oct 18)';   // shown on the main menu so players can tell an old cached copy apart
 const ADMIN_CODE = 'LN1';
 const ADMIN_DEFAULTS = { speed: 1, jump: 1, damage: 1, mine: 1, health: 100, regen: 1, draw: 1, god: false, infinite: false };
 const ADMIN_SLIDERS = [                                         // [key, label, min, max, step, format]
@@ -2461,8 +2533,8 @@ const TITLES = {
 };
 const TITLE_ORDER = Object.keys(TITLES);
 
-const DEFAULT_WEAPONS = () => ({ sword: 'default', axe: 'default', pickaxe: 'default', bow: 'default' });
-const DEFAULT_PROFILE = () => ({ owned: { skin: ['default'], trail: ['none'], kill: ['none'], banner: ['solid'], emote: DEFAULT_EMOTES.slice(), weapon: [] }, equipped: { skin: 'default', trail: 'none', kill: 'none', banner: 'solid', title: 'rookie', emotes: DEFAULT_EMOTES.slice(), bannerColor: 0, weapons: DEFAULT_WEAPONS() } });
+const DEFAULT_WEAPONS = () => ({ sword: 'default', axe: 'default', pickaxe: 'default', bow: 'default', staff: 'default' });
+const DEFAULT_PROFILE = () => ({ owned: { skin: ['default'], trail: ['none'], kill: ['none'], banner: ['solid'], emote: DEFAULT_EMOTES.slice(), weapon: [], armor: ['none'] }, equipped: { skin: 'default', trail: 'none', kill: 'none', banner: 'solid', title: 'rookie', emotes: DEFAULT_EMOTES.slice(), bannerColor: 0, weapons: DEFAULT_WEAPONS(), armor: 'none' } });
 const fixWeaponKey = (k) => { const [t, sk] = String(k).split(':'), id = weaponSkinId(sk); return WEAPON_TOOLS.includes(t) && id && id !== 'default' ? t + ':' + id : null; };
 
 /** Validates (and repairs) a profile loaded from storage or received over the network. */
@@ -2479,13 +2551,15 @@ function sanitizeProfile(pr) {
   if (Array.isArray(eq.emotes)) d.equipped.emotes = [0, 1, 2, 3].map((i) => (COSMETICS.emote[eq.emotes[i]] && d.owned.emote.includes(eq.emotes[i]) ? eq.emotes[i] : DEFAULT_EMOTES[i]));
   d.equipped.bannerColor = clamp(eq.bannerColor | 0, 0, BANNER_COLORS.length - 1);
   d.owned.weapon = pr.owned && Array.isArray(pr.owned.weapon) ? Array.from(new Set(pr.owned.weapon.map(fixWeaponKey).filter(Boolean))) : [];
+  d.owned.armor = Array.from(new Set(['none', ...(pr.owned && Array.isArray(pr.owned.armor) ? pr.owned.armor.filter((a) => ARMOR[a] && !ARMOR[a].admin) : [])]));
+  if (ARMOR[eq.armor] && (d.owned.armor.includes(eq.armor) || ARMOR[eq.armor].admin)) d.equipped.armor = eq.armor;
   for (const t of WEAPON_TOOLS) { const id = weaponSkinId(eq.weapons && eq.weapons[t]); if (WEAPON_SKINS[id] && (id === 'default' || d.owned.weapon.includes(t + ':' + id))) d.equipped.weapons[t] = id; }
   return d;
 }
 /** The small public part of a profile that other players see. */
 function publicLook(profile) {
   const e = profile.equipped;
-  return { skin: e.skin, trail: e.trail, kill: e.kill, banner: e.banner, bannerColor: e.bannerColor, title: e.title, emotes: e.emotes.slice(), weapons: Object.assign(DEFAULT_WEAPONS(), e.weapons) };
+  return { skin: e.skin, trail: e.trail, kill: e.kill, banner: e.banner, bannerColor: e.bannerColor, title: e.title, emotes: e.emotes.slice(), weapons: Object.assign(DEFAULT_WEAPONS(), e.weapons), armor: ARMOR[e.armor] ? e.armor : 'none' };
 }
 function sanitizeLook(l) {
   const d = DEFAULT_PROFILE().equipped;
@@ -2493,6 +2567,7 @@ function sanitizeLook(l) {
   const out = { skin: COSMETICS.skin[l.skin] ? l.skin : d.skin, trail: COSMETICS.trail[l.trail] ? l.trail : d.trail, kill: COSMETICS.kill[l.kill] ? l.kill : d.kill, banner: COSMETICS.banner[l.banner] ? l.banner : d.banner, bannerColor: clamp(l.bannerColor | 0, 0, BANNER_COLORS.length - 1), title: TITLES[l.title] ? l.title : d.title };
   out.emotes = [0, 1, 2, 3].map((i) => (l.emotes && COSMETICS.emote[l.emotes[i]] ? l.emotes[i] : DEFAULT_EMOTES[i]));
   out.weapons = DEFAULT_WEAPONS();
+  out.armor = ARMOR[l.armor] ? l.armor : 'none';
   for (const t of WEAPON_TOOLS) { const id = l.weapons && weaponSkinId(l.weapons[t]); if (id) out.weapons[t] = id; }
   return out;
 }
@@ -2501,7 +2576,8 @@ function randomLook(rng = Math.random) {
   const pick = (slot) => { const ids = Object.keys(COSMETICS[slot]).filter((id) => !COSMETICS[slot][id].admin); return ids[Math.floor(rng() * ids.length)]; };
   const weapons = {}; for (const t of WEAPON_TOOLS) weapons[t] = rng() < 0.5 ? 'default' : ['frost', 'inferno', 'blood', 'volt', 'titan', 'phantom'][Math.floor(rng() * 6)];
   const funny = Object.keys(COSMETICS.skin).filter((id) => COSMETICS.skin[id].funny);
-  return sanitizeLook({ weapons, skin: rng() < 0.8 ? funny[Math.floor(rng() * funny.length)] : rng() < 0.5 ? 'default' : pick('skin'), trail: rng() < 0.6 ? 'none' : pick('trail'), kill: pick('kill'), banner: pick('banner'), bannerColor: Math.floor(rng() * BANNER_COLORS.length), title: TITLE_ORDER[Math.floor(rng() * 4)], emotes: DEFAULT_EMOTES });
+  const armors = ARMOR_ORDER.filter((a) => !ARMOR[a].admin && a !== 'none');
+  return sanitizeLook({ armor: rng() < 0.6 ? armors[Math.floor(rng() * armors.length)] : 'none', weapons, skin: rng() < 0.8 ? funny[Math.floor(rng() * funny.length)] : rng() < 0.5 ? 'default' : pick('skin'), trail: rng() < 0.6 ? 'none' : pick('trail'), kill: pick('kill'), banner: pick('banner'), bannerColor: Math.floor(rng() * BANNER_COLORS.length), title: TITLE_ORDER[Math.floor(rng() * 4)], emotes: DEFAULT_EMOTES });
 }
 
 /* =========================== 11. GAME SERVER ============================ */
@@ -2521,6 +2597,7 @@ function removePlotWalls(world, cells, server) {
 function fillFluidLayer(world, y, id, meta) { for (let z = 0; z < world.sizeZ; z++) for (let x = 0; x < world.sizeX; x++) if (world.get(x, y, z) === AIR) world.set(x, y, z, id, false, meta); }
 function drainFluidLayer(world, y, id) { for (let z = 0; z < world.sizeZ; z++) for (let x = 0; x < world.sizeX; x++) if (world.get(x, y, z) === id && (world.getMeta(x, y, z) & 32)) world.set(x, y, z, AIR); }
 const IFRAME_KINDS = new Set(['melee', 'arrow', 'trap']);
+const DEADLY_WATER = 32 | 64;
 const HAZARD_KINDS = new Set(['lava', 'fire', 'flood', 'drown', 'disaster', 'mob']);
 const TNT_CAUSES = new Set(['tnt', 'chain', 'trap', 'collapse']);
 
@@ -2782,7 +2859,7 @@ class GameServer {
   }
   respawn(p, initial = false) {
     p.teleport(p.spawn.x, p.spawn.y, p.spawn.z);
-    p.health = p.maxHealth; p.alive = true; p.burnTime = 0; p.chillT = 0; p.streak = 0; p.buffs = {}; p.air = 10;
+    p.health = p.maxHealth; p.alive = true; p.burnTime = 0; p.chillT = 0; p.streak = 0; p.buffs = {}; p.air = null; p.waterCause = null;
     if (!this.unlimited && p.resources) p.resources.arrow = Math.max(p.resources.arrow || 0, QUIVER.REFILL_TO); p.sinceDamage = 99;
     p.invulnerable = initial ? 0 : 2.5; p.hurtT = 0; p.lastDmg = 0; p.blocking = false; p.blockCd = 0; p.respawnTimer = 0; p.lastHits.length = 0; p.lastCause = null;
     if (!initial) this.emit({ type: 'respawn', player: p });
@@ -2845,8 +2922,54 @@ class GameServer {
       case 'hold': if (ITEMS[msg.item]) p.held = msg.item; return { ok: true };
       case 'block': return this.setBlock(p, !!msg.on);
       case 'swing': return this.swingAir(p, msg);
+      case 'scoop': return this.scoop(p, msg);
       default: return { ok: false, reason: 'unknown-action' };
     }
+  }
+  /**
+   * Lava poured into water: the water around the splash hardens into stone (something to stand on) and the rest of
+   * that body of water boils away. A flood is too big to boil: only a patch around the splash dries up.
+   */
+  neutralizeWater(p, x, y, z) {
+    const w = this.world, LIMIT = 900, seen = new Set(), list = [], q = [];
+    const push = (a, b, c) => { const k = keyOf(a, b, c); if (seen.has(k) || !w.inBounds(a, b, c) || w.get(a, b, c) !== ID.water) return; seen.add(k); q.push([a, b, c]); };
+    push(x, y, z); for (const d of DIRS6) push(x + d[0], y + d[1], z + d[2]);
+    let flood = false;
+    while (q.length) {
+      const c = q.pop(); list.push(c);
+      if (w.getMeta(c[0], c[1], c[2]) & 32) flood = true;
+      if (list.length >= LIMIT) { flood = true; break; }
+      for (const d of DIRS6) push(c[0] + d[0], c[1] + d[1], c[2] + d[2]);
+    }
+    const R = flood ? 5 : Infinity;
+    let stone = 0, dried = 0;
+    this.cause = p.index;
+    if (w.get(x, y, z) === ID.water || w.get(x, y, z) === AIR) { w.set(x, y, z, ID.stone, false, 0, 0); stone++; }
+    for (const [a, b, c] of list) {
+      const dist = Math.hypot(a - x, b - y, c - z);
+      if (dist > R || w.get(a, b, c) !== ID.water) continue;
+      if (dist <= 1.5 || (dist <= 2.6 && b <= y)) { w.set(a, b, c, ID.stone, false, 0, 0); stone++; }       // a crust to stand on
+      else { w.set(a, b, c, AIR); dried++; }
+    }
+    this.cause = null;
+    for (const b of this.players) if (b.alive && Math.hypot(b.pos.x - x - 0.5, b.pos.z - z - 0.5) < R + 1) b.waterCause = null;
+    this.emit({ type: 'neutralize', by: p.id, x, y, z, stone, dried, flood });
+    return { ok: true, neutralized: true, flood };
+  }
+  /** Bucket: scoop one cell of water or lava (even flood water) into your supplies. */
+  scoop(p, { x, y, z }) {
+    const w = this.world;
+    if (![x, y, z].every(Number.isInteger) || !w.inBounds(x, y, z)) return { ok: false, reason: 'out-of-bounds' };
+    const id = w.get(x, y, z), kind = id === ID.water ? 'water' : id === ID.lava ? 'lava' : null;
+    if (!kind) return { ok: false, reason: 'no-fluid' };
+    if (p.cooldowns.place > 0) return { ok: false, reason: 'cooldown' };
+    if (!this.withinReach(p, x, y, z, 1.5)) return { ok: false, reason: 'too-far' };
+    if (!this.unlimited && (p.resources[kind] || 0) >= resourceCap(kind, p.mods)) return { ok: false, reason: 'bucket-full' };
+    w.set(x, y, z, AIR);
+    this.addResource(p, kind, 1); p.bucketFluid = kind; p.cooldowns.place = 0.3;
+    if (p.swing <= 0.2) { p.swing = 1; p.swingKind = 'pickaxe'; }
+    this.emit({ type: 'scoop', by: p.id, x, y, z, fluid: kind });
+    return { ok: true, fluid: kind };
   }
   /** A swing that hits nothing (air, or a mining stroke). Weapons still pay their cooldown on an air swing, like Minecraft. */
   swingAir(p, { tool, mining }) {
@@ -2918,6 +3041,13 @@ class GameServer {
     if (!this.withinReach(p, x, y, z)) return { ok: false, reason: 'too-far' };
     if (!this.canModify(p, x, y, z)) return { ok: false, reason: 'not-allowed' };
     if (this.mode !== 'sandbox' && this.inVaultZone(x, y, z)) return { ok: false, reason: 'vault-zone' };
+    if (def.id === ID.lava && (w.get(x, y, z) === ID.water || DIRS6.some((d) => w.get(x + d[0], y + d[1], z + d[2]) === ID.water))) {   // lava into water: neutralize it
+      if (!this.hasResource(p, 'lava', 1)) return { ok: false, reason: 'no-resource' };
+      this.spend(p, 'lava', 1);
+      p.cooldowns.place = CONFIG.MINE.PLACE_COOLDOWN * p.mods.placeCooldown;
+      return this.neutralizeWater(p, x, y, z);
+    }
+    if (def.solid && p.submerged && p.inWater && p.deadlyWater && this.mode !== 'sandbox') return { ok: false, reason: 'underwater' };   // you cannot build your way out of deep water
     let supported = false;
     for (const d of DIRS6) if (BLOCKS[w.get(x + d[0], y + d[1], z + d[2])].solid) { supported = true; break; }
     if (!supported) return { ok: false, reason: 'no-support' };
@@ -2950,12 +3080,13 @@ class GameServer {
     } else if (def.id === ID.door && against) {                      // doors copy the look of the block they are built against
       const ad = w.def(against.x, against.y, against.z);
       if (ad.shape === 'cube' && ad.opaque && ad.id !== ID.door) meta = ad.id << 8;
-    } else if (def.shape === 'fluid') meta = 16 | def.fluid.maxLevel;
+    } else if (def.shape === 'fluid') meta = 16 | def.fluid.maxLevel | (def.id === ID.water ? 64 : 0);
     this.spend(p, it.res, cost);
     this.cause = p.index;
     w.set(x, y, z, def.id, false, meta, p.index + 1);
     this.cause = null;
     if (lift) { p.pos.y = y + 1; p.prev.y = p.pos.y; p.vel.y = Math.max(p.vel.y, 0); }
+    if (def.id === ID.water) for (const b of this.players) if (b !== p && b.alive && !this.areAllies(b, p) && Math.hypot(b.pos.x - x - 0.5, b.pos.z - z - 0.5) < 4 && Math.abs(b.pos.y - y) < 4) b.waterCause = p.index;   // drowning credits the pourer
     p.cooldowns.place = CONFIG.MINE.PLACE_COOLDOWN * p.mods.placeCooldown * (it.kind === 'mech' ? 0.8 : 1);
     p.stats.blocksPlaced = (p.stats.blocksPlaced || 0) + 1;
     this.emit({ type: 'blockPlaced', x, y, z, block: def, by: p.id, repaired });
@@ -3018,9 +3149,10 @@ class GameServer {
     const dealt = this.damage(target, dmg, { kind: 'melee', by: p.index, direct: true });
     if (dealt !== null) {
       const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
-      const kb = (t.kb * (0.4 + 0.6 * frac) * (wb.kb || 1) + (sprint && strong ? 4 : 0)) * (target.lastBlocked ? 0.4 : 1);
+      const tap = armorPerk(target.look), kb = (t.kb * (0.4 + 0.6 * frac) * (wb.kb || 1) + (sprint && strong ? 4 : 0)) * (target.lastBlocked ? 0.4 : 1) * (tap.kbRes || 1);
+      if (tap.chillBack && dealt > 0) { p.chillT = Math.max(p.chillT || 0, tap.chillBack); }
       target.vel.x = target.vel.x * 0.5 + fx * kb; target.vel.z = target.vel.z * 0.5 + fz * kb;
-      target.vel.y = Math.min(target.vel.y * 0.5 + 6, 6) + (sprint && strong ? 1.5 : 0);
+      target.vel.y = (Math.min(target.vel.y * 0.5 + 6, 6) + (sprint && strong ? 1.5 : 0)) * (wb.launch || 1);
       target.onGround = false;
       const perkFx = target.lastBlocked ? null : this.weaponPerks(p, target, wb, dealt, frac);
       this.emit({ type: 'hit', target, by: p.id, tool, crit, sprint: sprint && strong, blocked: !!target.lastBlocked, charge: frac, skin: p.look && p.look.weapons ? p.look.weapons[tool] : null, fx: perkFx });
@@ -3076,6 +3208,12 @@ class GameServer {
       if ((ax * -Math.sin(target.yaw) + az * -Math.cos(target.yaw)) / l > 0.2) { amount *= 0.35; target.lastBlocked = true; this.emit({ type: 'blocked', target, by: attacker.id }); }
     }
     if (target.buffs && target.buffs.armor > 0) amount *= 0.6;
+    if (target.look) {                                                    // armor sets
+      const ap = armorPerk(target.look);
+      if (ap.guard && src.kind !== 'drown') amount *= ap.guard;
+      if (ap.fireproof && (src.kind === 'fire' || src.kind === 'lava')) amount *= ap.fireproof;
+      if (ap.fall && src.kind === 'fall') amount *= ap.fall;
+    }
     if (src.kind === 'explosion') amount *= target.mods.explosionTaken;
     else if (src.kind === 'fall') amount *= target.mods.fall;
     else if (HAZARD_KINDS.has(src.kind)) amount *= target.mods.hazardTaken;
@@ -3492,9 +3630,14 @@ class GameServer {
     if (p.burnTime > 0) { p.burnTime -= dt; this.damage(p, 4 * dt, { kind: 'fire', by: p.burnCause != null ? p.burnCause : undefined, direct: false }); }
     if (!p.alive) return;
     // drowning: head under water for too long
+    const ap = armorPerk(p.look), deadly = p.deadlyWater, maxAir = (deadly ? CONFIG.WATER.AIR : CONFIG.WATER.NATURAL_AIR) * (ap.air || 1);
     const headWater = this.world.get(Math.floor(p.pos.x), Math.floor(p.pos.y + p.eyeHeight), Math.floor(p.pos.z)) === ID.water;
-    p.air = headWater ? Math.max(-1, (p.air == null ? 10 : p.air) - dt) : Math.min(10, (p.air == null ? 10 : p.air) + dt * 4);
-    if (p.air <= 0) this.damage(p, 6 * dt, { kind: 'drown' });
+    const belly = this.world.get(Math.floor(p.pos.x), Math.floor(p.pos.y + 0.9), Math.floor(p.pos.z)) === ID.water;
+    const under = headWater || (deadly && p.inWater && belly && !p.onGround);   // treading deadly water still drowns you; standing in shallow water does not
+    if (p.air == null || (!under && p.air > maxAir)) p.air = maxAir; else if (p.air > maxAir) p.air = maxAir;
+    p.air = under ? Math.max(-1, p.air - dt * (headWater ? 1 : 0.6)) : Math.min(maxAir, p.air + dt * 3);
+    if (p.air <= 0) this.damage(p, (deadly ? CONFIG.WATER.DROWN_DPS : 5) * (ap.drown || 1) * dt, { kind: 'drown', by: p.waterCause != null ? p.waterCause : undefined, direct: false });
+    if (!under) p.waterCause = null;
     if (!p.alive) return;
     // stuck inside blocks (landed groups, pistons): pop up, otherwise suffocate
     if (this.world.isSolid(Math.floor(p.pos.x), Math.floor(p.pos.y + 0.9), Math.floor(p.pos.z))) {
@@ -3503,7 +3646,7 @@ class GameServer {
       if (!moved) this.damage(p, 8 * dt, { kind: 'crush', detail: 'suffocation' });
     }
     p.sinceDamage += dt;
-    if (p.alive && p.health < p.maxHealth && p.sinceDamage > CONFIG.HEALTH.REGEN_DELAY * p.mods.regenDelay) p.health = Math.min(p.maxHealth, p.health + CONFIG.HEALTH.REGEN_RATE * p.mods.regenRate * dt);
+    if (p.alive && p.health < p.maxHealth && p.sinceDamage > CONFIG.HEALTH.REGEN_DELAY * p.mods.regenDelay) p.health = Math.min(p.maxHealth, p.health + CONFIG.HEALTH.REGEN_RATE * p.mods.regenRate * (armorPerk(p.look).regen || 1) * dt);
     if (live && (this.phase === 'war' || this.phase === 'chaos')) { p.stats.surviveSeconds += dt; p.stats.score += 10 * dt; }
   }
 
@@ -3569,7 +3712,7 @@ class GameServer {
           if (a.pos.x > bb.minX - m && a.pos.x < bb.maxX + m && a.pos.y > bb.minY - m && a.pos.y < bb.maxY + m && a.pos.z > bb.minZ - m && a.pos.z < bb.maxZ + m) {
             const dealt = this.damage(b, a.damage, { kind: 'arrow', by: a.owner, direct: true });
             if (dealt !== null) {
-              const s = Math.hypot(a.vel.x, a.vel.z) || 1, k = 3 * (a.perk && a.perk.kb || 1); b.vel.x += a.vel.x / s * k; b.vel.z += a.vel.z / s * k; b.vel.y += 1.5;
+              const s = Math.hypot(a.vel.x, a.vel.z) || 1, k = 3 * (a.perk && a.perk.kb || 1) * (armorPerk(b.look).kbRes || 1); b.vel.x += a.vel.x / s * k; b.vel.z += a.vel.z / s * k; b.vel.y += 1.5;
               const fx = a.perk && !b.lastBlocked && this.players[a.owner] ? this.weaponPerks(this.players[a.owner], b, a.perk, dealt, a.charge || 1) : null;
               this.emit({ type: 'hit', target: b, by: a.owner, tool: 'bow', skin: a.skin, fx }); a.alive = false;
             }
@@ -3854,7 +3997,7 @@ class GameServer {
  * Two interchangeable transports carry the messages: 'online' (WebRTC through PeerJS, loaded on demand from a CDN, a game
  * code is the room name) and 'local' (BroadcastChannel: another tab on the same computer, works offline).
  */
-const NET = { VERSION: 1, TICK_STEPS: 3, MAX_PLAYERS: 6, TIMEOUT: 9000, CODE_CHARS: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', PEER_PREFIX: 'mpw-' };
+const NET = { VERSION: 2, TICK_STEPS: 3, MAX_PLAYERS: 6, TIMEOUT: 9000, CODE_CHARS: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', PEER_PREFIX: 'mpw-' };
 const newGameCode = () => { let c = ''; for (let i = 0; i < 5; i++) c += NET.CODE_CHARS[Math.floor(Math.random() * NET.CODE_CHARS.length)]; return c; };
 const cleanCode = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 
@@ -4328,7 +4471,7 @@ class HostSession {
     const p = this.server.playerById(peer.id);
     if (!p || !p.isRemote || !m.m || typeof m.m !== 'object' || this.state !== 'playing') return;
     const msg = m.m;
-    if (!['break', 'place', 'use', 'attack', 'shoot', 'ignite', 'propose', 'respond', 'leaveAlliance', 'bounty', 'emote', 'hold', 'block', 'swing'].includes(msg.type)) return;
+    if (!['break', 'place', 'use', 'attack', 'shoot', 'ignite', 'propose', 'respond', 'leaveAlliance', 'bounty', 'emote', 'hold', 'block', 'swing', 'scoop'].includes(msg.type)) return;
     for (const k of ['x', 'y', 'z']) if (k in msg && !Number.isInteger(msg[k])) return;
     if (msg.type === 'place' && !ITEMS[msg.item]) return;
     if (msg.type === 'shoot') msg.charge = clamp(+msg.charge || 0, 0, 1);
@@ -4401,7 +4544,7 @@ class HostSession {
   makeMe(peer) {
     const p = this.server.playerById(peer.id);
     if (!p) return null;
-    return { x: p.pos.x, y: p.pos.y, z: p.pos.z, vx: p.vel.x, vy: p.vel.y, vz: p.vel.z, og: p.onGround ? 1 : 0, ack: p.ackSeq | 0, res: p.resources, cd: [p.cooldowns.attack, p.cooldowns.place, p.cooldowns.shoot], inv: p.invulnerable, ch: p.chillT || 0, bf: p.buffs };
+    return { x: p.pos.x, y: p.pos.y, z: p.pos.z, vx: p.vel.x, vy: p.vel.y, vz: p.vel.z, og: p.onGround ? 1 : 0, ack: p.ackSeq | 0, res: p.resources, cd: [p.cooldowns.attack, p.cooldowns.place, p.cooldowns.shoot], inv: p.invulnerable, ch: p.chillT || 0, bf: p.buffs, air: p.air };
   }
 }
 
@@ -4588,7 +4731,7 @@ class NetServerView {
   }
   reconcile(a) {
     const me = this.me;
-    me.resources = a.res; me.invulnerable = a.inv; me.chillT = a.ch || 0; me.buffs = a.bf || {};
+    me.resources = a.res; me.invulnerable = a.inv; me.chillT = a.ch || 0; me.buffs = a.bf || {}; me.air = a.air;
     me.cooldowns.attack = Math.max(me.cooldowns.attack, a.cd[0]); me.cooldowns.place = Math.max(me.cooldowns.place, a.cd[1]); me.cooldowns.shoot = Math.max(me.cooldowns.shoot, a.cd[2]);
     while (this.pending.length && this.pending[0].seq <= a.ack) this.pending.shift();
     if (!me.alive) { me.pos.x = a.x; me.pos.y = a.y; me.pos.z = a.z; me.prev.x = a.x; me.prev.y = a.y; me.prev.z = a.z; return; }
@@ -5369,6 +5512,13 @@ class Bot {
   /** Climbs out of water by placing a block at its feet (lifts the bot), or swims toward the nearest bank. */
   waterEscape() {
     const p = this.p, s = this.s, w = s.world, c = p.controls, fx = Math.floor(p.pos.x), fy = Math.floor(p.pos.y + 0.05), fz = Math.floor(p.pos.z);
+    if (p.submerged && p.deadlyWater && p.cooldowns.place <= 0 && (s.unlimited || (p.resources.lava || 0) >= 1) && (p.air == null || p.air < 3)) {     // drowning: boil the water with lava
+      for (const [dx, dy, dz] of [[1, 1, 0], [-1, 1, 0], [0, 1, 1], [0, 1, -1], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]]) {
+        if (w.get(fx + dx, fy + dy, fz + dz) !== ID.water) continue;
+        this.face(fx + dx + 0.5, fy + dy + 0.5, fz + dz + 0.5, true);
+        if (s.handle(p.id, { type: 'place', x: fx + dx, y: fy + dy, z: fz + dz, item: 'lava' }).ok) return;
+      }
+    }
     const item = this.pickMaterial();
     if (item && p.cooldowns.place <= 0 && s.canModify(p, fx, fy, fz) && BLOCKS[w.get(fx, fy, fz)].shape === 'fluid' && w.isSolid(fx, fy - 1, fz)) {
       this.face(p.pos.x, p.pos.y - 3, p.pos.z, true);
@@ -5880,6 +6030,23 @@ class Renderer {
     const rArm = this.limb(base, 0.4, 1.38 - crouch, ra, raz), lArm = this.limb(base, -0.4, 1.38 - crouch, la, laz);
     this.box(Mat4.chain(rArm, Mat4.translation(0, -0.3, 0), Mat4.scaling(0.22, 0.68, 0.22)), tint(zombie ? skin : shirt), 1);
     this.box(Mat4.chain(lArm, Mat4.translation(0, -0.3, 0), Mat4.scaling(0.22, 0.68, 0.22)), tint(zombie ? skin : shirt), 1);
+    const A = !zombie && e.look && ARMOR[e.look.armor] && e.look.armor !== 'none' ? ARMOR[e.look.armor] : null;
+    if (A) {                                                              // armor: chest plate, belt in team colour, shoulder pads, greaves, open-faced helmet
+      const bodyRx = -(crouch * 2 + lean);
+      this.part(base, 0, 1.05 - crouch, 0, bodyRx, 0.04, 0.62, 0.6, 0.34, tint(A.c1));
+      this.part(base, 0, 1.05 - crouch, 0, bodyRx, 0.12, 0.3, 0.2, 0.35, tint(A.trim));
+      this.part(base, 0, 0.82 - crouch * 0.6, 0, bodyRx, 0, 0.64, 0.1, 0.36, tint(accent || shirt));
+      for (const arm of [rArm, lArm]) this.box(Mat4.chain(arm, Mat4.translation(0, -0.06, 0), Mat4.scaling(0.29, 0.2, 0.29)), tint(A.c2), 1);
+      this.part(base, -0.14, 0.7, 0, sw, -0.42, 0.29, 0.34, 0.29, tint(A.c2));
+      this.part(base, 0.14, 0.7, 0, -sw, -0.42, 0.29, 0.34, 0.29, tint(A.c2));
+      const H = Mat4.chain(base, Mat4.translation(0, 1.4 - crouch, 0), Mat4.rotationX(e.pitch ? clamp(e.pitch, -1.2, 1.2) : 0), Mat4.translation(0, 0.21, 0));
+      const R = (x, y, z, w, h, d, c) => this.box(Mat4.chain(H, Mat4.translation(x, y, z), Mat4.scaling(w, h, d)), tint(c), 1);
+      R(0, 0.235, 0.01, 0.47, 0.07, 0.47, A.c1); R(0, 0.06, 0.226, 0.47, 0.36, 0.04, A.c1); R(-0.226, 0.1, 0.03, 0.04, 0.28, 0.42, A.c1); R(0.226, 0.1, 0.03, 0.04, 0.28, 0.42, A.c1);
+      R(0, 0.19, -0.222, 0.47, 0.05, 0.03, A.trim);
+      if (A.visor) { R(0, -0.17, -0.222, 0.47, 0.05, 0.03, A.trim); R(-0.215, 0, -0.222, 0.05, 0.36, 0.03, A.trim); R(0.215, 0, -0.222, 0.05, 0.36, 0.03, A.trim); }
+      if (e.look.armor === 'titan') { R(0, 0.29, 0, 0.06, 0.08, 0.4, A.trim); }
+      if (e.look.armor === 'phantom') { R(0, 0.26, 0.04, 0.5, 0.06, 0.5, A.c2); }
+    }
     if (!zombie) {
       if (rp) this.heldProp(rArm, rp, thrust, roll, tint, e.look);
       if (lp) this.heldProp(lArm, lp, 0, 0, tint, e.look);
@@ -6329,6 +6496,7 @@ class UI {
         let q = '', low = false;
         if (it.kind !== 'tool' && !server.unlimited) { const have = player.resources[it.res] || 0; q = Math.floor(have / (it.cost * (it.res === 'mech' ? player.mods.mechCost : 1) || 1)); low = q < 1; }
         else if (id === 'bow' && !server.unlimited) { q = Math.floor(player.resources.arrow || 0); low = q < 1; }
+        else if (id === 'bucket' && !server.unlimited) { const f = player.bucketFluid || 'water'; q = Math.floor(player.resources[f] || 0) + (f === 'lava' ? 'L' : 'W'); low = !(player.resources[f] >= 1); }
         qty.textContent = q; el.classList.toggle('empty', low);
         el.title = it.label;
       } else qty.textContent = '';
@@ -6431,14 +6599,23 @@ class UI {
    */
   renderLocker(state, on) {
     const { tab, profile, career } = state, L = levelFor(career.xp), eq = profile.equipped;
-    const tabs = [['skin', 'SKINS'], ['weapon', 'WEAPONS'], ['trail', 'TRAILS'], ['kill', 'KILL EFFECTS'], ['emote', 'EMOTES'], ['banner', 'BANNERS'], ['title', 'TITLES']];
+    const tabs = [['skin', 'SKINS'], ['weapon', 'WEAPONS'], ['armor', 'ARMOR'], ['trail', 'TRAILS'], ['kill', 'KILL EFFECTS'], ['emote', 'EMOTES'], ['banner', 'BANNERS'], ['title', 'TITLES']];
     this.$('lockerBar').innerHTML = `<span><b>LEVEL ${L.level}</b> <span class="xpbar"><i style="width:${Math.round(L.into / L.need * 100)}%"></i></span></span><span><b>${career.coins}</b> coins</span>`;
     const tabEl = this.$('lockerTabs');
     tabEl.innerHTML = tabs.map(([id, label]) => `<button class="segbtn ${tab === id ? 'on' : ''}" data-tab="${id}">${label}</button>`).join('');
     tabEl.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => on.tab(b.dataset.tab)));
     const grid = this.$('lockerGrid'); let html = '';
     const hex = (c) => `rgb(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)})`;
-    if (tab === 'weapon') {
+    if (tab === 'armor') {
+      html = `<div style="grid-column:1/-1"><span class="req">Armor sets protect you in different ways. Each has a <b class="pk-good">perk</b> and a <b class="pk-bad">drawback</b>.</span></div>`;
+      html += ARMOR_ORDER.filter((id) => !ARMOR[id].admin || state.admin).map((id) => {
+        const A = ARMOR[id], owned = id === 'none' || (profile.owned.armor || []).includes(id) || (A.admin && state.admin), lvlOk = L.level >= A.level, on2 = (eq.armor || 'none') === id;
+        const btn = owned ? `<button class="btn tiny" data-act="aequip" data-id="${id}">${on2 ? 'EQUIPPED' : 'EQUIP'}</button>`
+          : lvlOk ? `<button class="btn tiny" data-act="abuy" data-id="${id}" ${career.coins >= A.cost ? '' : 'disabled'}>BUY ${A.cost}</button>` : `<span class="req">Unlocks at level ${A.level}</span>`;
+        const perks = armorPerkLines(A.perk).map(([t, good]) => `<li class="${good ? 'pk-good' : 'pk-bad'}">${good ? '+' : '-'} ${esc(t)}</li>`).join('');
+        return `<div class="lk wsk ${on2 ? 'on' : ''} ${owned || lvlOk ? '' : 'locked'}"><div class="wsk-h">${this.iconHTML(armorTile(id), 48)}<div><h4>${esc(A.name)}</h4><span class="req">${esc(A.tag)}</span></div></div>${perks ? `<ul class="pk">${perks}</ul>` : ''}${btn}</div>`;
+      }).join('');
+    } else if (tab === 'weapon') {
       html = `<div style="grid-column:1/-1"><span class="req">Every collection plays differently: each skin has a <b class="pk-good">perk</b> and a <b class="pk-bad">drawback</b>. Buy each skin per weapon with coins you earn by playing.</span></div>`;
       for (const tool of WEAPON_TOOLS) {
         html += `<div style="grid-column:1/-1"><h3 style="margin:6px 0 0">${esc(ITEMS[tool].label.toUpperCase())}</h3></div>`;
@@ -6448,7 +6625,7 @@ class UI {
             : W.admin ? '<span class="req">Admin only</span>'
             : lvlOk ? `<button class="btn tiny" data-act="wbuy" data-id="${key}" ${career.coins >= W.cost ? '' : 'disabled'}>BUY ${W.cost}</button>` : `<span class="req">Unlocks at level ${W.level}</span>`;
           const perks = perkLines(W.perk[tool] || {}).map(([t, good]) => `<li class="${good ? 'pk-good' : 'pk-bad'}">${good ? '+' : '-'} ${esc(t)}</li>`).join('');
-          return `<div class="lk wsk ${on2 ? 'on' : ''} ${owned || lvlOk ? '' : 'locked'}"><div class="wsk-h">${this.iconHTML(weaponTile(tool, sk), 48)}<div><h4>${esc(W.name)}</h4><span class="req">${esc(tool === 'pickaxe' && W.pickTag ? W.pickTag : W.tag)}</span></div></div>${perks ? `<ul class="pk">${perks}</ul>` : ''}${btn}</div>`;
+          return `<div class="lk wsk ${on2 ? 'on' : ''} ${owned || lvlOk ? '' : 'locked'}"><div class="wsk-h">${this.iconHTML(weaponTile(tool, sk), 48)}<div><h4>${esc(W.name)}</h4><span class="req">${esc(tool === 'pickaxe' && W.pickTag ? W.pickTag : tool === 'staff' && W.staffTag ? W.staffTag : W.tag)}</span></div></div>${perks ? `<ul class="pk">${perks}</ul>` : ''}${btn}</div>`;
         }).join('');
       }
     } else if (tab === 'title') {
@@ -6474,7 +6651,8 @@ class UI {
     grid.innerHTML = html;
     grid.querySelectorAll('[data-act]').forEach((el) => el.addEventListener('click', () => {
       const act = el.dataset.act, id = el.dataset.id;
-      if (act === 'wbuy') on.wbuy(id); else if (act === 'wequip') on.wequip(id);
+      if (act === 'abuy') on.abuy(id); else if (act === 'aequip') on.aequip(id);
+      else if (act === 'wbuy') on.wbuy(id); else if (act === 'wequip') on.wequip(id);
       else if (act === 'buy') on.buy(tab, id); else if (act === 'equip') on.equip(tab, id); else if (act === 'color') on.color(+id);
       else if (act === 'title') on.title(id); else if (act === 'slot') on.slot(+id); else if (act === 'emote') on.emote(state.emoteSlot, id);
     }));
@@ -6740,7 +6918,7 @@ class Replay {
 
 /* ============================== 17. GAME =============================== */
 const INTERACTIVE = new Set(['lever', 'button', 'door', 'timer', 'turret']);
-const DEFAULT_HOTBAR = ['pickaxe', 'sword', 'bow', 'stone', 'wood', 'tnt', 'lighter', 'water', 'plate'];
+const DEFAULT_HOTBAR = ['pickaxe', 'sword', 'bow', 'stone', 'wood', 'tnt', 'lighter', 'water', 'bucket'];
 const KILL_VERB = { trap: 'impaled', melee: 'slew', arrow: 'shot', explosion: 'blew up', crush: 'crushed', mob: 'was mauled by a zombie', lava: 'swam in lava', fire: 'burned', fall: 'hit the ground too hard', drown: 'drowned', flood: 'was swept away' };
 
 function rayAabb(o, d, b, maxT) {
@@ -7086,6 +7264,8 @@ class Game {
     const pr = this.profile, c = this.career;
     this.ui.renderLocker({ tab: this.lockerTab, profile: pr, career: c, emoteSlot: this.emoteSlot, admin: !!this.admin.unlocked }, {
       wbuy: (key) => { const [tool, sk] = key.split(':'), W = WEAPON_SKINS[sk]; if (W && !W.admin && c.coins >= W.cost && levelFor(c.xp).level >= W.level && !pr.owned.weapon.includes(key)) { c.coins -= W.cost; pr.owned.weapon.push(key); pr.equipped.weapons[tool] = sk; this.audio.play('chime', null, 0.6); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
+      abuy: (id) => { const A = ARMOR[id]; pr.owned.armor = pr.owned.armor || ['none']; if (A && !A.admin && c.coins >= A.cost && levelFor(c.xp).level >= A.level && !pr.owned.armor.includes(id)) { c.coins -= A.cost; pr.owned.armor.push(id); pr.equipped.armor = id; this.audio.play('chime', null, 0.6); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
+      aequip: (id) => { const A = ARMOR[id]; if (A && (id === 'none' || (pr.owned.armor || []).includes(id) || (A.admin && this.admin.unlocked))) { pr.equipped.armor = id; this.audio.play('click'); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
       wequip: (key) => { const [tool, sk] = key.split(':'); if (sk === 'default' || pr.owned.weapon.includes(key)) { pr.equipped.weapons[tool] = sk; this.audio.play('click'); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
       tab: (t) => { this.lockerTab = t; this.audio.play('click'); this.refreshLocker(); },
       slot: (i) => { this.emoteSlot = i; this.refreshLocker(); },
@@ -7497,6 +7677,12 @@ class Game {
         if (near && e.by !== me) { this.ui.banner('TNT STRIKE', 'TNT is falling on you. Move!', 'bad', 2400); this.audio.play('alarm', null, 0.7); }
         break;
       }
+      case 'neutralize': {
+        for (let i = 0; i < 6; i++) P.puff(e.x + 0.5 + (Math.random() - 0.5) * 4, e.y + 1, e.z + 0.5 + (Math.random() - 0.5) * 4, [0.9, 0.9, 0.92], 3, 1.2, 2.2, 0.35, 1.2, false);
+        this.sfx('sizzle', e.x, e.y, e.z, 40);
+        if (me && e.by === me.id) this.ui.toast(e.flood ? 'The flood is too big: you dried a patch around you.' : 'Hiss! The water hardened into stone and boiled away.', 'good', 2200);
+        break;
+      }
       case 'dropIncoming': {
         this.ui.banner('SUPPLY DROP', 'A crate is parachuting in. Stand on it to claim the loot!', 'good', 3000); this.audio.play('chime', null, 0.7);
         break;
@@ -7762,7 +7948,14 @@ class Game {
       this.mining = null;
     } else {
       this.bowHeld = 0;
-      if (item && item.id === 'lighter') {
+      if (item && item.id === 'bucket') {
+        this.mining = null;
+        if (leftEdge) {
+          const f = this.fluidRay(p);
+          if (f) { const r = s.handle(p.id, { type: 'scoop', x: f.x, y: f.y, z: f.z }); p.swing = 1; p.swingKind = 'pickaxe'; if (r.ok && !r.pending) p.bucketFluid = r.fluid; else if (r.pending) p.bucketFluid = f.fluid; if (!r.ok && r.reason === 'bucket-full') this.ui.toast('Your bucket supplies are full.', 'bad', 1400); }
+          else this.ui.toast('Aim at water or lava to scoop it up.', '', 1400);
+        }
+      } else if (item && item.id === 'lighter') {
         this.mining = null;
         if (leftEdge && tgt) { const r = s.handle(p.id, { type: 'ignite', x: tgt.x, y: tgt.y, z: tgt.z, nx: tgt.nx, ny: tgt.ny, nz: tgt.nz }); if (!r.ok && r.reason === 'not-allowed') this.ui.toast('You cannot do that here right now.', 'bad', 1500); }
       } else if (left && ent) {
@@ -7796,10 +7989,15 @@ class Game {
     if (right && tgt) {
       const def = w.def(tgt.x, tgt.y, tgt.z);
       if (INTERACTIVE.has(def.type) && !p.crouching) { if (rightEdge) s.handle(p.id, { type: 'use', x: tgt.x, y: tgt.y, z: tgt.z }); }
+      else if (item && item.id === 'bucket' && rightEdge && (tgt.nx || tgt.ny || tgt.nz)) {           // pour what you scooped last (or whatever you have)
+        const pref = p.bucketFluid || 'water', other = pref === 'water' ? 'lava' : 'water', fl = s.unlimited || (p.resources[pref] || 0) >= 1 ? pref : (p.resources[other] || 0) >= 1 ? other : null;
+        if (!fl) this.ui.toast('Your bucket is empty: scoop up water or lava first.', 'bad', 1600);
+        else { const r = s.handle(p.id, { type: 'place', x: tgt.x + tgt.nx, y: tgt.y + tgt.ny, z: tgt.z + tgt.nz, item: fl, against: { x: tgt.x, y: tgt.y, z: tgt.z } }); if (r.ok) { p.swing = 1; p.swingKind = 'pickaxe'; } }
+      }
       else if (item && item.def.kind !== 'tool' && (tgt.nx || tgt.ny || tgt.nz)) {
         const r = s.handle(p.id, { type: 'place', x: tgt.x + tgt.nx, y: tgt.y + tgt.ny, z: tgt.z + tgt.nz, item: item.id, against: { x: tgt.x, y: tgt.y, z: tgt.z } });
         if (!r.ok && rightEdge) {
-          const msg = { 'no-resource': 'Out of ' + RESOURCES[item.def.res].label.toLowerCase() + '!', 'not-allowed': s.phase === 'build' ? 'Build phase: you can only edit your own land.' : 'You cannot build yet.', 'no-support': 'Needs something to attach to.', 'no-floor': 'Needs solid ground below it.', 'player-in-way': 'Someone is in the way.', 'vault-zone': 'No building inside the vault: run the course!' }[r.reason];
+          const msg = { 'no-resource': 'Out of ' + RESOURCES[item.def.res].label.toLowerCase() + '!', 'not-allowed': s.phase === 'build' ? 'Build phase: you can only edit your own land.' : 'You cannot build yet.', 'no-support': 'Needs something to attach to.', 'no-floor': 'Needs solid ground below it.', 'player-in-way': 'Someone is in the way.', 'vault-zone': 'No building inside the vault: run the course!', 'underwater': 'You cannot build while swimming. Pour lava (bucket) to escape!' }[r.reason];
           if (msg) this.ui.toast(msg, 'bad', 1500);
         }
       }
@@ -7859,6 +8057,16 @@ class Game {
   }
 
   /** Fire and smoke over burning blocks, trails behind meteors and lit TNT. */
+  /** First water/lava cell along the view ray within reach (the normal block ray skips fluids). */
+  fluidRay(p) {
+    const w = this.server.world, e = p.eyePosition(), d = p.lookDirection();
+    for (let t = 0.2; t <= CONFIG.PLAYER.REACH + 1; t += 0.1) {
+      const x = Math.floor(e.x + d.x * t), y = Math.floor(e.y + d.y * t), z = Math.floor(e.z + d.z * t), id = w.get(x, y, z);
+      if (id === ID.water || id === ID.lava) return { x, y, z, fluid: id === ID.water ? 'water' : 'lava' };
+      if (w.isSolid(x, y, z)) return null;
+    }
+    return null;
+  }
   /** Flying arrows leave a trail in their skin's colour. */
   arrowFx() {
     const P = this.particles, arrows = this.server.arrows || [];
@@ -7950,6 +8158,7 @@ class Game {
     if (s.base_destroyed_flag) bits.push('');
     if (s.plots[p.index] && s.plots[p.index].core) bits.push(s.baseDestroyed[p.index] ? '<span class="bad">NO CORE: no respawns</span>' : '<span class="ally">CORE SAFE</span>');
     if (p.burnTime > 0) bits.push('<span class="bad">BURNING</span>');
+    { const maxAir = (p.deadlyWater ? CONFIG.WATER.AIR : CONFIG.WATER.NATURAL_AIR) * (armorPerk(p.look).air || 1); if (p.air != null && p.air < maxAir - 0.05) bits.push(p.air <= 0 ? '<span class="bad">DROWNING! Pour lava to escape</span>' : `<span class="bad">AIR ${Math.max(0, Math.ceil(p.air))}s</span>`); }
     return bits.join(' &middot; ');
   }
   tintKind() {
@@ -8034,6 +8243,7 @@ class Game {
         const hy = q.pos.y + 2.15, d = Math.hypot(q.pos.x - cam.x, hy - cam.y, q.pos.z - cam.z);
         if (d > 70 || d < 1) continue;
         if (s.world.lineBlocked(cam.x, cam.y, cam.z, q.pos.x, hy - 0.4, q.pos.z)) continue;
+        if (d > 10 && armorPerk(q.look).stealth && !s.areAllies(q, this.player)) continue;      // Shadow Cloak
         const pr = Mat4.project(vp, q.pos.x, hy, q.pos.z);
         if (!pr || Math.abs(pr.x) > 1.1 || Math.abs(pr.y) > 1.1) continue;
         plates.push({ x: (pr.x * 0.5 + 0.5) * cw, y: (1 - (pr.y * 0.5 + 0.5)) * ch, scale: clamp(1.2 - d / 90, 0.6, 1.1), name: q.name, color: q.color, hp: Math.round(q.health / q.maxHealth * 100), ally: s.areAllies(q, this.player), bounty: q.bounty, hot: (this.hotT.get(q.index) || 0) > this.time, title: q.look && TITLES[q.look.title] ? TITLES[q.look.title].name : '', say: (this.bubbles.get(q.id) || {}).until > this.time ? this.bubbles.get(q.id).text : '' });
