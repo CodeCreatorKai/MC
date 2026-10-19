@@ -46,7 +46,8 @@ const CONFIG = {
   STEP: 1 / 60,                 // fixed physics timestep (seconds)
   MOUSE_SENS: 0.0022,           // radians per pixel at sensitivity 1.0
   MINE: { TIME_PER_HARDNESS: 0.45, MIN_TIME: 0.15, PLACE_COOLDOWN: 0.25 }, // stone ~0.7 s with a pickaxe, close to Minecraft
-  WATER: { AIR: 5, NATURAL_AIR: 10, DROWN_DPS: 9, SWIM_UP: 1.6 },              // breath (s), drowning damage per second, max swim-up speed (deep water holds you)
+  COMBAT: { PARRY_WINDOW: 0.3, PURIST: 1.25, HEADSHOT: 1.5 },   // skill: perfect-block window (s), standard-skin crit/headshot bonus, arrow headshot multiplier
+  WATER: { AIR: 5, NATURAL_AIR: 10, DROWN_DPS: 9, SWIM_UP: 1.6, POUR_LEVEL: 5 },   // POUR_LEVEL: a bucket spreads at most 4 blocks              // breath (s), drowning damage per second, max swim-up speed (deep water holds you)
   HEALTH: { MAX: 100, REGEN_DELAY: 10, REGEN_RATE: 0.8, FALL_SAFE: 13, FALL_DMG: 4.5 },
   PLOT_RADIUS: 18,
   MATCH: {
@@ -1104,9 +1105,10 @@ class FluidSystem {
       }
     }
 
+    const poured = (meta & 64) && !(meta & 32);                     // bucket water: falling does not refill it, so it never runs away downhill
     if (!src) {                                                    // flowing cells need a feeder or they drain
       let feed = 0;
-      if (w.get(x, y + 1, z) === id) feed = maxL;
+      if (w.get(x, y + 1, z) === id) feed = poured ? Math.max(1, w.getMeta(x, y + 1, z) & 15) : maxL;
       for (let i = 0; i < 4; i++) {
         const d = DIRS6[i < 2 ? i : i + 2];
         if (w.get(x + d[0], y, z + d[2]) === id) feed = Math.max(feed, (w.getMeta(x + d[0], y, z + d[2]) & 15) - 1);
@@ -1117,7 +1119,7 @@ class FluidSystem {
 
     const below = y > 0 ? w.get(x, y - 1, z) : ID.bedrock, bd = BLOCKS[below];
     const bits = meta & DEADLY_WATER;                              // flood / poured water stays deadly as it spreads
-    if (y > 0 && (bd.replaceable || bd.shape === 'fluid') && below !== id) { this.flowInto(x, y - 1, z, id, maxL, bits); return; }
+    if (y > 0 && (bd.replaceable || bd.shape === 'fluid') && below !== id) { this.flowInto(x, y - 1, z, id, poured ? Math.max(1, level) : maxL, bits); return; }
     if (level > 1 && (bd.solid || bd.shape === 'fluid' || !bd.replaceable)) {
       for (let i = 0; i < 4; i++) { const d = DIRS6[i < 2 ? i : i + 2]; this.flowInto(x + d[0], y, z + d[2], id, level - 1, bits); }
     }
@@ -1651,18 +1653,18 @@ const DROP_LOOT_BY_ID = Object.fromEntries(DROP_LOOT.map((l) => [l.id, l]));
 const BUFF_INFO = { rage: { name: 'RAGE', color: '#ff5a4a' }, swift: { name: 'SWIFT', color: '#5ae0ff' }, armor: { name: 'IRON SKIN', color: '#ffd23f' } };
 /** Daily challenges: three are picked per day (same three for everyone on that date). kind = what counts. */
 const DAILY_POOL = [
-  { id: 'kills', kind: 'kill', n: 5, coins: 150, text: 'Get 5 eliminations' },
-  { id: 'freeze', kind: 'chill', n: 8, coins: 200, text: 'Freeze enemies 8 times (Glacier)' },
-  { id: 'burn', kind: 'burn', n: 8, coins: 200, text: 'Set enemies on fire 8 times (Inferno)' },
-  { id: 'leech', kind: 'leech', n: 10, coins: 200, text: 'Lifesteal 10 times (Bloodmoon)' },
-  { id: 'core', kind: 'core', n: 1, coins: 250, text: 'Destroy an enemy core' },
-  { id: 'drops', kind: 'drop', n: 2, coins: 200, text: 'Claim 2 supply drops' },
-  { id: 'streak', kind: 'streak', n: 1, coins: 250, text: 'Get a 3 kill streak' },
-  { id: 'crits', kind: 'crit', n: 10, coins: 150, text: 'Land 10 critical hits' },
-  { id: 'arrows', kind: 'arrowHit', n: 12, coins: 150, text: 'Hit 12 arrows' },
-  { id: 'tnt', kind: 'tntKill', n: 2, coins: 200, text: 'Get 2 TNT eliminations' },
-  { id: 'win', kind: 'win', n: 1, coins: 300, text: 'Win a match' },
-  { id: 'play', kind: 'play', n: 3, coins: 150, text: 'Play 3 matches' },
+  { id: 'kills', kind: 'kill', n: 5, coins: 60, text: 'Get 5 eliminations' },
+  { id: 'freeze', kind: 'chill', n: 8, coins: 80, text: 'Freeze enemies 8 times (Glacier)' },
+  { id: 'burn', kind: 'burn', n: 8, coins: 80, text: 'Set enemies on fire 8 times (Inferno)' },
+  { id: 'leech', kind: 'leech', n: 10, coins: 80, text: 'Lifesteal 10 times (Bloodmoon)' },
+  { id: 'core', kind: 'core', n: 1, coins: 100, text: 'Destroy an enemy core' },
+  { id: 'drops', kind: 'drop', n: 2, coins: 80, text: 'Claim 2 supply drops' },
+  { id: 'streak', kind: 'streak', n: 1, coins: 100, text: 'Get a 3 kill streak' },
+  { id: 'crits', kind: 'crit', n: 10, coins: 60, text: 'Land 10 critical hits' },
+  { id: 'arrows', kind: 'arrowHit', n: 12, coins: 60, text: 'Hit 12 arrows' },
+  { id: 'tnt', kind: 'tntKill', n: 2, coins: 80, text: 'Get 2 TNT eliminations' },
+  { id: 'win', kind: 'win', n: 1, coins: 120, text: 'Win a match' },
+  { id: 'play', kind: 'play', n: 3, coins: 60, text: 'Play 3 matches' },
 ];
 const DAILY_BY_ID = Object.fromEntries(DAILY_POOL.map((d) => [d.id, d]));
 const QUIVER = { REFILL_AFTER: 4, REFILL_EVERY: 5, REFILL_TO: 10 };   // s without shooting before refilling, s per arrow, refills up to
@@ -2331,66 +2333,66 @@ const MapGenerator = {
  * XP and coins unlock COSMETICS ONLY (skins, trails, kill effects, emotes, banners, titles).
  * Nothing in here changes damage, speed, resources or any other gameplay number: no pay-to-win.
  */
-const LEVEL_XP = 180;                                           // XP per level, growing with level
-const levelFor = (xp) => { let lvl = 1, need = LEVEL_XP; while (xp >= need && lvl < 99) { xp -= need; lvl++; need = Math.round(LEVEL_XP * (1 + lvl * 0.35)); } return { level: lvl, into: xp, need }; };
+const LEVEL_XP = 600;                                           // XP per level, growing with level (a long climb)
+const levelFor = (xp) => { let lvl = 1, need = LEVEL_XP; while (xp >= need && lvl < 99) { xp -= need; lvl++; need = Math.round(LEVEL_XP * (1 + lvl * 0.5)); } return { level: lvl, into: xp, need }; };
 
 const COSMETICS = {
   skin: {
     default: { name: 'Team Colours', cost: 0, level: 1, blurb: 'Your team colour shirt.' },
-    knight:  { name: 'Knight',  cost: 250, level: 2, skin: [0.84, 0.82, 0.88], shirt: [0.68, 0.71, 0.78], legs: [0.36, 0.38, 0.44] },
-    ember:   { name: 'Ember',   cost: 300, level: 3, skin: [0.95, 0.62, 0.42], shirt: [0.86, 0.26, 0.12], legs: [0.3, 0.1, 0.08] },
-    frost:   { name: 'Frost',   cost: 300, level: 4, skin: [0.82, 0.93, 1.0],  shirt: [0.45, 0.72, 0.95], legs: [0.2, 0.32, 0.55] },
-    shadow:  { name: 'Shadow',  cost: 400, level: 6, skin: [0.3, 0.3, 0.36],   shirt: [0.14, 0.12, 0.2],  legs: [0.08, 0.07, 0.12] },
-    golden:  { name: 'Golden',  cost: 900, level: 10, skin: [1.0, 0.88, 0.45], shirt: [0.96, 0.78, 0.2],  legs: [0.62, 0.45, 0.1] },
+    knight:  { name: 'Knight',  cost: 800, level: 2, skin: [0.84, 0.82, 0.88], shirt: [0.68, 0.71, 0.78], legs: [0.36, 0.38, 0.44] },
+    ember:   { name: 'Ember',   cost: 1000, level: 3, skin: [0.95, 0.62, 0.42], shirt: [0.86, 0.26, 0.12], legs: [0.3, 0.1, 0.08] },
+    frost:   { name: 'Frost',   cost: 1000, level: 4, skin: [0.82, 0.93, 1.0],  shirt: [0.45, 0.72, 0.95], legs: [0.2, 0.32, 0.55] },
+    shadow:  { name: 'Shadow',  cost: 1500, level: 6, skin: [0.3, 0.3, 0.36],   shirt: [0.14, 0.12, 0.2],  legs: [0.08, 0.07, 0.12] },
+    golden:  { name: 'Golden',  cost: 4000, level: 12, skin: [1.0, 0.88, 0.45], shirt: [0.96, 0.78, 0.2],  legs: [0.62, 0.45, 0.1] },
     admin:   { name: 'Admin',   cost: 0, level: 1, admin: true, skin: [0.95, 0.8, 1], shirt: [0.92, 0.18, 0.85], legs: [0.12, 0.08, 0.16] },
-    leaf:    { name: 'Woodland', cost: 350, level: 5, skin: [0.78, 0.66, 0.46], shirt: [0.28, 0.56, 0.24], legs: [0.34, 0.26, 0.14] },
+    leaf:    { name: 'Woodland', cost: 1200, level: 5, skin: [0.78, 0.66, 0.46], shirt: [0.28, 0.56, 0.24], legs: [0.34, 0.26, 0.14] },
     // ---- the silly ones (bots love these). face: eyes / mouth / nose / top describe the head ----
-    chicken: { name: 'Chicken', cost: 150, level: 1, funny: true, joke: 'Bawk. Comes with a comb.', skin: [0.97, 0.97, 0.95], shirt: [0.95, 0.95, 0.92], legs: [0.98, 0.78, 0.2], face: { eyes: 'dot', mouth: 'beak', top: 'comb' } },
-    banana:  { name: 'Banana Man', cost: 200, level: 1, funny: true, joke: 'Appeal guaranteed.', skin: [1, 0.9, 0.3], shirt: [1, 0.86, 0.22], legs: [0.95, 0.8, 0.2], face: { eyes: 'big', mouth: 'smile', top: 'stem' } },
-    clown:   { name: 'Honk', cost: 250, level: 2, funny: true, joke: 'Honk honk. Red nose included.', skin: [0.98, 0.97, 0.97], shirt: [0.62, 0.3, 0.85], legs: [0.25, 0.75, 0.3], face: { eyes: 'big', mouth: 'grin', nose: [0.95, 0.12, 0.12], top: 'hair', topColor: [1, 0.45, 0.1] } },
-    nerd:    { name: 'Big Brain', cost: 250, level: 2, funny: true, joke: 'Glasses +10 IQ. Teeth not included.', skin: [0.96, 0.8, 0.66], shirt: [0.3, 0.55, 0.35], legs: [0.45, 0.35, 0.25], face: { eyes: 'glasses', mouth: 'teeth', top: 'hair', topColor: [0.35, 0.22, 0.12] } },
-    frog:    { name: 'Frog Prince', cost: 300, level: 3, funny: true, joke: 'Kiss not required.', skin: [0.35, 0.75, 0.3], shirt: [0.3, 0.65, 0.28], legs: [0.25, 0.5, 0.2], face: { eyes: 'big', mouth: 'line', top: 'crown' } },
-    robot:   { name: 'Beep Boop', cost: 300, level: 3, funny: true, joke: 'Beep. Boop. Antenna blinks.', skin: [0.7, 0.72, 0.76], shirt: [0.5, 0.52, 0.58], legs: [0.35, 0.36, 0.4], face: { eyes: 'visor', mouth: 'none', top: 'antenna' } },
-    pig:     { name: 'Bacon', cost: 300, level: 4, funny: true, joke: 'Oink. Big snout energy.', skin: [0.98, 0.68, 0.72], shirt: [0.95, 0.6, 0.66], legs: [0.88, 0.5, 0.56], face: { eyes: 'dot', mouth: 'smile', nose: 'snout', top: 'ears', topColor: [0.95, 0.58, 0.64] } },
-    grandpa: { name: 'Grandpa', cost: 350, level: 4, funny: true, joke: 'Back in my day we mined by hand.', skin: [0.95, 0.8, 0.68], shirt: [0.55, 0.38, 0.25], legs: [0.35, 0.33, 0.3], face: { eyes: 'glasses', mouth: 'mustache', top: 'hair', topColor: [0.94, 0.94, 0.94] } },
-    derp:    { name: 'Derp', cost: 200, level: 2, funny: true, joke: 'Eyes looking two ways at once.', skin: [0.96, 0.82, 0.62], shirt: [0.95, 0.4, 0.6], legs: [0.3, 0.4, 0.85], face: { eyes: 'derp', mouth: 'tongue', top: 'party' } },
-    imp:     { name: 'Lil Imp', cost: 400, level: 5, funny: true, joke: 'Tiny horns, big trouble.', skin: [0.88, 0.25, 0.2], shirt: [0.25, 0.1, 0.12], legs: [0.15, 0.06, 0.08], face: { eyes: 'angry', mouth: 'grin', top: 'horns' } },
-    chef:    { name: 'Le Chef', cost: 400, level: 6, funny: true, joke: 'Sleepy chef with a fancy mustache.', skin: [0.96, 0.8, 0.66], shirt: [0.97, 0.97, 0.97], legs: [0.2, 0.2, 0.24], face: { eyes: 'sleepy', mouth: 'mustache', top: 'chef' } },
+    chicken: { name: 'Chicken', cost: 400, level: 1, funny: true, joke: 'Bawk. Comes with a comb.', skin: [0.97, 0.97, 0.95], shirt: [0.95, 0.95, 0.92], legs: [0.98, 0.78, 0.2], face: { eyes: 'dot', mouth: 'beak', top: 'comb' } },
+    banana:  { name: 'Banana Man', cost: 500, level: 1, funny: true, joke: 'Appeal guaranteed.', skin: [1, 0.9, 0.3], shirt: [1, 0.86, 0.22], legs: [0.95, 0.8, 0.2], face: { eyes: 'big', mouth: 'smile', top: 'stem' } },
+    clown:   { name: 'Honk', cost: 700, level: 2, funny: true, joke: 'Honk honk. Red nose included.', skin: [0.98, 0.97, 0.97], shirt: [0.62, 0.3, 0.85], legs: [0.25, 0.75, 0.3], face: { eyes: 'big', mouth: 'grin', nose: [0.95, 0.12, 0.12], top: 'hair', topColor: [1, 0.45, 0.1] } },
+    nerd:    { name: 'Big Brain', cost: 700, level: 2, funny: true, joke: 'Glasses +10 IQ. Teeth not included.', skin: [0.96, 0.8, 0.66], shirt: [0.3, 0.55, 0.35], legs: [0.45, 0.35, 0.25], face: { eyes: 'glasses', mouth: 'teeth', top: 'hair', topColor: [0.35, 0.22, 0.12] } },
+    frog:    { name: 'Frog Prince', cost: 900, level: 3, funny: true, joke: 'Kiss not required.', skin: [0.35, 0.75, 0.3], shirt: [0.3, 0.65, 0.28], legs: [0.25, 0.5, 0.2], face: { eyes: 'big', mouth: 'line', top: 'crown' } },
+    robot:   { name: 'Beep Boop', cost: 900, level: 3, funny: true, joke: 'Beep. Boop. Antenna blinks.', skin: [0.7, 0.72, 0.76], shirt: [0.5, 0.52, 0.58], legs: [0.35, 0.36, 0.4], face: { eyes: 'visor', mouth: 'none', top: 'antenna' } },
+    pig:     { name: 'Bacon', cost: 1000, level: 4, funny: true, joke: 'Oink. Big snout energy.', skin: [0.98, 0.68, 0.72], shirt: [0.95, 0.6, 0.66], legs: [0.88, 0.5, 0.56], face: { eyes: 'dot', mouth: 'smile', nose: 'snout', top: 'ears', topColor: [0.95, 0.58, 0.64] } },
+    grandpa: { name: 'Grandpa', cost: 1100, level: 4, funny: true, joke: 'Back in my day we mined by hand.', skin: [0.95, 0.8, 0.68], shirt: [0.55, 0.38, 0.25], legs: [0.35, 0.33, 0.3], face: { eyes: 'glasses', mouth: 'mustache', top: 'hair', topColor: [0.94, 0.94, 0.94] } },
+    derp:    { name: 'Derp', cost: 600, level: 2, funny: true, joke: 'Eyes looking two ways at once.', skin: [0.96, 0.82, 0.62], shirt: [0.95, 0.4, 0.6], legs: [0.3, 0.4, 0.85], face: { eyes: 'derp', mouth: 'tongue', top: 'party' } },
+    imp:     { name: 'Lil Imp', cost: 1300, level: 5, funny: true, joke: 'Tiny horns, big trouble.', skin: [0.88, 0.25, 0.2], shirt: [0.25, 0.1, 0.12], legs: [0.15, 0.06, 0.08], face: { eyes: 'angry', mouth: 'grin', top: 'horns' } },
+    chef:    { name: 'Le Chef', cost: 1500, level: 6, funny: true, joke: 'Sleepy chef with a fancy mustache.', skin: [0.96, 0.8, 0.66], shirt: [0.97, 0.97, 0.97], legs: [0.2, 0.2, 0.24], face: { eyes: 'sleepy', mouth: 'mustache', top: 'chef' } },
   },
   trail: {
     none:    { name: 'No Trail', cost: 0, level: 1 },
-    sparks:  { name: 'Sparks',   cost: 200, level: 2, color: [1, 0.8, 0.25], glow: true, rise: 0.4, size: 0.1 },
-    smoke:   { name: 'Smoke',    cost: 200, level: 3, color: [0.4, 0.4, 0.42], glow: false, rise: 0.8, size: 0.2 },
-    snow:    { name: 'Snowfall', cost: 350, level: 5, color: [0.92, 0.97, 1], glow: true, rise: -0.2, size: 0.1 },
-    leaves:  { name: 'Leaf Litter', cost: 350, level: 6, color: [0.3, 0.7, 0.25], glow: false, rise: 0.2, size: 0.12 },
-    rainbow: { name: 'Rainbow',  cost: 800, level: 9, color: null, glow: true, rise: 0.3, size: 0.12 },
+    sparks:  { name: 'Sparks',   cost: 600, level: 2, color: [1, 0.8, 0.25], glow: true, rise: 0.4, size: 0.1 },
+    smoke:   { name: 'Smoke',    cost: 600, level: 3, color: [0.4, 0.4, 0.42], glow: false, rise: 0.8, size: 0.2 },
+    snow:    { name: 'Snowfall', cost: 1050, level: 5, color: [0.92, 0.97, 1], glow: true, rise: -0.2, size: 0.1 },
+    leaves:  { name: 'Leaf Litter', cost: 1050, level: 6, color: [0.3, 0.7, 0.25], glow: false, rise: 0.2, size: 0.12 },
+    rainbow: { name: 'Rainbow',  cost: 2400, level: 9, color: null, glow: true, rise: 0.3, size: 0.12 },
   },
   kill: {
     none:     { name: 'Standard', cost: 0, level: 1 },
-    confetti: { name: 'Confetti', cost: 250, level: 2 },
-    lightning:{ name: 'Lightning', cost: 450, level: 5 },
-    ghost:    { name: 'Ghost Rise', cost: 350, level: 4 },
-    pixels:   { name: 'Pixel Pop', cost: 300, level: 3 },
+    confetti: { name: 'Confetti', cost: 750, level: 2 },
+    lightning:{ name: 'Lightning', cost: 1350, level: 5 },
+    ghost:    { name: 'Ghost Rise', cost: 1050, level: 4 },
+    pixels:   { name: 'Pixel Pop', cost: 900, level: 3 },
   },
   banner: {
     solid:   { name: 'Solid',   cost: 0, level: 1, a: null, b: null, pattern: 'solid' },
-    stripes: { name: 'Stripes', cost: 100, level: 1, a: [1, 1, 1], b: null, pattern: 'stripes' },
-    cross:   { name: 'Cross',   cost: 150, level: 2, a: [1, 0.9, 0.3], b: null, pattern: 'cross' },
-    diag:    { name: 'Diagonal', cost: 150, level: 3, a: [0.1, 0.1, 0.12], b: null, pattern: 'diag' },
-    chevron: { name: 'Chevron', cost: 200, level: 4, a: [0.95, 0.95, 0.95], b: [0.9, 0.2, 0.2], pattern: 'chevron' },
-    skull:   { name: 'Skull',   cost: 400, level: 7, a: [0.95, 0.95, 0.95], b: [0.1, 0.1, 0.1], pattern: 'skull' },
+    stripes: { name: 'Stripes', cost: 300, level: 1, a: [1, 1, 1], b: null, pattern: 'stripes' },
+    cross:   { name: 'Cross',   cost: 450, level: 2, a: [1, 0.9, 0.3], b: null, pattern: 'cross' },
+    diag:    { name: 'Diagonal', cost: 450, level: 3, a: [0.1, 0.1, 0.12], b: null, pattern: 'diag' },
+    chevron: { name: 'Chevron', cost: 600, level: 4, a: [0.95, 0.95, 0.95], b: [0.9, 0.2, 0.2], pattern: 'chevron' },
+    skull:   { name: 'Skull',   cost: 1200, level: 7, a: [0.95, 0.95, 0.95], b: [0.1, 0.1, 0.1], pattern: 'skull' },
   },
   emote: {
     gg:     { name: 'GG!',            text: 'GG!',            cost: 0, level: 1 },
     oops:   { name: 'Oops!',          text: 'Oops!',          cost: 0, level: 1 },
     boom:   { name: 'BOOM!',          text: 'BOOM!',          cost: 0, level: 1 },
     help:   { name: 'Help!',          text: 'Help!',          cost: 0, level: 1 },
-    nice:   { name: 'Nice shot!',     text: 'Nice shot!',     cost: 100, level: 2 },
-    fire:   { name: 'Fire in the hole!', text: 'Fire in the hole!', cost: 150, level: 3 },
-    wave:   { name: 'o/',             text: 'o/',             cost: 100, level: 2 },
-    rip:    { name: 'RIP',            text: 'RIP',            cost: 120, level: 4 },
-    think:  { name: 'Hmm...',         text: 'Hmm...',         cost: 120, level: 3 },
-    taunt:  { name: 'Come get me!',   text: 'Come get me!',   cost: 200, level: 5 },
+    nice:   { name: 'Nice shot!',     text: 'Nice shot!',     cost: 300, level: 2 },
+    fire:   { name: 'Fire in the hole!', text: 'Fire in the hole!', cost: 450, level: 3 },
+    wave:   { name: 'o/',             text: 'o/',             cost: 300, level: 2 },
+    rip:    { name: 'RIP',            text: 'RIP',            cost: 360, level: 4 },
+    think:  { name: 'Hmm...',         text: 'Hmm...',         cost: 360, level: 3 },
+    taunt:  { name: 'Come get me!',   text: 'Come get me!',   cost: 600, level: 5 },
   },
 };
 /**
@@ -2404,24 +2406,24 @@ const COSMETICS = {
  */
 const WEAPON_TOOLS = ['sword', 'axe', 'pickaxe', 'bow', 'staff'];
 const WEAPON_SKINS = {
-  default: { name: 'Standard', cost: 0, level: 1, tag: 'Plain steel. No perk, no drawback.', perk: {},
+  default: { name: 'Standard', cost: 0, level: 1, tag: 'Purist: no gimmicks, +25% crit and headshot damage. Pure skill.', staffTag: 'Purist: no gimmicks, +25% crit damage. Pure skill.', pickTag: 'Plain steel. No perk, no drawback.', perk: {},
     pal: { hi: [240, 242, 250], mid: [196, 200, 212], lo: [128, 132, 148], h1: [134, 94, 56], h2: [96, 64, 38], gd: [150, 150, 162], ol: [34, 34, 42] } },
-  frost: { name: 'Glacier', cost: 500, level: 2, tag: 'Ice crystal. Hits freeze enemies in place.', staffTag: 'Freeze ray: hits slow enemies, pushes a little less.', pickTag: 'Cryo drill: tears through stone and ore, sluggish in dirt.',
+  frost: { name: 'Glacier', cost: 1200, level: 3, tag: 'Ice crystal. Hits freeze enemies in place.', staffTag: 'Freeze ray: hits slow enemies, pushes a little less.', pickTag: 'Cryo drill: tears through stone and ore, sluggish in dirt.',
     perk: { staff: { chill: 1.2, kb: 0.85 }, sword: { chill: 1.6, dmg: 0.9 }, axe: { chill: 2.2, dmg: 0.9 }, pickaxe: { mineHard: 1.35, mineSoft: 0.8 }, bow: { chill: 2, arrow: 0.9 } },
     pal: { hi: [240, 252, 255], mid: [150, 215, 250], lo: [70, 140, 210], h1: [210, 235, 250], h2: [120, 170, 210], gd: [180, 230, 255], gem: [255, 255, 255], fx: [0.7, 0.9, 1], ol: [18, 48, 92] } },
-  inferno: { name: 'Inferno', cost: 600, level: 3, tag: 'Living flame. Sets enemies on fire, but swings slower.', staffTag: 'Blowtorch: knocked-back enemies catch fire.', pickTag: 'Melts rock fast, but some blocks burn up and drop nothing.', fire: true,
+  inferno: { name: 'Inferno', cost: 1500, level: 5, tag: 'Living flame. Sets enemies on fire, but swings slower.', staffTag: 'Blowtorch: knocked-back enemies catch fire.', pickTag: 'Melts rock fast, but some blocks burn up and drop nothing.', fire: true,
     perk: { staff: { burn: 2, kb: 0.9 }, sword: { burn: 3, speed: 1.12 }, axe: { burn: 3.5, speed: 1.12 }, pickaxe: { mine: 1.25, scorch: 0.2 }, bow: { burn: 4, draw: 1.15 } },
     pal: { hi: [255, 236, 120], mid: [255, 140, 40], lo: [190, 40, 20], h1: [74, 42, 30], h2: [42, 22, 18], gd: [64, 40, 40], gem: [255, 220, 90], fx: [1, 0.55, 0.12], ol: [52, 10, 4] } },
-  blood: { name: 'Bloodmoon', cost: 700, level: 4, tag: 'Cursed crimson. Heals you on every hit, hits a bit softer.', staffTag: 'Leech rod: every bonk heals you as much as it hurts them.', pickTag: 'Every block you mine heals you a little.',
-    perk: { staff: { leech: 1, kb: 0.9 }, sword: { leech: 0.3, dmg: 0.9 }, axe: { leech: 0.25, dmg: 0.92 }, pickaxe: { mineHeal: 2, mine: 0.9 }, bow: { leech: 0.25, arrow: 0.9 } },
+  blood: { name: 'Bloodmoon', cost: 1800, level: 7, tag: 'Cursed crimson. Heals you on every hit, hits a bit softer.', staffTag: 'Leech rod: every bonk heals you as much as it hurts them.', pickTag: 'Every block you mine heals you a little.',
+    perk: { staff: { leech: 1, kb: 0.9 }, sword: { leech: 0.25, dmg: 0.9 }, axe: { leech: 0.25, dmg: 0.92 }, pickaxe: { mineHeal: 2, mine: 0.9 }, bow: { leech: 0.25, arrow: 0.9 } },
     pal: { hi: [255, 120, 128], mid: [204, 32, 54], lo: [112, 10, 30], h1: [48, 36, 48], h2: [26, 20, 30], gd: [74, 62, 80], gem: [255, 60, 84], fx: [0.9, 0.08, 0.15], ol: [30, 0, 10] } },
-  volt: { name: 'Voltage', cost: 700, level: 5, tag: 'Neon lightning. Run faster with it out, hits lighter.', staffTag: 'Shock prod: +20% knockback, slightly slower swings.', pickTag: 'Zips through dirt, sand and wood, and you run faster.',
+  volt: { name: 'Voltage', cost: 1800, level: 8, tag: 'Neon lightning. Run faster with it out, hits lighter.', staffTag: 'Shock prod: +20% knockback, slightly slower swings.', pickTag: 'Zips through dirt, sand and wood, and you run faster.',
     perk: { staff: { kb: 1.2, speed: 1.12 }, sword: { move: 1.15, speed: 0.9, dmg: 0.85 }, axe: { move: 1.12, speed: 0.92, dmg: 0.88 }, pickaxe: { mineSoft: 1.4, move: 1.1, mineHard: 0.9 }, bow: { arrowSpeed: 1.4, draw: 0.9, arrow: 0.85 } },
     pal: { hi: [255, 255, 190], mid: [255, 230, 60], lo: [40, 190, 255], h1: [54, 54, 74], h2: [30, 30, 44], gd: [40, 200, 255], gem: [150, 255, 255], fx: [0.55, 1, 1], ol: [16, 16, 40] } },
-  titan: { name: 'Titan', cost: 800, level: 6, tag: 'Heavy bronze. Huge hits and knockback, but slow.', staffTag: 'Wrecking ball: launches enemies far, but heavy and slow.', pickTag: 'Breaks two blocks deep in one go, but each swing is slow.',
+  titan: { name: 'Titan', cost: 2500, level: 11, tag: 'Heavy bronze. Huge hits and knockback, but slow.', staffTag: 'Wrecking ball: launches enemies far, but heavy and slow.', pickTag: 'Breaks two blocks deep in one go, but each swing is slow.',
     perk: { staff: { kb: 1.6, speed: 1.25, move: 0.92 }, sword: { dmg: 1.15, kb: 1.7, speed: 1.15, move: 0.92 }, axe: { dmg: 1.2, kb: 1.8, speed: 1.2, move: 0.9 }, pickaxe: { deep: true, mine: 0.75 }, bow: { arrow: 1.25, kb: 2.2, draw: 1.3 } },
     pal: { hi: [200, 200, 210], mid: [146, 146, 156], lo: [92, 92, 102], h1: [156, 108, 52], h2: [112, 76, 36], gd: [226, 176, 62], gem: [255, 218, 86], fx: [1, 0.85, 0.35], ol: [30, 28, 30] } },
-  phantom: { name: 'Phantom', cost: 900, level: 8, tag: 'Spectral blade. Deadly from behind, weaker head-on.', staffTag: 'Uppercut: sends enemies flying UP instead of away.', pickTag: 'A thief\'s tool: much faster inside enemy land.',
+  phantom: { name: 'Phantom', cost: 3000, level: 14, tag: 'Spectral blade. Deadly from behind, weaker head-on.', staffTag: 'Uppercut: sends enemies flying UP instead of away.', pickTag: 'A thief\'s tool: much faster inside enemy land.',
     perk: { staff: { launch: 1.7, kb: 0.8 }, sword: { backstab: 1.6, dmg: 0.92 }, axe: { backstab: 1.5, dmg: 0.92 }, pickaxe: { raid: 1.5, mine: 0.9 }, bow: { grav: 0.35, arrow: 0.92 } },
     pal: { hi: [246, 236, 255], mid: [190, 160, 255], lo: [120, 80, 210], h1: [54, 42, 74], h2: [30, 24, 46], gd: [150, 120, 220], gem: [240, 220, 255], fx: [0.8, 0.65, 1], ol: [30, 14, 62] } },
   admin: { name: 'Admin', cost: 0, level: 1, admin: true, tag: 'Every perk at once. Admins only.', staffTag: 'Yeets everything. Admins only.', pickTag: 'Mines 3x faster, double drops, 2 deep.', rainbow: true,
@@ -2476,15 +2478,15 @@ const COSMETIC_SLOTS = ['skin', 'trail', 'kill', 'banner'];
  */
 const ARMOR = {
   none:    { name: 'No Armor', cost: 0, level: 1, tag: 'Just your shirt. Light as a feather.', perk: {} },
-  leather: { name: 'Leather', cost: 150, level: 1, tag: 'Cheap and light: a little protection.', perk: { guard: 0.92 }, c1: [0.55, 0.36, 0.2], c2: [0.42, 0.26, 0.14], trim: [0.72, 0.52, 0.3] },
-  chain:   { name: 'Chainmail', cost: 300, level: 2, tag: 'Solid rings of steel, a bit heavy.', perk: { guard: 0.85, move: 0.97 }, c1: [0.62, 0.64, 0.68], c2: [0.45, 0.47, 0.5], trim: [0.82, 0.82, 0.86] },
-  diver:   { name: 'Diving Suit', cost: 350, level: 3, tag: 'Hold your breath 3x longer and swim fast.', perk: { air: 3, swim: 1.5, guard: 1.05 }, c1: [0.86, 0.6, 0.24], c2: [0.24, 0.34, 0.46], trim: [0.96, 0.82, 0.4], visor: true },
-  frost:   { name: 'Glacier Plate', cost: 500, level: 4, tag: 'Anyone who hits you in melee is frozen.', perk: { chillBack: 1.2, guard: 0.95, move: 0.97 }, c1: [0.62, 0.86, 1], c2: [0.3, 0.55, 0.86], trim: [0.97, 0.99, 1] },
-  inferno: { name: 'Magma Mail', cost: 500, level: 5, tag: 'Fire and lava barely hurt. Water is your enemy.', perk: { fireproof: 0.35, drown: 1.6 }, c1: [0.76, 0.2, 0.08], c2: [0.3, 0.08, 0.05], trim: [1, 0.62, 0.15] },
-  blood:   { name: 'Vampire Coat', cost: 550, level: 5, tag: 'Heal twice as fast, but take more damage.', perk: { regen: 2, guard: 1.1 }, c1: [0.45, 0.04, 0.1], c2: [0.15, 0.03, 0.06], trim: [0.85, 0.15, 0.2] },
-  volt:    { name: 'Volt Suit', cost: 600, level: 6, tag: 'Run faster. Slightly fragile.', perk: { move: 1.08, guard: 1.05 }, c1: [0.2, 0.2, 0.28], c2: [0.12, 0.12, 0.18], trim: [1, 0.9, 0.2] },
-  phantom: { name: 'Shadow Cloak', cost: 800, level: 7, tag: 'Hidden name tag at range and soft landings.', perk: { stealth: true, fall: 0.4 }, c1: [0.22, 0.16, 0.34], c2: [0.12, 0.08, 0.2], trim: [0.7, 0.55, 1] },
-  titan:   { name: 'Titan Plate', cost: 900, level: 8, tag: 'Huge protection and barely any knockback. Slow.', perk: { guard: 0.7, kbRes: 0.5, move: 0.88 }, c1: [0.58, 0.56, 0.52], c2: [0.38, 0.36, 0.34], trim: [0.95, 0.75, 0.25] },
+  leather: { name: 'Leather', cost: 800, level: 1, tag: 'Cheap and light: a little protection.', perk: { guard: 0.93 }, c1: [0.55, 0.36, 0.2], c2: [0.42, 0.26, 0.14], trim: [0.72, 0.52, 0.3] },
+  chain: { name: 'Chainmail', cost: 2000, level: 3, tag: 'Solid rings of steel, a bit heavy.', perk: { guard: 0.87, move: 0.97, critWeak: 1.1 }, c1: [0.62, 0.64, 0.68], c2: [0.45, 0.47, 0.5], trim: [0.82, 0.82, 0.86] },
+  diver: { name: 'Diving Suit', cost: 2500, level: 4, tag: 'Hold your breath 3x longer and swim fast.', perk: { air: 3, swim: 1.5, guard: 1.05 }, c1: [0.86, 0.6, 0.24], c2: [0.24, 0.34, 0.46], trim: [0.96, 0.82, 0.4], visor: true },
+  frost: { name: 'Glacier Plate', cost: 4000, level: 6, tag: 'Anyone who hits you in melee is frozen.', perk: { chillBack: 1.2, guard: 0.95, move: 0.97 }, c1: [0.62, 0.86, 1], c2: [0.3, 0.55, 0.86], trim: [0.97, 0.99, 1] },
+  inferno: { name: 'Magma Mail', cost: 4000, level: 7, tag: 'Fire and lava barely hurt. Water is your enemy.', perk: { fireproof: 0.35, drown: 1.6 }, c1: [0.76, 0.2, 0.08], c2: [0.3, 0.08, 0.05], trim: [1, 0.62, 0.15] },
+  blood: { name: 'Vampire Coat', cost: 4500, level: 8, tag: 'Heal twice as fast, but take more damage.', perk: { regen: 1.8, guard: 1.1 }, c1: [0.45, 0.04, 0.1], c2: [0.15, 0.03, 0.06], trim: [0.85, 0.15, 0.2] },
+  volt: { name: 'Volt Suit', cost: 5000, level: 9, tag: 'Run faster. Slightly fragile.', perk: { move: 1.08, guard: 1.05 }, c1: [0.2, 0.2, 0.28], c2: [0.12, 0.12, 0.18], trim: [1, 0.9, 0.2] },
+  phantom: { name: 'Shadow Cloak', cost: 7000, level: 12, tag: 'Hidden name tag at range and soft landings.', perk: { stealth: true, fall: 0.4 }, c1: [0.22, 0.16, 0.34], c2: [0.12, 0.08, 0.2], trim: [0.7, 0.55, 1] },
+  titan: { name: 'Titan Plate', cost: 8000, level: 14, tag: 'Huge protection and barely any knockback. Slow.', perk: { guard: 0.75, kbRes: 0.55, move: 0.88, critWeak: 1.3 }, c1: [0.58, 0.56, 0.52], c2: [0.38, 0.36, 0.34], trim: [0.95, 0.75, 0.25] },
   admin:   { name: 'Admin Aegis', cost: 0, level: 1, admin: true, tag: 'Everything at once. Admins only.', perk: { guard: 0.3, kbRes: 0.2, fireproof: 0.2, air: 5, regen: 2.5, swim: 1.5 }, c1: [0.95, 0.25, 0.85], c2: [0.4, 0.05, 0.5], trim: [1, 1, 1] },
 };
 const ARMOR_ORDER = Object.keys(ARMOR);
@@ -2503,10 +2505,11 @@ function armorPerkLines(b) {
   if (b.fall) out.push(['Fall damage -' + pct(b.fall), true]);
   if (b.move) out.push(b.move > 1 ? ['Move speed +' + pct(b.move), true] : ['Move speed -' + pct(b.move), false]);
   if (b.drown) out.push(['Drown ' + pct(b.drown) + ' faster', false]);
+  if (b.critWeak) out.push(['Crits hurt ' + pct(b.critWeak) + ' more', false]);
   return out.filter((l) => l[1]).concat(out.filter((l) => !l[1]));
 }
 /** Admin panel: opened by typing this as a join code. Anyone who reads game.js can see it, so it is a fun extra, not security. */
-const GAME_VERSION = '2.6 (Oct 18)';   // shown on the main menu so players can tell an old cached copy apart
+const GAME_VERSION = '2.7 (Oct 18)';   // shown on the main menu so players can tell an old cached copy apart
 const ADMIN_CODE = 'LN1';
 const ADMIN_DEFAULTS = { speed: 1, jump: 1, damage: 1, mine: 1, health: 100, regen: 1, draw: 1, god: false, infinite: false };
 const ADMIN_SLIDERS = [                                         // [key, label, min, max, step, format]
@@ -3080,7 +3083,7 @@ class GameServer {
     } else if (def.id === ID.door && against) {                      // doors copy the look of the block they are built against
       const ad = w.def(against.x, against.y, against.z);
       if (ad.shape === 'cube' && ad.opaque && ad.id !== ID.door) meta = ad.id << 8;
-    } else if (def.shape === 'fluid') meta = 16 | def.fluid.maxLevel | (def.id === ID.water ? 64 : 0);
+    } else if (def.shape === 'fluid') meta = def.id === ID.water ? 16 | CONFIG.WATER.POUR_LEVEL | 64 : 16 | def.fluid.maxLevel;   // a bucket makes a small pool, not a sea
     this.spend(p, it.res, cost);
     this.cause = p.index;
     w.set(x, y, z, def.id, false, meta, p.index + 1);
@@ -3118,7 +3121,7 @@ class GameServer {
     if (!on) { if (p.blocking) { p.blocking = false; p.blockCd = Math.max(p.blockCd, 0.35); } return { ok: true }; }
     const it = ITEMS[p.held];
     if (!p.alive || p.blocking || p.blockCd > 0 || !it || it.kind !== 'tool' || p.held === 'bow' || p.held === 'lighter') return { ok: false, reason: 'cooldown' };
-    p.blocking = true; p.blockT = 0;
+    p.blocking = true; p.blockT = 0; p.blockStart = this.clock;
     return { ok: true };
   }
   attack(p, { targetId, tool = 'sword' }) {
@@ -3143,10 +3146,11 @@ class GameServer {
     }
     // crits: always on a falling (jump) hit, sometimes on any full-strength sword/axe hit. The axe hits hardest but swings slowest.
     const crit = strong && !p.onGround && p.vel.y < -0.5 && !sprint && !p.inWater && !p.inLava;   // Minecraft rule: jump-hits only
-    if (crit) dmg *= t.crit || 1.5;
+    const purist = !p.look || !p.look.weapons || (p.look.weapons[tool] || 'default') === 'default';
+    if (crit) dmg *= (t.crit || 1.5) * (purist ? CONFIG.COMBAT.PURIST : 1);   // the free Standard skin rewards skill: bigger crits
     if (p.buffs && p.buffs.rage > 0) dmg *= 1.3;
     target.lastBlocked = false;
-    const dealt = this.damage(target, dmg, { kind: 'melee', by: p.index, direct: true });
+    const dealt = this.damage(target, dmg, { kind: 'melee', by: p.index, direct: true, pierce: !!crit });
     if (dealt !== null) {
       const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
       const tap = armorPerk(target.look), kb = (t.kb * (0.4 + 0.6 * frac) * (wb.kb || 1) + (sprint && strong ? 4 : 0)) * (target.lastBlocked ? 0.4 : 1) * (tap.kbRes || 1);
@@ -3205,12 +3209,22 @@ class GameServer {
     target.lastBlocked = false;
     if (target.blocking && src.direct && attacker && (src.kind === 'melee' || src.kind === 'arrow')) {     // only hits from the front are blocked
       const ax = attacker.pos.x - target.pos.x, az = attacker.pos.z - target.pos.z, l = Math.hypot(ax, az) || 1;
-      if ((ax * -Math.sin(target.yaw) + az * -Math.cos(target.yaw)) / l > 0.2) { amount *= 0.35; target.lastBlocked = true; this.emit({ type: 'blocked', target, by: attacker.id }); }
+      if ((ax * -Math.sin(target.yaw) + az * -Math.cos(target.yaw)) / l > 0.2) {
+        if (src.kind === 'melee' && target.blockStart != null && this.clock - target.blockStart < CONFIG.COMBAT.PARRY_WINDOW) {   // PARRY: blocked at the last moment - no damage, attacker staggered
+          attacker.chillT = Math.max(attacker.chillT || 0, 1); attacker.cooldowns.attack = Math.max(attacker.cooldowns.attack, 0.6);
+          attacker.vel.x += ax / l * 6; attacker.vel.z += az / l * 6; attacker.vel.y = Math.max(attacker.vel.y, 3);
+          target.blockStart = null;
+          this.emit({ type: 'parry', target, by: attacker.id });
+          return null;
+        }
+        amount *= 0.35; target.lastBlocked = true; this.emit({ type: 'blocked', target, by: attacker.id });
+      }
     }
     if (target.buffs && target.buffs.armor > 0) amount *= 0.6;
     if (target.look) {                                                    // armor sets
       const ap = armorPerk(target.look);
-      if (ap.guard && src.kind !== 'drown') amount *= ap.guard;
+      if (src.pierce) amount *= ap.critWeak || 1;                         // crits and headshots go straight through armor (heavy plate even takes extra)
+      else if (ap.guard && src.kind !== 'drown') amount *= ap.guard;
       if (ap.fireproof && (src.kind === 'fire' || src.kind === 'lava')) amount *= ap.fireproof;
       if (ap.fall && src.kind === 'fall') amount *= ap.fall;
     }
@@ -3710,11 +3724,14 @@ class GameServer {
           if (a.machine && b instanceof Player && (b.index === a.owner || this.areAllies(b, this.players[a.owner]))) continue;
           const bb = b.aabb(), m = 0.18;
           if (a.pos.x > bb.minX - m && a.pos.x < bb.maxX + m && a.pos.y > bb.minY - m && a.pos.y < bb.maxY + m && a.pos.z > bb.minZ - m && a.pos.z < bb.maxZ + m) {
-            const dealt = this.damage(b, a.damage, { kind: 'arrow', by: a.owner, direct: true });
+            const head = b instanceof Player && a.pos.y - bb.minY > 1.42;                  // HEADSHOT: ignores armor, bigger damage
+            const pur = !a.skin || a.skin === 'default';
+            const dealt = this.damage(b, a.damage * (head ? CONFIG.COMBAT.HEADSHOT * (pur ? CONFIG.COMBAT.PURIST : 1) : 1), { kind: 'arrow', by: a.owner, direct: true, pierce: head });
+            if (dealt !== null && head) this.emit({ type: 'crit', target: b, headshot: true, by: a.owner });
             if (dealt !== null) {
               const s = Math.hypot(a.vel.x, a.vel.z) || 1, k = 3 * (a.perk && a.perk.kb || 1) * (armorPerk(b.look).kbRes || 1); b.vel.x += a.vel.x / s * k; b.vel.z += a.vel.z / s * k; b.vel.y += 1.5;
               const fx = a.perk && !b.lastBlocked && this.players[a.owner] ? this.weaponPerks(this.players[a.owner], b, a.perk, dealt, a.charge || 1) : null;
-              this.emit({ type: 'hit', target: b, by: a.owner, tool: 'bow', skin: a.skin, fx }); a.alive = false;
+              this.emit({ type: 'hit', target: b, by: a.owner, tool: 'bow', skin: a.skin, fx, crit: head }); a.alive = false;
             }
             break;
           }
@@ -3959,7 +3976,7 @@ class GameServer {
       return {
         player: p, won, ...p.stats, score: Math.round(p.stats.score),
         xp: Math.round(p.stats.score * 0.25 + (won ? 400 : 0) + p.stats.kills * 50 + p.stats.structuresDestroyed * 25),
-        coins: Math.round(p.stats.score * 0.1 + (won ? 300 : 0) + p.stats.kills * 25),
+        coins: Math.round(p.stats.score * 0.022 + (won ? 110 : 0) + p.stats.kills * 5 + 10),   // a grind on purpose: ~100 coins a match, ~220 for a win
       };
     }).sort((a, b) => (b.won - a.won) || (b.score - a.score));
     this.results = { winners, reason, rows: results };
@@ -6607,7 +6624,7 @@ class UI {
     const grid = this.$('lockerGrid'); let html = '';
     const hex = (c) => `rgb(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)})`;
     if (tab === 'armor') {
-      html = `<div style="grid-column:1/-1"><span class="req">Armor sets protect you in different ways. Each has a <b class="pk-good">perk</b> and a <b class="pk-bad">drawback</b>.</span></div>`;
+      html = `<div style="grid-column:1/-1"><span class="req">Armor sets protect you in different ways. Each has a <b class="pk-good">perk</b> and a <b class="pk-bad">drawback</b>. <b>Skill beats gear:</b> crits (jump hits) and arrow headshots go straight through armor, heavy plate even takes extra crit damage, and a last-moment block parries any swing.</span></div>`;
       html += ARMOR_ORDER.filter((id) => !ARMOR[id].admin || state.admin).map((id) => {
         const A = ARMOR[id], owned = id === 'none' || (profile.owned.armor || []).includes(id) || (A.admin && state.admin), lvlOk = L.level >= A.level, on2 = (eq.armor || 'none') === id;
         const btn = owned ? `<button class="btn tiny" data-act="aequip" data-id="${id}">${on2 ? 'EQUIPPED' : 'EQUIP'}</button>`
@@ -7616,6 +7633,7 @@ class Game {
         if (t === me) { this.hurt = Math.min(1, this.hurt + 0.35); this.audio.play('hurt', null, 0.8); this.kick = Math.min(1, this.kick + 0.6 + (e.crit ? 0.3 : 0)); }
         break;
       }
+      case 'parry': { const t = e.target; if (t.pos) P.burst(t.pos.x, t.pos.y + 1.3, t.pos.z, [1, 1, 0.6], 16, 4, 0.1); this.sfx('block', t.pos.x, t.pos.y + 1, t.pos.z, 40); if (t === me) { this.ui.hitMarker('block'); this.ui.toast('<b>PARRY!</b> Perfect block: the attacker is staggered.', 'good', 1400); } else if (me && (e.by === me.id)) this.ui.toast('PARRIED! You are staggered.', 'bad', 1400); break; }
       case 'blocked': { const t = e.target; if (t.pos) P.burst(t.pos.x, t.pos.y + 1.2, t.pos.z, [0.9, 0.9, 1], 8, 3, 0.08); if (t === me) this.ui.hitMarker('block'); break; }
       case 'damage': {
         const t = e.target;
@@ -7718,7 +7736,7 @@ class Game {
       case 'allianceFormed': this.ui.killfeed(`<b style="color:${e.a.color}">${esc(e.a.name)}</b> and <b style="color:${e.b.color}">${esc(e.b.name)}</b> formed an ALLIANCE`, 'good'); if (e.a === me || e.b === me) this.ui.banner('ALLIANCE FORMED', 'Allies cannot hit each other directly. Watch your TNT.', 'good', 2800); break;
       case 'allianceBroken': this.ui.killfeed(`<b style="color:${e.player.color}">${esc(e.player.name)}</b> ${e.betrayal ? 'BETRAYED their allies!' : 'left their alliance'}`, 'bad'); if (e.betrayal) { this.audio.play('siren', null, 0.6); } break;
       case 'death': this.onDeath(e); break;
-      case 'crit': { const t = e.target; P.burst(t.pos.x, t.pos.y + 1.4, t.pos.z, [1, 0.95, 0.5], 14, 4.2, 0.1); this.sfx('hit', t.pos.x, t.pos.y + 1, t.pos.z, 40); break; }
+      case 'crit': { const t = e.target; if (e.headshot && me && (e.by === me.index || e.by === me.id)) this.ui.toast('<b>HEADSHOT!</b>', 'good', 900); P.burst(t.pos.x, t.pos.y + 1.4, t.pos.z, [1, 0.95, 0.5], 14, 4.2, 0.1); this.sfx('hit', t.pos.x, t.pos.y + 1, t.pos.z, 40); break; }
       case 'wallsDown': this.ui.toast('The plot walls came down. Everyone can see your base now!', 'warn', 4500); this.audio.play('rumble', null, 0.9); this.shake = Math.max(this.shake, 1.1); break;
       case 'machineFx': this.machineFx(e); break;
       case 'creeperHiss': this.sfx('fuse', e.mob.pos.x, e.mob.pos.y, e.mob.pos.z, 30); break;
