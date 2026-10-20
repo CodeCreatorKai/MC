@@ -46,6 +46,7 @@ const CONFIG = {
   STEP: 1 / 60,                 // fixed physics timestep (seconds)
   MOUSE_SENS: 0.0022,           // radians per pixel at sensitivity 1.0
   MINE: { TIME_PER_HARDNESS: 0.45, MIN_TIME: 0.15, PLACE_COOLDOWN: 0.25 }, // stone ~0.7 s with a pickaxe, close to Minecraft
+  TNT: { FUSE: 2.5, LIVE: 2, CATCH: 1, CHAIN: 0.5, TRAP: 0.9 },   // fuses (s): lit TNT, Live TNT, lit by fire/lava, chain reaction, tripped trap
   COMBAT: { PARRY_WINDOW: 0.3, PURIST: 1.25, HEADSHOT: 1.5 },   // skill: perfect-block window (s), standard-skin crit/headshot bonus, arrow headshot multiplier
   WATER: { AIR: 5, NATURAL_AIR: 10, DROWN_DPS: 9, SWIM_UP: 1.6, POUR_LEVEL: 5 },   // POUR_LEVEL: a bucket spreads at most 4 blocks              // breath (s), drowning damage per second, max swim-up speed (deep water holds you)
   HEALTH: { MAX: 100, REGEN_DELAY: 10, REGEN_RATE: 0.8, FALL_SAFE: 13, FALL_DMG: 4.5 },
@@ -69,7 +70,7 @@ const TILE_NAMES = ['grass_top', 'grass_side', 'dirt', 'stone', 'wood', 'glass',
   'wire_off', 'wire_on', 'plate_off', 'plate_on', 'lever_off', 'lever_on', 'button', 'tripwire',
   'piston_side', 'piston_front', 'piston_back', 'piston_head', 'door', 'timer', 'sensor', 'alarm',
   'vault', 'log_side', 'log_top', 'vault_top', 'icon_pickaxe', 'icon_sword', 'icon_axe', 'icon_bow', 'icon_staff', 'icon_lighter', 'brick', 'shingle', 'lamp', 'flower_red', 'flower_yellow', 'gold_ore',
-  'plotwall', 'turret', 'cannon', 'mine', 'spikes', 'jumppad', 'conv_0', 'conv_1', 'conv_2', 'conv_3', 'sprinkler', 'healer', 'flamer', 'dropper', 'core', 'vaultstone', 'icon_bucket'];
+  'plotwall', 'turret', 'cannon', 'mine', 'spikes', 'jumppad', 'conv_0', 'conv_1', 'conv_2', 'conv_3', 'sprinkler', 'healer', 'flamer', 'dropper', 'core', 'vaultstone', 'icon_bucket', 'icon_livetnt'];
 const TILE = {};
 TILE_NAMES.forEach((n, i) => { TILE[n.toUpperCase()] = i; });
 
@@ -655,6 +656,9 @@ function generateAtlas() {
   icon(TILE.ICON_LIGHTER, [
     '................', '................', '.......ff.......', '......ffff......', '......ffyf......', '.....ssssss.....', '.....sddddss....', '.....sdddds.....',
     '.....sdddds.....', '.....sdddds.....', '.....sdddds.....', '.....sddddss....', '.....ssssss.....', '................', '................', '................'], { f: [255, 150, 40], y: [255, 230, 120], s: [190, 190, 200], d: [110, 110, 124] });
+  icon(TILE.ICON_LIVETNT, [                                           // TNT with a burning fuse
+    '.........y......', '........yfy.....', '.......fyff......', '........fw......', '........w.......', '..rrrrrrrrrrrr..', '..rddrrddrrddr..', '..rrrrrrrrrrrr..',
+    '..wwwwwwwwwwww..', '..wkwkkwkwwkkw..', '..wkkwkwkwkwkw..', '..wwwwwwwwwwww..', '..rrrrrrrrrrrr..', '..rddrrddrrddr..', '..rrrrrrrrrrrr..', '................'], { r: [214, 52, 40], d: [150, 30, 24], w: [236, 236, 236], k: [40, 40, 40], f: [255, 150, 30], y: [255, 236, 120] });
   icon(TILE.ICON_BUCKET, [
     '................', '.....oooooo.....', '....o......o....', '...o........o...', '..oooooooooooo..', '..osswwwwwwsso..', '..oslwwwwwwsdo..', '...oslllllsdo...',
     '...oslssssddo...', '...osssssssdo...', '....osssssdo....', '....osssssdo....', '....ossssddo....', '.....oooooo.....', '................', '................'], { o: [40, 42, 50], s: [176, 180, 192], l: [226, 230, 238], d: [120, 124, 136], w: [70, 130, 255] });
@@ -1099,7 +1103,7 @@ class FluidSystem {
         if (n === ID.water) { w.set(x, y, z, src ? ID.obsidian : ID.stone); this.server.emit({ type: 'steam', x, y, z }); return; }
         const nd = BLOCKS[n];
         if (nd.flammable && Math.random() < 0.25) {
-          if (n === ID.tnt) this.server.primeTnt(nx, ny, nz, 0.8 + Math.random() * 0.8, null, 'lava');
+          if (n === ID.tnt) this.server.primeTnt(nx, ny, nz, CONFIG.TNT.CATCH, null, 'lava');
           else if (Math.random() < 0.5) w.set(nx, ny, nz, ID.fire);
         }
       }
@@ -1168,7 +1172,7 @@ class MachineSystem {
     if (op && !s.hasResource(op, 'tnt', 1)) return;
     if (op) s.spend(op, 'tnt', 1);
     st.cd = 1.2;
-    s.spawnTnt(x + 0.5, y + 1.3, z + 0.5, 2.4, o, 'dropper', 5);
+    s.spawnTnt(x + 0.5, y + 1.3, z + 0.5, CONFIG.TNT.FUSE, o, 'dropper', 5);
     s.emit({ type: 'machineFx', kind: 'drop', x, y, z });
   }
   sees(sx, sy, sz, b, h = 1.0) { return !this.world.lineBlocked(sx, sy, sz, b.pos.x, b.pos.y + h, b.pos.z); }
@@ -1288,7 +1292,7 @@ class FireSystem {
         if (!nd.flammable) continue;
         fuel = true;
         if (Math.random() < nd.burnChance * 0.6) {
-          if (n === ID.tnt) this.server.primeTnt(nx, ny, nz, 0.8 + Math.random() * 0.7, cause, 'fire');
+          if (n === ID.tnt) this.server.primeTnt(nx, ny, nz, CONFIG.TNT.CATCH, cause, 'fire');
           else { this.server.cause = cause; w.set(nx, ny, nz, ID.fire); this.server.cause = null; if (cause != null) this.cause.set(keyOf(nx, ny, nz), cause); }
         }
       }
@@ -1558,7 +1562,7 @@ class RedstoneSystem {
       if (nd.mech === 'conductor') { const want = powered.has(k) ? 1 : 0; if ((m & 1) !== want) w.setMeta(x, y, z, (m & ~1) | want); continue; }
       if (nd.mech !== 'consumer') continue;
       const isP = powered.has(k), was = !!(m & 2);
-      if (id === ID.tnt) { if (isP) s.primeTnt(x, y, z, 0.9, w.getOwner(x, y, z) - 1, 'trap'); continue; }
+      if (id === ID.tnt) { if (isP) s.primeTnt(x, y, z, CONFIG.TNT.TRAP, w.getOwner(x, y, z) - 1, 'trap'); continue; }
       if (isP === was) {
         if (id === ID.alarm && isP) this.alarmTick(x, y, z, dt);
         else if (id === ID.piston && isP && !(m & 1)) this.extend(x, y, z);       // blocked earlier? try again
@@ -1686,6 +1690,7 @@ const ITEMS = {
   sand:    { kind: 'block', label: 'Sand', block: 'sand', res: 'earth', cost: 1 },
   gravel:  { kind: 'block', label: 'Gravel', block: 'gravel', res: 'earth', cost: 1 },
   tnt:     { kind: 'block', label: 'TNT', block: 'tnt', res: 'tnt', cost: 1 },
+  livetnt: { kind: 'block', label: 'Live TNT (lights itself)', block: 'tnt', res: 'tnt', cost: 1, live: true },
   water:   { kind: 'fluid', label: 'Water', block: 'water', res: 'water', cost: 1 },
   lava:    { kind: 'fluid', label: 'Lava', block: 'lava', res: 'lava', cost: 1 },
   wire:    { kind: 'mech', label: 'Wire', block: 'wire', res: 'mech', cost: 0.5 },
@@ -1772,12 +1777,13 @@ const CLASSES = {
 };
 /** AI difficulty. aim = bow aim error multiplier, lead = how well bots lead moving targets, bowRange = max shooting distance,
  *  shootGap = pause between arrows (s), draw = bow draw time multiplier, botBow / botMelee = damage multipliers for AI attacks,
- *  rate = chance per update that a ready melee swing is taken, block = block frequency, think = reaction time multiplier, aggr = eagerness offset. */
+ *  rate = chance per update that a ready melee swing is taken, block = block frequency, think = reaction time multiplier, aggr = eagerness offset,
+ *  react = s a target must be in range before the first swing, reach = melee swing range (players reach further), miss = chance a swing whiffs. */
 const DIFFICULTIES = {
-  easy:   { name: 'Easy',   blurb: 'Slow, sloppy AI. Bows are weak and rare.',            aim: 2.4,  lead: 0.25, bowRange: 18, shootGap: 3.2, draw: 1.5,  botBow: 0.5,  botMelee: 0.7, rate: 0.10, block: 0,   think: 1.6, aggr: -0.2 },
-  normal: { name: 'Normal', blurb: 'A fair fight. Archers miss a fair amount.',            aim: 1.5,  lead: 0.6,  bowRange: 26, shootGap: 1.8, draw: 1.25, botBow: 0.7,  botMelee: 0.9, rate: 0.30, block: 1,   think: 1.15, aggr: 0 },
-  hard:   { name: 'Hard',   blurb: 'Sharper aim, faster reactions, real blocking.',        aim: 0.9,  lead: 0.9,  bowRange: 32, shootGap: 1.1, draw: 1.1,  botBow: 0.85, botMelee: 1.0, rate: 0.60, block: 1.5, think: 1.0, aggr: 0.1 },
-  brutal: { name: 'Brutal', blurb: 'Near-perfect aim and relentless pressure. Good luck.', aim: 0.45, lead: 1.0,  bowRange: 38, shootGap: 0.6, draw: 1.0,  botBow: 1.0,  botMelee: 1.1, rate: 1.0,  block: 2.5, think: 0.75, aggr: 0.2 },
+  easy:   { name: 'Easy',   blurb: 'Slow, sloppy AI. Bows are weak and rare.',            aim: 2.4,  lead: 0.25, bowRange: 18, shootGap: 3.2, draw: 1.5,  botBow: 0.5,  botMelee: 0.7, rate: 0.10, block: 0,   think: 1.6, aggr: -0.2 , react: 0.55, reach: 2.6, miss: 0.3 },
+  normal: { name: 'Normal', blurb: 'A fair fight. Archers miss a fair amount.',            aim: 1.5,  lead: 0.6,  bowRange: 26, shootGap: 1.8, draw: 1.25, botBow: 0.7,  botMelee: 0.9, rate: 0.30, block: 1,   think: 1.15, aggr: 0 , react: 0.35, reach: 2.9, miss: 0.18 },
+  hard:   { name: 'Hard',   blurb: 'Sharper aim, faster reactions, real blocking.',        aim: 0.9,  lead: 0.9,  bowRange: 32, shootGap: 1.1, draw: 1.1,  botBow: 0.85, botMelee: 1.0, rate: 0.60, block: 1.5, think: 1.0, aggr: 0.1 , react: 0.2, reach: 3.2, miss: 0.08 },
+  brutal: { name: 'Brutal', blurb: 'Near-perfect aim and relentless pressure. Good luck.', aim: 0.45, lead: 1.0,  bowRange: 38, shootGap: 0.6, draw: 1.0,  botBow: 1.0,  botMelee: 1.1, rate: 1.0,  block: 2.5, think: 0.75, aggr: 0.2 , react: 0.12, reach: 3.4, miss: 0.04 },
 };
 const DIFF_ORDER = ['easy', 'normal', 'hard', 'brutal'];
 const CLASS_ORDER = ['builder', 'fighter', 'engineer', 'demolitionist', 'scout', 'survivalist'];
@@ -2509,7 +2515,7 @@ function armorPerkLines(b) {
   return out.filter((l) => l[1]).concat(out.filter((l) => !l[1]));
 }
 /** Admin panel: opened by typing this as a join code. Anyone who reads game.js can see it, so it is a fun extra, not security. */
-const GAME_VERSION = '2.7 (Oct 18)';   // shown on the main menu so players can tell an old cached copy apart
+const GAME_VERSION = '2.8 (Oct 19)';   // shown on the main menu so players can tell an old cached copy apart
 const ADMIN_CODE = 'LN1';
 const ADMIN_DEFAULTS = { speed: 1, jump: 1, damage: 1, mine: 1, health: 100, regen: 1, draw: 1, god: false, infinite: false };
 const ADMIN_SLIDERS = [                                         // [key, label, min, max, step, format]
@@ -2616,7 +2622,7 @@ const EVENT_DEFS = {
         const plot = s.randomPlot(0.5);
         const x = plot ? plot.x + (Math.random() - 0.5) * 30 : 6 + Math.random() * (s.world.sizeX - 12);
         const z = plot ? plot.z + (Math.random() - 0.5) * 30 : 6 + Math.random() * (s.world.sizeZ - 12);
-        s.spawnTnt(clamp(x, 3, s.world.sizeX - 3), s.world.sizeY - 3, clamp(z, 3, s.world.sizeZ - 3), 2.4 + Math.random() * 0.8, null, 'rain', -4);
+        s.spawnTnt(clamp(x, 3, s.world.sizeX - 3), s.world.sizeY - 3, clamp(z, 3, s.world.sizeZ - 3), CONFIG.TNT.FUSE, null, 'rain', -4);
       }
     },
   },
@@ -3050,7 +3056,15 @@ class GameServer {
       p.cooldowns.place = CONFIG.MINE.PLACE_COOLDOWN * p.mods.placeCooldown;
       return this.neutralizeWater(p, x, y, z);
     }
-    if (def.solid && p.submerged && p.inWater && p.deadlyWater && this.mode !== 'sandbox') return { ok: false, reason: 'underwater' };   // you cannot build your way out of deep water
+    if (def.solid && p.submerged && p.inWater && p.deadlyWater && this.mode !== 'sandbox') return { ok: false, reason: 'underwater' };
+    if (it.live) {                                                         // Live TNT: no block, it is lit the moment it lands
+      if (!this.pvpEnabled() && this.mode !== 'sandbox') return { ok: false, reason: 'not-allowed' };
+      if (!this.hasResource(p, it.res, it.cost)) return { ok: false, reason: 'no-resource' };
+      this.spend(p, it.res, it.cost);
+      p.cooldowns.place = 0.8;
+      this.spawnTnt(x + 0.5, y, z + 0.5, CONFIG.TNT.LIVE, p.index, 'tnt');
+      return { ok: true, tnt: true, live: true };
+    }   // you cannot build your way out of deep water
     let supported = false;
     for (const d of DIRS6) if (BLOCKS[w.get(x + d[0], y + d[1], z + d[2])].solid) { supported = true; break; }
     if (!supported) return { ok: false, reason: 'no-support' };
@@ -3107,7 +3121,7 @@ class GameServer {
     const w = this.world;
     if (!this.withinReach(p, x, y, z)) return { ok: false, reason: 'too-far' };
     if (!this.canModify(p, x, y, z)) return { ok: false, reason: 'not-allowed' };
-    if (w.get(x, y, z) === ID.tnt) { this.primeTnt(x, y, z, 4, p.index, 'tnt'); return { ok: true, tnt: true }; }
+    if (w.get(x, y, z) === ID.tnt) { this.primeTnt(x, y, z, CONFIG.TNT.FUSE, p.index, 'tnt'); return { ok: true, tnt: true }; }
     if (w.get(x + nx, y + ny, z + nz) === AIR && (nx || ny || nz) && this.fire.ignite(x + nx, y + ny, z + nz, p.index)) { this.emit({ type: 'ignite', x: x + nx, y: y + ny, z: z + nz }); return { ok: true }; }
     return { ok: false, reason: 'nothing' };
   }
@@ -3324,7 +3338,7 @@ class GameServer {
       if (id === AIR) continue;
       const def = BLOCKS[id];
       if (def.shape === 'fluid') continue;
-      if (id === ID.tnt) { this.primeTnt(bx, by, bz, 0.25 + Math.random() * 0.7, owner, 'chain'); continue; }
+      if (id === ID.tnt) { this.primeTnt(bx, by, bz, CONFIG.TNT.CHAIN, owner, 'chain'); continue; }
       if (id === ID.core && (this.phase === 'build' || this.phase === 'countdown' || this.coreShielded())) continue;
       const crater = opts.crater && dist <= opts.crater && def.breakable;
       const str = 12 * power * (1 - Math.pow(dist / radius, 1.4)) * (0.85 + Math.random() * 0.3);
@@ -3937,7 +3951,7 @@ class GameServer {
       if (d < bd) { bd = d; best = { x: q.pos.x, y: q.pos.y, z: q.pos.z }; }
     }
     if (!best) return false;
-    for (let i = 0; i < 4; i++) this.spawnTnt(best.x + (Math.random() - 0.5) * 4, best.y + 16 + i * 2, best.z + (Math.random() - 0.5) * 4, 3.2 + i * 0.3, p.index, 'strike', -6);
+    for (let i = 0; i < 4; i++) this.spawnTnt(best.x + (Math.random() - 0.5) * 4, best.y + 16 + i * 2, best.z + (Math.random() - 0.5) * 4, CONFIG.TNT.FUSE, p.index, 'strike', -6);
     this.emit({ type: 'tntStrike', by: p, x: best.x, y: best.y, z: best.z });
     return true;
   }
@@ -5402,7 +5416,12 @@ class Bot {
         if (tool !== 'staff' && p.onGround && p.cooldowns.attack < 0.3 && this.dist(t) < 3 && Math.random() < 0.08 * this.diff().rate) { c.jump = true; this.critJump = 0.8; }
         this.critJump = Math.max(0, (this.critJump || 0) - dt);
         const waitCrit = this.critJump > 0 && !p.onGround && p.vel.y > -0.6;
-        if (!waitCrit && !p.blocking && p.cooldowns.attack <= 0 && Math.random() < this.diff().rate) {
+        // human-like melee: a reaction delay once you step into range, a shorter swing range than players, and the odd whiff
+        const D = this.diff(), dd = this.dist(t), reach = D.reach || 3;
+        this.inRangeT = dd <= reach ? (this.inRangeT || 0) + dt : 0;
+        const reacted = this.inRangeT >= (D.react || 0.3) * (0.75 + this.traits.sloppy * 0.6);
+        if (!waitCrit && reacted && !p.blocking && p.cooldowns.attack <= 0 && Math.random() < D.rate) {
+          if (Math.random() < (D.miss || 0.1) * (0.7 + this.traits.sloppy)) { s.handle(p.id, { type: 'swing', tool }); break; }   // whiff: the swing still costs its cooldown
           s.handle(p.id, { type: 'attack', targetId: t.id, tool });
           if (p.classId === 'scout' && Math.random() < 0.35) this.hitRun = 0.8 + Math.random() * 0.8;      // scouts strike and slip away
           else if (Math.random() < 0.08 * this.traits.sloppy) this.hitRun = 0.6;
@@ -6478,6 +6497,7 @@ class UI {
   itemTile(itemId, look) {
     const it = ITEMS[itemId];
     if (it.kind === 'tool') return weaponTile(itemId, look && look.weapons ? look.weapons[itemId] : 'default');
+    if (it.live) return TILE.ICON_LIVETNT;
     const def = BlockRegistry.byType(it.block);
     return def.tileFn ? def.tileFn(0, 0, 1) : def.tiles.side;
   }
