@@ -2403,7 +2403,7 @@ const COSMETICS = {
 };
 /**
  * Weapon skins: bought with coins (earned by playing), one tool at a time. Each collection has its own look AND its own
- * playstyle: a perk paired with a drawback, so no skin is simply "better". Admin skins only appear for admins (code LN1).
+ * playstyle: a perk paired with a drawback, so no skin is simply "better". Admin skins only appear while admin powers are on.
  * perk fields (all optional, per tool):
  *   dmg  melee damage x        speed  swing cooldown x (lower = faster)   mine  mining speed x     move  walk speed x while held
  *   kb   knockback x           chill  s of 40% slow on hit                burn  s of fire on hit   leech share of damage healed
@@ -2514,9 +2514,10 @@ function armorPerkLines(b) {
   if (b.critWeak) out.push(['Crits hurt ' + pct(b.critWeak) + ' more', false]);
   return out.filter((l) => l[1]).concat(out.filter((l) => !l[1]));
 }
-/** Admin panel: opened by typing this as a join code. Anyone who reads game.js can see it, so it is a fun extra, not security. */
-const GAME_VERSION = '2.8 (Oct 19)';   // shown on the main menu so players can tell an old cached copy apart
-const ADMIN_CODE = 'LN1';
+/** Admin panel: opened by typing a secret join code. Only a hash is stored here, so the code is not readable in the source (it is still a fun extra, not security). */
+const GAME_VERSION = '2.9 (Oct 20)';   // shown on the main menu so players can tell an old cached copy apart
+const ADMIN_HASH = 738223754;
+const adminCodeHash = (code) => { let h = 0x811c9dc5; for (const ch of 'mpw:' + code) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h; };
 const ADMIN_DEFAULTS = { speed: 1, jump: 1, damage: 1, mine: 1, health: 100, regen: 1, draw: 1, god: false, infinite: false };
 const ADMIN_SLIDERS = [                                         // [key, label, min, max, step, format]
   ['speed', 'Move speed', 0.5, 4, 0.1, (v) => v.toFixed(1) + 'x'], ['jump', 'Jump height', 0.5, 3, 0.1, (v) => v.toFixed(1) + 'x'],
@@ -2561,7 +2562,7 @@ function sanitizeProfile(pr) {
   d.equipped.bannerColor = clamp(eq.bannerColor | 0, 0, BANNER_COLORS.length - 1);
   d.owned.weapon = pr.owned && Array.isArray(pr.owned.weapon) ? Array.from(new Set(pr.owned.weapon.map(fixWeaponKey).filter(Boolean))) : [];
   d.owned.armor = Array.from(new Set(['none', ...(pr.owned && Array.isArray(pr.owned.armor) ? pr.owned.armor.filter((a) => ARMOR[a] && !ARMOR[a].admin) : [])]));
-  if (ARMOR[eq.armor] && (d.owned.armor.includes(eq.armor) || ARMOR[eq.armor].admin)) d.equipped.armor = eq.armor;
+  if (ARMOR[eq.armor] && d.owned.armor.includes(eq.armor)) d.equipped.armor = eq.armor;
   for (const t of WEAPON_TOOLS) { const id = weaponSkinId(eq.weapons && eq.weapons[t]); if (WEAPON_SKINS[id] && (id === 'default' || d.owned.weapon.includes(t + ':' + id))) d.equipped.weapons[t] = id; }
   return d;
 }
@@ -2579,6 +2580,13 @@ function sanitizeLook(l) {
   out.armor = ARMOR[l.armor] ? l.armor : 'none';
   for (const t of WEAPON_TOOLS) { const id = l.weapons && weaponSkinId(l.weapons[t]); if (id) out.weapons[t] = id; }
   return out;
+}
+/** Joining players cannot bring Admin-only gear (only the host's own admin powers can grant it). */
+function noAdminGear(look) {
+  if (COSMETICS.skin[look.skin] && COSMETICS.skin[look.skin].admin) look.skin = 'default';
+  if (ARMOR[look.armor] && ARMOR[look.armor].admin) look.armor = 'none';
+  for (const t of WEAPON_TOOLS) if (WEAPON_SKINS[look.weapons[t]] && WEAPON_SKINS[look.weapons[t]].admin) look.weapons[t] = 'default';
+  return look;
 }
 /** Random cosmetics for bots, so the lobby looks lively and every match looks different. */
 function randomLook(rng = Math.random) {
@@ -4446,7 +4454,7 @@ class HostSession {
   profile(peer, m) {
     if (typeof m.name === 'string') peer.name = m.name.replace(/[^\w \-]/g, '').slice(0, 12) || 'PLAYER';
     if (CLASSES[m.classId]) peer.classId = m.classId;
-    if (m.look) peer.look = sanitizeLook(m.look);
+    if (m.look) peer.look = noAdminGear(sanitizeLook(m.look));
     const dup = Array.from(this.peers.values()).filter((p) => p !== peer && p.joined && p.name === peer.name).length + (this.hostInfo.name === peer.name ? 1 : 0);
     if (dup) peer.name = (peer.name.slice(0, 10) + (dup + 1));
   }
@@ -4872,6 +4880,9 @@ class Bot {
     const A = ARCHETYPES[this.archetype], jit = (v, a) => clamp(v + (r() - 0.5) * a, 0.02, 1);
     this.traits = { aggr: jit(A.aggr, 0.5), greed: jit(A.greed, 0.5), range: jit(A.range, 0.5), tnt: jit(A.tnt, 0.5), home: jit(A.home, 0.5), nerve: 0.15 + r() * 0.3, sloppy: r() * 0.35, react: 0.15 + r() * 0.45 };
     this.buildStyle = pickOf(A.build, r); this.approach = pickOf(A.approach, r); this.meleeTool = pickOf(A.melee, r);
+    const ARMOR_FOR = { rusher: ['titan', 'chain'], turtle: ['titan', 'chain'], sniper: ['phantom', 'leather'], trapper: ['frost', 'leather'], digger: ['diver', 'chain'], bomber: ['inferno', 'chain'], vaulter: ['volt', 'phantom'], opportunist: ['blood', 'volt'] };
+    if (player.look && player.isBot && r() < 0.75 && ARMOR_FOR[this.archetype]) player.look.armor = pickOf(ARMOR_FOR[this.archetype], r);   // armor that suits the play style
+    this.trickT = 5 + r() * 5;
     this.mood = 0; this.moodClock = 8 + r() * 14; this.emoteClock = 10 + r() * 20; this.lastKills = 0; this.hitRun = 0; this.warClock = 0;
     this.aggression = this.traits.aggr;        // how eagerly it leaves home to fight
     this.greed = this.traits.greed;            // interest in the vault
@@ -5000,6 +5011,28 @@ class Bot {
 
   /* ---------- movement ---------- */
   /** Steers toward (x, z), jumping steps, digging walls and bridging gaps. `stopAt` = distance at which it stops. */
+  banned(mode) { return !!(this.modeBan && this.modeBan[mode] > this.s.clock); }
+  /** Opportunistic tricks: drown an enemy stuck in a hole with a bucket of water, or drop Live TNT on a target that stands still. */
+  tricks(t) {
+    const p = this.p, s = this.s, w = s.world, d = this.dist(t);
+    this.trickT = 3 + Math.random() * 3;
+    if (!s.pvpEnabled() || p.cooldowns.place > 0) return false;
+    const tx = Math.floor(t.pos.x), ty = Math.floor(t.pos.y + 0.05), tz = Math.floor(t.pos.z);
+    if ((p.resources.water || 0) >= 1 && d > 1.5 && d < 4.5 && p.pos.y - t.pos.y > 1.5 && w.get(tx, ty + 1, tz) === AIR && Math.random() < 0.15 + 0.3 * this.traits.tnt * (this.archetype === 'trapper' ? 2 : 1)) {   // they are in a pit: flood it
+      this.face(tx + 0.5, ty + 1.5, tz + 0.5, true);
+      if (s.handle(p.id, { type: 'place', x: tx, y: ty + 1, z: tz, item: 'water' }).ok) { this.trickT = 25; return true; }
+    }
+    const still = Math.hypot(t.vel.x, t.vel.z) < 0.6;
+    if (still && d > 5 && d < 6.5 && this.tntCooldown <= 0 && s.hasResource(p, 'tnt', 2) && Math.random() < 0.25 * this.traits.tnt) {         // a camper: Live TNT at their feet, then run
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const x = tx + dx, z = tz + dz;
+        if (w.get(x, ty, z) !== AIR || !w.isSolid(x, ty - 1, z) || Math.hypot(x + 0.5 - p.pos.x, z + 0.5 - p.pos.z) < 5 || !this.canEscapeFrom(x + 0.5, z + 0.5)) continue;   // never closer than 5 blocks to ourselves
+        this.face(x + 0.5, ty + 0.5, z + 0.5, true);
+        if (s.handle(p.id, { type: 'place', x, y: ty, z, item: 'livetnt' }).ok) { this.startFlee(x + 0.5, z + 0.5, 3.5); this.tntCooldown = 25 + Math.random() * 10; return true; }
+      }
+    }
+    return false;
+  }
   /** Standing in lava: head for the nearest neighbouring cell that is not lava and jump out. */
   escapeLava() {
     const p = this.p, c = p.controls, w = this.s.world, fy = Math.floor(p.pos.y + 0.05), px = Math.floor(p.pos.x), pz = Math.floor(p.pos.z);
@@ -5327,7 +5360,7 @@ class Bot {
   }
   warUpdate(dt) {
     const p = this.p, s = this.s, c = p.controls;
-    this.tntCooldown -= dt;
+    this.tntCooldown -= dt; this.trickT -= dt;
     if (this.flee) {                                                      // run away from a lit fuse, along the searched path
       const F = this.flee; F.t -= dt;
       if (F.path) {                                                         // every cell on the path is known to be safe: face the next one and run
@@ -5359,14 +5392,14 @@ class Bot {
       let drop = null, dDrop = 1e9;                                             // supply crates draw everyone in
       for (const dr of s.drops || []) { const dd = Math.hypot(dr.x - p.pos.x, dr.z - p.pos.z); if (dd < dDrop && (dr.state === 'landed' || dr.y - dr.ground < 25)) { dDrop = dd; drop = dr; } }
       const prev = this.mode;
-      const keepSiege = prev === 'siege' && this.siegeCore && s.coreAlive(this.siegeCore.slot) && this.modeT < 70 && !intruder && !(t && d < 3.4 && this.hasLOS(t));
+      const keepSiege = prev === 'siege' && !this.banned('siege') && this.siegeCore && s.coreAlive(this.siegeCore.slot) && this.modeT < 70 && !intruder && !(t && d < 3.4 && this.hasLOS(t));
       if (keepSiege && !hurt) this.mode = 'siege';
       else if (hurt && t && d < 16) this.mode = 'retreat';
       else if (this.hitRun > 0 && t) this.mode = 'retreat';
       else if (t && d < 3.4 && this.hasLOS(t)) this.mode = 'melee';
       else if (hasArrows && t && d < Math.min(D.bowRange, wantRange ? 36 : 22) && d > (wantRange ? 8 : 6) && this.hasLOS(t) && aggr > 0.25 && (wantRange || Math.random() < 0.6)) this.mode = 'shoot';
-      else if (drop && dDrop < 60 && (!t || d > 9) && (prev === 'drop' || Math.random() < 0.45 + T.greed * 0.4)) { this.mode = 'drop'; this.drop = drop; }
-      else if (vaultReady && T.greed > 0.4 && toVault < 70 && (!t || d > 12 || T.greed > 0.85)) this.mode = 'vault';
+      else if (drop && dDrop < 60 && !this.banned('drop') && (!t || d > 9) && (prev === 'drop' || Math.random() < 0.45 + T.greed * 0.4)) { this.mode = 'drop'; this.drop = drop; }
+      else if (vaultReady && !this.banned('vault') && T.greed > 0.4 && toVault < 70 && (!t || d > 12 || T.greed > 0.85)) this.mode = 'vault';
       else if (this.extra && this.queueIndex < this.queue.length) this.mode = 'fortify';
       else if (!s.unlimited && (p.resources.stone || 0) < 4 && (p.resources.wood || 0) < 4) this.mode = 'gather';
       else if (this.archetype === 'turtle' || this.archetype === 'trapper') {
@@ -5375,7 +5408,7 @@ class Bot {
         else if (t && (aggr > 0.62 || d < 14)) this.mode = 'hunt';
         else this.mode = 'gather';
       }
-      else if (siege && (!t || d > 10 || !this.hasLOS(t)) && Math.random() < 0.25 + 0.35 * T.tnt + 0.25 * aggr) { this.mode = 'siege'; this.siegeCore = siege; }
+      else if (siege && !this.banned('siege') && (!t || d > 10 || !this.hasLOS(t)) && Math.random() < 0.25 + 0.35 * T.tnt + 0.25 * aggr) { this.mode = 'siege'; this.siegeCore = siege; }
       else if (t && (aggr > 0.45 || d < 30)) this.mode = 'hunt';
       else this.mode = 'gather';
       if (this.mode !== prev) { this.modeT = 0; this.course = null; if (this.mode === 'hunt') { this.approach = pickOf(ARCHETYPES[this.archetype].approach); this.tunnelT = 0; } }
@@ -5412,6 +5445,11 @@ class Bot {
         this.blockT = (this.blockT || 0) - dt;
         if (p.blocking && this.blockT <= 0) s.handle(p.id, { type: 'block', on: false });
         else if (!p.blocking && t.swing > 0.5 && Math.random() < 0.05 * this.diff().block * (1 - this.traits.sloppy) && tool !== 'bow') { if (s.handle(p.id, { type: 'block', on: true }).ok) this.blockT = 0.4 + Math.random() * 0.5; }
+        else if (!p.blocking && t.cooldowns && tool !== 'bow' && this.dist(t) < 4.1 && t.cooldowns.attack < 0.12 && !this.parryRolled) {   // PARRY: one guess per enemy swing, timed as their weapon comes back
+          this.parryRolled = true;
+          if (Math.random() < 0.1 * this.diff().block * (1 - this.traits.sloppy) && s.handle(p.id, { type: 'block', on: true }).ok) this.blockT = 0.32;
+        }
+        if (t.cooldowns && t.cooldowns.attack > 0.3) this.parryRolled = false;
         // Minecraft-style crit: hop as the swing recovers and strike on the way down
         if (tool !== 'staff' && p.onGround && p.cooldowns.attack < 0.3 && this.dist(t) < 3 && Math.random() < 0.08 * this.diff().rate) { c.jump = true; this.critJump = 0.8; }
         this.critJump = Math.max(0, (this.critJump || 0) - dt);
@@ -5448,6 +5486,8 @@ class Bot {
       case 'drop': {
         const dr = this.drop;
         if (!dr || dr.dead || !(s.drops || []).includes(dr) || this.modeT > 45) { this.drop = null; this.thinkClock = 0; this.mode = 'hunt'; break; }
+        const rival = s.players.find((q) => q.alive && q !== p && !s.areAllies(p, q) && Math.hypot(q.pos.x - dr.x, q.pos.z - dr.z) < 3);
+        if (rival && Math.hypot(dr.x - p.pos.x, dr.z - p.pos.z) < 4) { this.target = rival; this.mode = 'melee'; break; }   // someone is on our crate: knock them off it
         if (dr.ground + 1 - p.pos.y > 2.2 && Math.hypot(dr.x - p.pos.x, dr.z - p.pos.z) < 6 && this.pillarUp(dt)) break;
         this.walkTo(dr.x, dr.z, dt, 0.6, true, dr.ground);
         break;
@@ -5473,7 +5513,7 @@ class Bot {
             const x = sc.x + dx, y = sc.y + dy, z = sc.z + dz;
             if (w.get(x, y, z) !== AIR || (!dy && !w.isSolid(x, y - 1, z)) || !this.canEscapeFrom(x + 0.5, z + 0.5)) continue;
             this.face(x + 0.5, y + 0.5, z + 0.5, true);
-            if (s.handle(p.id, { type: 'place', x, y, z, item: 'tnt' }).ok) { s.handle(p.id, { type: 'ignite', x, y, z }); this.startFlee(x + 0.5, z + 0.5, 4.6); this.tntCooldown = 10 + Math.random() * 10; }
+            if (s.handle(p.id, { type: 'place', x, y, z, item: 'tnt' }).ok) { s.handle(p.id, { type: 'ignite', x, y, z }); this.startFlee(x + 0.5, z + 0.5, 4); this.tntCooldown = 10 + Math.random() * 10; }
             break;
           }
           if (this.flee) break;
@@ -5489,11 +5529,12 @@ class Bot {
         const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw), px = Math.floor(p.pos.x + fx * 1.3), pz = Math.floor(p.pos.z + fz * 1.3), py = Math.floor(p.pos.y);
         this.face(plot.x, p.pos.y + 1, plot.z, true);
         if (s.world.get(px, py, pz) === AIR && this.canEscapeFrom(px + 0.5, pz + 0.5) && s.handle(p.id, { type: 'place', x: px, y: py, z: pz, item: 'tnt' }).ok) {
-          s.handle(p.id, { type: 'ignite', x: px, y: py, z: pz }); this.startFlee(px + 0.5, pz + 0.5, 4.5); this.tntCooldown = 10 + Math.random() * 12; this.thinkClock = 0; this.mode = 'hunt';
+          s.handle(p.id, { type: 'ignite', x: px, y: py, z: pz }); this.startFlee(px + 0.5, pz + 0.5, 4); this.tntCooldown = 10 + Math.random() * 12; this.thinkClock = 0; this.mode = 'hunt';
         } else this.walkTo(plot.x, plot.z, dt, 3, true);
         break;
       }
       case 'hunt': {
+        if (t && this.trickT <= 0 && this.tricks(t)) break;
         if (!t) break;
         // drop TNT on the target when close and exposed
         const d = this.dist(t);
@@ -5645,6 +5686,7 @@ class Bot {
     }
     if (this.stallT > 6 && this.unstick !== 1) {                            // stage 1: rethink and take a detour
       this.unstick = 1;
+      if (['drop', 'vault', 'siege'].includes(this.mode)) { this.modeBan = this.modeBan || {}; this.modeBan[this.mode] = s.clock + 40; this.mode = 'hunt'; this.course = null; this.drop = null; this.siegeCore = null; }   // that goal is not working: try something else for a while
       this.gatherTarget = null; this.mine = null; this.approach = 'ground'; this.thinkClock = 0; this.skyBase = null;
       if (this.extra && this.queue) this.queueIndex++;
       this.detour = (Math.random() < 0.5 ? 1 : -1) * (1.2 + Math.random()); this.detourT = 2.5;
@@ -6646,7 +6688,7 @@ class UI {
     if (tab === 'armor') {
       html = `<div style="grid-column:1/-1"><span class="req">Armor sets protect you in different ways. Each has a <b class="pk-good">perk</b> and a <b class="pk-bad">drawback</b>. <b>Skill beats gear:</b> crits (jump hits) and arrow headshots go straight through armor, heavy plate even takes extra crit damage, and a last-moment block parries any swing.</span></div>`;
       html += ARMOR_ORDER.filter((id) => !ARMOR[id].admin || state.admin).map((id) => {
-        const A = ARMOR[id], owned = id === 'none' || (profile.owned.armor || []).includes(id) || (A.admin && state.admin), lvlOk = L.level >= A.level, on2 = (eq.armor || 'none') === id;
+        const A = ARMOR[id], owned = id === 'none' || (profile.owned.armor || []).includes(id) || state.admin, lvlOk = L.level >= A.level, on2 = (eq.armor || 'none') === id;
         const btn = owned ? `<button class="btn tiny" data-act="aequip" data-id="${id}">${on2 ? 'EQUIPPED' : 'EQUIP'}</button>`
           : lvlOk ? `<button class="btn tiny" data-act="abuy" data-id="${id}" ${career.coins >= A.cost ? '' : 'disabled'}>BUY ${A.cost}</button>` : `<span class="req">Unlocks at level ${A.level}</span>`;
         const perks = armorPerkLines(A.perk).map(([t, good]) => `<li class="${good ? 'pk-good' : 'pk-bad'}">${good ? '+' : '-'} ${esc(t)}</li>`).join('');
@@ -6657,7 +6699,7 @@ class UI {
       for (const tool of WEAPON_TOOLS) {
         html += `<div style="grid-column:1/-1"><h3 style="margin:6px 0 0">${esc(ITEMS[tool].label.toUpperCase())}</h3></div>`;
         html += WEAPON_SKIN_ORDER.filter((sk) => !WEAPON_SKINS[sk].admin || state.admin).map((sk) => {
-          const W = WEAPON_SKINS[sk], key = tool + ':' + sk, owned = sk === 'default' || profile.owned.weapon.includes(key), lvlOk = L.level >= W.level, on2 = (eq.weapons || {})[tool] === sk;
+          const W = WEAPON_SKINS[sk], key = tool + ':' + sk, owned = sk === 'default' || profile.owned.weapon.includes(key) || state.admin, lvlOk = L.level >= W.level, on2 = (eq.weapons || {})[tool] === sk;
           const btn = owned ? `<button class="btn tiny" data-act="wequip" data-id="${key}">${on2 ? 'EQUIPPED' : 'EQUIP'}</button>`
             : W.admin ? '<span class="req">Admin only</span>'
             : lvlOk ? `<button class="btn tiny" data-act="wbuy" data-id="${key}" ${career.coins >= W.cost ? '' : 'disabled'}>BUY ${W.cost}</button>` : `<span class="req">Unlocks at level ${W.level}</span>`;
@@ -6676,7 +6718,7 @@ class UI {
         html += `<div style="grid-column:1/-1"><span class="req">Keys <b>Z X C V</b> use these four slots. Pick a slot, then click an emote you own.</span><div class="emslots">${eq.emotes.map((id, i) => `<span class="emslot ${state.emoteSlot === i ? 'on' : ''}" data-act="slot" data-id="${i}">${'ZXCV'[i]}: ${esc(COSMETICS.emote[id].name)}</span>`).join('')}</div></div>`;
       }
       html += Object.keys(items).filter((id) => !items[id].admin || state.admin).map((id) => {
-        const it = items[id], owned = profile.owned[tab].includes(id), lvlOk = L.level >= it.level, canBuy = !owned && lvlOk && career.coins >= it.cost;
+        const it = items[id], owned = profile.owned[tab].includes(id) || (state.admin && tab !== 'emote'), lvlOk = L.level >= it.level, canBuy = !owned && lvlOk && career.coins >= it.cost;
         let btn;
         if (tab === 'emote') btn = owned ? `<button class="btn tiny" data-act="emote" data-id="${id}">USE IN SLOT ${'ZXCV'[state.emoteSlot]}</button>` : lvlOk ? `<button class="btn tiny" data-act="buy" data-id="${id}" ${canBuy ? '' : 'disabled'}>BUY ${it.cost}</button>` : `<span class="req">Level ${it.level}</span>`;
         else if (owned) btn = `<button class="btn tiny" data-act="equip" data-id="${id}">${eq[tab] === id ? 'EQUIPPED' : 'EQUIP'}</button>`;
@@ -6955,7 +6997,7 @@ class Replay {
 
 /* ============================== 17. GAME =============================== */
 const INTERACTIVE = new Set(['lever', 'button', 'door', 'timer', 'turret']);
-const DEFAULT_HOTBAR = ['pickaxe', 'sword', 'bow', 'stone', 'wood', 'tnt', 'lighter', 'water', 'bucket'];
+const DEFAULT_HOTBAR = ['pickaxe', 'sword', 'bow', 'stone', 'wood', 'tnt', 'livetnt', 'lighter', 'bucket'];
 const KILL_VERB = { trap: 'impaled', melee: 'slew', arrow: 'shot', explosion: 'blew up', crush: 'crushed', mob: 'was mauled by a zombie', lava: 'swam in lava', fire: 'burned', fall: 'hit the ground too hard', drown: 'drowned', flood: 'was swept away' };
 
 function rayAabb(o, d, b, maxT) {
@@ -6990,6 +7032,11 @@ class Game {
     this.chatLog = []; this.chatMuted = new Set(); this.chatOpen = false; this.bubbles = new Map(); this.trailClock = 0; this.netNotice = '';
     this.hotbar = Storage.load('mpw.hotbar', { slots: DEFAULT_HOTBAR }).slots;
     if (!Array.isArray(this.hotbar) || this.hotbar.length !== 9 || this.hotbar.some((h) => h && !ITEMS[h])) this.hotbar = DEFAULT_HOTBAR.slice();
+    if (!Storage.load('mpw.hotbar2', { done: false }).done) {                       // one-time: older saved hotbars get the bucket and Live TNT
+      const put = (id, prefer) => { if (this.hotbar.includes(id)) return; let i = prefer.map((x) => this.hotbar.indexOf(x)).find((k) => k >= 0); if (i == null) i = this.hotbar.findIndex((h) => !h); if (i == null || i < 0) i = 8; this.hotbar[i] = id; };
+      put('bucket', ['plate', 'water', 'gravel', 'sand']); put('livetnt', ['water', 'glass', 'dirt', 'sand', 'gravel', 'iron']);
+      Storage.save('mpw.hotbar2', { done: true }); Storage.save('mpw.hotbar', { slots: this.hotbar });
+    }
     this.selected = 0;
     this.state = 'menu';            // menu | paused | playing | panel | results
     this.backPanel = 'main';
@@ -7050,7 +7097,7 @@ class Game {
     this.launch(() => this.localServer.startMatch({ mode: 'sandbox', seed: 11, mapId: 'plains', roster }));
     const p = this.player, b = this.server.players.find((q) => q !== p);
     if (b) { b.bot = null; b.teleport(p.pos.x + 5, p.pos.y + 1, p.pos.z); }          // a harmless practice dummy
-    this.hotbar[0] = 'pickaxe'; this.hotbar[1] = 'sword';
+    this.hotbar[0] = 'pickaxe'; this.hotbar[1] = 'sword'; this.hotbar[6] = 'livetnt'; this.hotbar[8] = 'bucket';
     this.tut = { i: 0, start: { x: p.pos.x, z: p.pos.z }, flags: {}, done: false, hidden: false, clock: 0 };
     this.renderTutorial();
   }
@@ -7065,6 +7112,12 @@ class Game {
       { t: 'Place a machine', d: 'Press E for the inventory, click Arrow Turret, Land Mine or Spike Trap, then place it. Machines work on their own against enemies.', ok: () => this.tut.flags.machine },
       { t: 'Hit the dummy', d: 'Select the sword (2) and left click the DUMMY. Wait for the charge bar: a full swing hurts more and a hit while falling is a critical.', ok: () => this.tut.flags.hit },
       { t: 'Block', d: 'With the sword selected, HOLD right click to block. Blocking cuts front damage a lot (up to 2.5 s, then it cools down).', ok: () => me.blocking },
+      { t: 'Swing cooldown', d: 'The ring around your crosshair fills while your weapon recovers. Hit the dummy again only when the ring is full: early clicks do nothing.', ok: () => (this.tut.flags.hits || 0) >= 2 },
+      { t: 'Critical hit', d: 'Jump, and hit the dummy while you are FALLING (not sprinting). Crits deal big damage and go straight through armor.', ok: () => this.tut.flags.crit },
+      { t: 'Parry', d: 'Stand next to the dummy: it swings every couple of seconds. Start blocking (right click) right as it swings to PARRY: no damage, and it gets staggered.', ok: () => this.tut.flags.parry },
+      { t: 'Live TNT', d: 'Select Live TNT (7), place it, then RUN: it lights itself and explodes after 2 seconds. Normal TNT (6) waits for a lighter.', ok: () => this.tut.flags.live },
+      { t: 'Bucket', d: 'Select the bucket (9). Right click pours water, left click scoops water or lava back up.', ok: () => this.tut.flags.bucket },
+      { t: 'Escape the water', d: 'Bucket and flood water drowns you and holds you down. Pour water, step in, then pour LAVA into it (press E, pick Lava): the water turns to stone and boils away.', ok: () => this.tut.flags.boil },
       { t: 'Use chat', d: 'Press ENTER, type a message and press ENTER again. (/help lists commands.)', ok: () => this.tut.flags.chat },
     ];
   }
@@ -7086,6 +7139,16 @@ class Game {
     const t = this.tut; if (!t || t.done || t.hidden) return;
     const me = this.player; if (!me) return;
     if (!me.onGround && me.vel.y > 3) t.flags.jump = true;
+    if (me.alive && me.health < 45) me.health = me.maxHealth;            // practice safely: the tutorial keeps you topped up
+    const dummy = this.server.players.find((q) => q !== me && q.alive), cur = this.tutSteps()[t.i];
+    if (dummy && cur && cur.t === 'Parry') {
+      t.swingT = (t.swingT || 2) - dt;
+      const d = Math.hypot(dummy.pos.x - me.pos.x, dummy.pos.z - me.pos.z);
+      dummy.yaw = Math.atan2(-(me.pos.x - dummy.pos.x), -(me.pos.z - dummy.pos.z));
+      if (t.swingT <= 0.45 && t.swingT + dt > 0.45 && d < 3.8) this.ui.toast('The dummy winds up... block NOW!', '', 700);
+      if (t.swingT <= 0 && d < 3.8) { t.swingT = 2.2; dummy.held = 'sword'; dummy.cooldowns.attack = 0; this.server.handle(dummy.id, { type: 'attack', targetId: me.id, tool: 'sword' }); }
+      else if (t.swingT <= 0) t.swingT = 0.5;
+    }
     t.clock -= dt; if (t.clock > 0) return; t.clock = 0.15;
     const st = this.tutSteps()[t.i]; if (st && st.ok()) this.tutAdvance();
   }
@@ -7096,10 +7159,15 @@ class Game {
     return false;
   }
   tutEvent(e) {
-    const t = this.tut; if (!t || !this.player || e.by !== this.player.id) return;
+    const t = this.tut; if (!t || !this.player) return;
+    if (e.type === 'parry' && e.target === this.player) t.flags.parry = true;
+    if (e.type === 'tntPrimed' && e.tnt && e.tnt.owner === this.player.index) t.flags.live = true;
+    if (e.by !== this.player.id) return;
     if (e.type === 'blockBroken') t.flags.broke = true;
     else if (e.type === 'blockPlaced') { t.flags.placed = true; const d = e.block; if (d && ['turret', 'cannon', 'mine', 'spikes', 'flamer', 'jumppad', 'conveyor', 'sprinkler', 'healer', 'dropper'].includes(d.type)) t.flags.machine = true; }
-    else if (e.type === 'hit') t.flags.hit = true;
+    else if (e.type === 'hit') { t.flags.hit = true; t.flags.hits = (t.flags.hits || 0) + 1; if (e.crit) t.flags.crit = true; }
+    if (e.type === 'scoop' || (e.type === 'blockPlaced' && e.block && e.block.type === 'water')) t.flags.bucket = true;
+    if (e.type === 'neutralize') t.flags.boil = true;
   }
 
   /* ------------------------------ chat ------------------------------ */
@@ -7269,7 +7337,7 @@ class Game {
   }
   /** Counts progress toward today's challenges; pays coins the moment one is finished. */
   dailyBump(kind, n = 1) {
-    if (!n || this.tut) return;
+    if (!n || this.tut || this.adminUsed) return;
     this.ensureDaily();
     for (const c of this.career.daily.list) {
       const D = DAILY_BY_ID[c.id];
@@ -7299,11 +7367,11 @@ class Game {
   openLocker() { this.ui.showPanel('locker'); this.refreshLocker(); }
   refreshLocker() {
     const pr = this.profile, c = this.career;
-    this.ui.renderLocker({ tab: this.lockerTab, profile: pr, career: c, emoteSlot: this.emoteSlot, admin: !!this.admin.unlocked }, {
+    this.ui.renderLocker({ tab: this.lockerTab, profile: pr, career: c, emoteSlot: this.emoteSlot, admin: this.adminWardrobe() }, {
       wbuy: (key) => { const [tool, sk] = key.split(':'), W = WEAPON_SKINS[sk]; if (W && !W.admin && c.coins >= W.cost && levelFor(c.xp).level >= W.level && !pr.owned.weapon.includes(key)) { c.coins -= W.cost; pr.owned.weapon.push(key); pr.equipped.weapons[tool] = sk; this.audio.play('chime', null, 0.6); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
       abuy: (id) => { const A = ARMOR[id]; pr.owned.armor = pr.owned.armor || ['none']; if (A && !A.admin && c.coins >= A.cost && levelFor(c.xp).level >= A.level && !pr.owned.armor.includes(id)) { c.coins -= A.cost; pr.owned.armor.push(id); pr.equipped.armor = id; this.audio.play('chime', null, 0.6); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
-      aequip: (id) => { const A = ARMOR[id]; if (A && (id === 'none' || (pr.owned.armor || []).includes(id) || (A.admin && this.admin.unlocked))) { pr.equipped.armor = id; this.audio.play('click'); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
-      wequip: (key) => { const [tool, sk] = key.split(':'); if (sk === 'default' || pr.owned.weapon.includes(key)) { pr.equipped.weapons[tool] = sk; this.audio.play('click'); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
+      aequip: (id) => { const A = ARMOR[id]; if (A && (id === 'none' || (pr.owned.armor || []).includes(id) || this.adminWardrobe())) { pr.equipped.armor = id; this.audio.play('click'); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
+      wequip: (key) => { const [tool, sk] = key.split(':'); if (sk === 'default' || pr.owned.weapon.includes(key) || this.adminWardrobe()) { pr.equipped.weapons[tool] = sk; this.audio.play('click'); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
       tab: (t) => { this.lockerTab = t; this.audio.play('click'); this.refreshLocker(); },
       slot: (i) => { this.emoteSlot = i; this.refreshLocker(); },
       buy: (slot, id) => { const it = COSMETICS[slot][id]; if (c.coins >= it.cost && levelFor(c.xp).level >= it.level && !pr.owned[slot].includes(id)) { c.coins -= it.cost; pr.owned[slot].push(id); if (slot !== 'emote') pr.equipped[slot] = id; this.audio.play('chime', null, 0.6); this.saveCareer(); this.pushLook(); } this.refreshLocker(); },
@@ -7314,10 +7382,12 @@ class Game {
     });
   }
   /** Tells a hosted/joined lobby about changed cosmetics. */
-  pushLook() { const look = publicLook(this.profile); if (this.host) this.host.setHostInfo({ look }); else if (this.client) this.client.send({ t: 'prof', look }); }
-  myLook() { return publicLook(this.profile); }
+  pushLook() { const look = this.myLook(); if (this.host) this.host.setHostInfo({ look }); else if (this.client) this.client.send({ t: 'prof', look }); }
+  /** Admin wardrobe: with admin powers on you may wear anything; otherwise only what you own is shown to others. */
+  adminWardrobe() { return !!(this.admin && this.admin.unlocked && this.admin.enabled); }
+  myLook() { return publicLook(this.adminWardrobe() ? this.profile : sanitizeProfile(this.profile)); }
 
-  /* ---------------------------- admin panel (type LN1 as a join code) ---------------------------- */
+  /* ---------------------------- admin panel (secret join code) ---------------------------- */
   openAdmin() {
     if (!this.admin.unlocked) { this.admin.unlocked = true; this.saveCareer(); }
     this.backPanel = 'main'; this.ui.showPanel('admin'); this.renderAdmin();
@@ -7328,21 +7398,16 @@ class Game {
     const sliders = ADMIN_SLIDERS.map(([k, label, min, max, step, fmt]) => `<label>${esc(label)} <output id="adm_o_${k}">${fmt(A[k])}</output><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${A[k]}"></label>`).join('');
     const toggles = [['enabled', 'Admin powers ON'], ['god', 'God mode (take no damage)'], ['infinite', 'Infinite resources']].map(([k, label]) => `<label class="inline adm-t"><input type="checkbox" data-t="${k}" ${A[k] ? 'checked' : ''}> ${esc(label)}</label>`).join('');
     $('adminBody').innerHTML = `<div class="cols"><div>${sliders}</div><div class="adm-side">${toggles}<h3>COSMETICS</h3>
-      <button class="btn tiny" data-a="unlock">UNLOCK ALL COSMETICS + ADMIN SKINS</button> <button class="btn tiny" data-a="coins">+10,000 COINS</button>
+      <p class="hint">Admin wardrobe: while admin powers are ON you can equip every outfit, weapon skin and armor set in the Locker, Admin gear included. Nothing is unlocked for keeps, and matches played with admin on earn no coins or XP.</p>
       <h3>SLIDERS</h3><button class="btn tiny" data-a="reset">RESET SLIDERS</button><p class="hint" id="adminMsg"></p></div></div>`;
     $('adminBody').querySelectorAll('input[type=range]').forEach((el) => el.addEventListener('input', () => {
       const k = el.dataset.k, def = ADMIN_SLIDERS.find((x) => x[0] === k); A[k] = parseFloat(el.value); $('adm_o_' + k).textContent = def[5](A[k]); this.saveCareer(); this.applyAdmin();
     }));
-    $('adminBody').querySelectorAll('input[type=checkbox]').forEach((el) => el.addEventListener('change', () => { A[el.dataset.t] = el.checked; this.saveCareer(); this.applyAdmin(); }));
+    $('adminBody').querySelectorAll('input[type=checkbox]').forEach((el) => el.addEventListener('change', () => { A[el.dataset.t] = el.checked; this.saveCareer(); this.applyAdmin(); this.pushLook(); }));
     $('adminBody').querySelectorAll('[data-a]').forEach((el) => el.addEventListener('click', () => {
       const a = el.dataset.a, pr = this.profile, msg = $('adminMsg');
       this.audio.play('chime', null, 0.5);
-      if (a === 'unlock') {
-        for (const slot of [...COSMETIC_SLOTS, 'emote']) pr.owned[slot] = Object.keys(COSMETICS[slot]);
-        pr.owned.weapon = WEAPON_TOOLS.flatMap((t) => WEAPON_SKIN_ORDER.filter((sk) => sk !== 'default').map((sk) => t + ':' + sk));
-      } else if (a === 'coins') { this.career.coins += 10000; this.career.totalCoins += 10000; }
-      else if (a === 'reset') { Object.assign(A, ADMIN_DEFAULTS); this.saveCareer(); this.renderAdmin(); this.applyAdmin(); $('adminMsg').textContent = 'Sliders reset.'; return; }
-      msg.textContent = a === 'unlock' ? 'Everything is unlocked, including the Admin skin and Admin weapons. Equip them in the Locker.' : 'Added 10,000 coins.';
+      if (a === 'reset') { Object.assign(A, ADMIN_DEFAULTS); this.saveCareer(); this.renderAdmin(); this.applyAdmin(); $('adminMsg').textContent = 'Sliders reset.'; return; }
       this.saveCareer(); this.pushLook(); this.ensureDaily(); this.ui.renderProfileBar(this.career);
     }));
   }
@@ -7357,6 +7422,7 @@ class Game {
       p.maxHealth = A.health;
     }
     p.adminGod = on && A.god; p.adminInfinite = on && A.infinite;
+    if (atStart) this.adminUsed = on; else if (on) this.adminUsed = true;           // admin matches pay nothing
     if (atStart || p.health > p.maxHealth) p.health = p.maxHealth;
     if (atStart && on && this.kind === 'host' && this.host) this.host.relayChat('p0', this.lobby.name, 'has admin powers on', false, true);
   }
@@ -7487,7 +7553,7 @@ class Game {
   async joinGame(rawCode) {
     if (this.busyNet) return;
     const code = cleanCode(rawCode);
-    if (code === ADMIN_CODE) { this.ui.$('joinCode').value = ''; this.setNet(''); this.openAdmin(); return; }
+    if (adminCodeHash(code) === ADMIN_HASH) { this.ui.$('joinCode').value = ''; this.setNet(''); this.openAdmin(); return; }
     if (code.length < 4) { this.setNet('Enter the game code your friend gave you.', 'bad'); return; }
     this.busyNet = true; this.setNet('Connecting to ' + code + '...'); this.chatLog = []; this.chatMuted.clear();
     let ch;
@@ -7884,7 +7950,8 @@ class Game {
     if (!this.statsSaved && row) {
       this.statsSaved = true;
       const c = this.career, before = levelFor(c.xp).level, had = TITLE_ORDER.filter((id) => TITLES[id].ok(c));
-      this.dailyBump('play', 1); if (row.won) this.dailyBump('win', 1);
+      if (this.adminUsed) { row.coins = 0; row.xp = 0; this.ui.toast('Admin powers were on: this match earns no coins or XP.', 'warn', 4000); }
+      else { this.dailyBump('play', 1); if (row.won) this.dailyBump('win', 1); }
       c.matches++; if (row.won) c.wins++; c.kills += row.kills; c.deaths += row.deaths; c.xp += row.xp; c.coins += row.coins; c.totalCoins += row.coins; c.blocks += row.blocksDestroyed;
       c.tntKills += row.tntKills || 0; c.structures += row.structuresDestroyed || 0; c.damage += row.damageDealt || 0; c.best = Math.max(c.best, row.score);
       const after = levelFor(c.xp).level, now = TITLE_ORDER.filter((id) => TITLES[id].ok(c) && !had.includes(id));
@@ -8306,7 +8373,7 @@ class Game {
 const api = {
   CONFIG, BlockRegistry, BLOCKS, ID, TILE, World, MapGenerator, buildChunkMesh, buildBlockListMesh, Player, Mob, GameServer, Bot, Mat4, AIR, B, VERTEX_FLOATS,
   CLASSES, LANDS, MAPS, MAP_ORDER, ITEMS, EVENT_DEFS, EVENT_LIST, startResources, mineTime, TOOLS, LAND_ORDER, CLASS_ORDER, RESOURCES, DIFFICULTIES, DIFF_ORDER,
-  HostSession, ClientSession, NetServerView, Channel, netConnect, hashWorld, WEAPON_SKINS, WEAPON_TOOLS, weaponBoost, sanitizeProfile, sanitizeLook,
+  HostSession, ClientSession, NetServerView, Channel, netConnect, PeerProvider, hashWorld, WEAPON_SKINS, WEAPON_TOOLS, weaponBoost, sanitizeProfile, sanitizeLook,
 };
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = api;                     // lets tests/logic.test.js run the game logic in Node
