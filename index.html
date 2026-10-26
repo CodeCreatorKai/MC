@@ -5,7 +5,266 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Minecraft Physics Wars</title>
   <link rel="stylesheet" href="style.css?v=2.9">
+</head><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Minecraft Physics Wars</title>
+  <link rel="stylesheet" href="style.css?v=2.9">
 </head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="nameplates"></div>
+  <div id="fx"></div>
+
+  <!-- In-game HUD (filled in by game.js) -->
+  <div id="hud" class="hidden">
+    <div id="topbar">
+      <div id="phaseName">BUILD</div>
+      <div id="timer">0:00</div>
+      <div id="objective"></div>
+      <div id="eventBar" class="hidden"></div>
+    </div>
+    <div id="players"></div>
+    <div id="killfeed"></div>
+    <div id="banner" class="hidden"><div id="bannerMain"></div><div id="bannerSub"></div></div>
+    <div id="tutorial" class="hidden"></div>
+    <div id="toasts"></div>
+    <div id="chat"><div id="chatLog"></div><input id="chatIn" type="text" maxlength="140" autocomplete="off" placeholder="Enter to send, Esc to cancel. /team, /me, /mute, /help"></div>
+    <div id="vault" class="hidden"><div class="label">VAULT</div><div class="bar"><i id="vaultFill"></i></div></div>
+    <div id="crosshair"></div>
+    <div id="hitmarker"></div>
+    <div id="dmgdir"></div>
+    <div id="floaters"></div>
+    <div id="hint"></div>
+    <div id="charge" class="hidden"><i id="chargeFill"></i></div>
+    <div id="cdring" class="hidden"><i></i><b>WAIT</b></div>
+    <div id="buffs"></div>
+    <div id="bottom">
+      <div id="vitals">
+        <div class="meter"><span class="lbl">HEALTH</span><div class="bar hp"><i id="hpFill"></i></div><b id="hpText">100</b></div>
+        <div class="meter"><span class="lbl">BASE</span><div class="bar base"><i id="baseFill"></i></div><b id="baseText">100%</b></div>
+        <div id="statusLine"></div>
+      </div>
+      <div id="hotbar"></div>
+      <div id="resources"></div>
+    </div>
+    <div id="debug"></div>
+    <div id="spectate" class="hidden"></div>
+    <div id="replayTag" class="hidden"></div>
+  </div>
+
+  <!-- Scoreboard (hold Tab) -->
+  <div id="scoreboard" class="hidden"></div>
+
+  <!-- Build menu (E) -->
+  <div id="inventory" class="hidden">
+    <div class="panel wide">
+      <h2>BUILD MENU</h2>
+      <p class="hint">Click an item to put it in the selected hotbar slot. Press <b>E</b> to close.</p>
+      <div id="invRes"></div>
+      <div id="invGrid"></div>
+      <button id="invClose" class="btn small">CLOSE</button>
+    </div>
+  </div>
+
+  <!-- Diplomacy (T) -->
+  <div id="diplomacy" class="hidden">
+    <div class="panel wide">
+      <h2>DIPLOMACY &amp; BOUNTIES</h2>
+      <div id="diploBody"></div>
+      <button id="diploClose" class="btn small">CLOSE</button>
+    </div>
+  </div>
+
+  <!-- Match results -->
+  <div id="results" class="hidden"></div>
+
+  <!-- Menus: title, lobby, help, settings, stats, pause -->
+  <div id="overlay">
+    <div class="menu">
+      <h1 id="title"><span>MINECRAFT</span><span>PHYSICS</span><span>WARS</span></h1>
+      <p id="subtitle">The world itself is your weapon.</p>
+
+      <div id="panelMain" class="panelview">
+        <div id="profileBar"></div>
+        <div id="dailyBox"></div>
+        <button id="btnPlay" class="btn primary">SINGLE PLAYER</button>
+        <button id="btnTutorial" class="btn">TUTORIAL <small>(optional)</small></button>
+        <button id="btnMulti" class="btn">MULTIPLAYER</button>
+        <button id="btnLocker" class="btn">LOCKER</button>
+        <button id="btnHow" class="btn">HOW TO PLAY</button>
+        <button id="btnSettings" class="btn">SETTINGS</button>
+        <button id="btnStats" class="btn">STATS</button>
+      </div>
+
+      <div id="panelPause" class="panelview hidden">
+        <button id="btnResume" class="btn">RESUME</button>
+        <button id="btnHow2" class="btn">HOW TO PLAY</button>
+        <button id="btnSettings2" class="btn">SETTINGS</button>
+        <button id="btnQuit" class="btn">LEAVE MATCH</button>
+      </div>
+
+      <div id="panelMulti" class="panelview hidden">
+        <div class="panel">
+          <h2>MULTIPLAYER</h2>
+          <p class="hint">One player hosts and shares a <b>game code</b> or an <b>invite link</b>. Up to 6 players; empty slots can be filled with AI. The host's browser runs the match.</p>
+          <div class="mpcols">
+            <div class="mpbox"><h3>HOST A GAME</h3><button id="btnHost" class="btn">CREATE GAME</button></div>
+            <div class="mpbox"><h3>JOIN A GAME</h3>
+              <input id="joinCode" type="text" maxlength="6" placeholder="GAME CODE" autocomplete="off" spellcheck="false">
+              <button id="btnJoin" class="btn">JOIN</button></div>
+          </div>
+          <p id="netMsg" class="netmsg"></p>
+          <button id="btnNetTest" class="btn small">TEST CONNECTION</button>
+          <div id="netDiag" class="netdiag"></div>
+          <button class="btn small back">BACK</button>
+        </div>
+      </div>
+
+      <div id="panelLobby" class="panelview hidden">
+        <div class="panel lobby">
+          <h2 id="lobbyTitle">SINGLE PLAYER</h2>
+          <div id="inviteBox" class="hidden">
+            <span class="lbl">GAME CODE</span> <b id="inviteCode">-----</b>
+            <button id="btnCopyCode" class="btn tiny">COPY CODE</button>
+            <button id="btnCopyLink" class="btn tiny">COPY INVITE LINK</button>
+            <span id="netStatus"></span>
+          </div>
+          <div class="row">
+            <div class="seg" id="segMode"></div>
+            <div class="diffwrap"><span class="lbl" id="diffLabel">AI DIFFICULTY</span><div class="seg" id="segDiff"></div></div>
+            <label class="inline" id="botsLabel">AI players <output id="outBots"></output><input id="setBots" type="range" min="1" max="5" step="1"></label>
+            <label class="inline">Name <input id="setName" type="text" maxlength="12"></label>
+          </div>
+          <h3>MAP</h3>
+          <div id="mapCards"></div>
+          <h3>PLAYERS <span id="rosterCount"></span></h3>
+          <div id="rosterList"></div>
+          <h3>CHOOSE YOUR CLASS</h3>
+          <div id="classCards"></div>
+          <h3>YOUR LAND <button id="btnReroll" class="btn tiny">RE-ROLL LANDS &amp; OPPONENTS</button></h3>
+          <div id="landInfo"></div>
+          <div id="matchup"></div>
+          <div class="row end">
+            <button class="btn small back" id="btnLobbyBack">BACK</button>
+            <button id="btnReady" class="btn small hidden">READY</button>
+            <button id="btnStart" class="btn">START MATCH</button>
+          </div>
+          <p id="lobbyHint" class="netmsg"></p>
+          <div id="lobbyChat" class="hidden">
+            <h3>CHAT</h3>
+            <div id="lobbyChatLog"></div>
+            <input id="lobbyChatIn" type="text" maxlength="140" autocomplete="off" placeholder="Say something... (/help for commands)">
+          </div>
+        </div>
+      </div>
+
+      <div id="panelLocker" class="panelview hidden">
+        <div class="panel wide">
+          <h2>LOCKER</h2>
+          <p class="hint">Earn <b>XP</b> to level up and <b>coins</b> to unlock cosmetics. Outfits, trails and banners are just for looks. Weapon skins change how a weapon plays, always with a trade-off.</p>
+          <div id="lockerBar"></div>
+          <div class="seg" id="lockerTabs"></div>
+          <div id="lockerGrid"></div>
+          <button class="btn small back">BACK</button>
+        </div>
+      </div>
+
+      <div id="panelHow" class="panelview hidden">
+        <div class="panel wide">
+          <h2>HOW TO PLAY</h2>
+          <div class="cols">
+            <table class="keys">
+              <tr><td>W A S D</td><td>Move</td></tr>
+              <tr><td>Space / Shift</td><td>Jump / Crouch</td></tr>
+              <tr><td>Double-tap W / Ctrl</td><td>Sprint (sprint-jump for speed, sprint hits knock back hard)</td></tr>
+              <tr><td>Left click</td><td>Hit (let the bar refill for full damage) / mine (hold) / draw bow</td></tr>
+              <tr><td>Right click</td><td>Place block / flip lever, press button, open door</td></tr>
+              <tr><td>Crouch + Right click</td><td>Place instead of interact</td></tr>
+              <tr><td>1 &ndash; 9 / Wheel</td><td>Hotbar</td></tr>
+              <tr><td>E</td><td>Inventory (pick items, axe, knockback staff, liquids)</td></tr>
+              <tr><td>Z X C V</td><td>Emotes (set in the Locker)</td></tr>
+              <tr><td>Tab (hold)</td><td>Scoreboard</td></tr>
+              <tr><td>T</td><td>Diplomacy &amp; bounties</td></tr>
+              <tr><td>Y / N</td><td>Accept / decline alliance</td></tr>
+              <tr><td>R</td><td>Respawn (sandbox) / replay last event</td></tr>
+              <tr><td>M / F3 / Esc</td><td>Mute / debug / pause</td></tr>
+            </table>
+            <div class="tips">
+              <p><b>The loop:</b> BUILD your base (2 minutes) &rarr; WAR: break enemy cores &rarr; CHAOS: sudden death and disasters. Last team standing wins; on timeout the best score wins.</p>
+              <p><b>Cores:</b> every base has a glowing purple core. While yours stands you respawn 5 s after dying. Enemies must mine it (slow) or blow it up; cores are shielded for the first minute of the war. When CHAOS starts every core crumbles: from then on, death is final.</p>
+              <p><b>Maps:</b> Plains, Canyon (cliffs) and Village (houses). <b>Weapons:</b> sword, axe (slow, heavy), bow, knockback staff. Water and lava buckets are in the inventory too.</p>
+              <p><b>Multiplayer:</b> host a game, share the code or invite link, pick a map, ready up. If a player disconnects, AI takes over their character.</p>
+              <p><b>Resources are finite.</b> Mine trees, stone, iron and dirt. TNT, water, lava and machine parts are rare: spend them where they hurt most.</p>
+              <p><b>Mechanisms:</b> a pressure plate or tripwire powers any TNT, piston, door or alarm touching it, directly or through wire. Doors copy the block they are built against.</p>
+              <p><b>Plot walls:</b> tall walls hide every plot during BUILD. They fall when the war starts.</p>
+              <p><b>Machines (E menu):</b> Arrow Turret (right-click to refill), TNT Cannon (uses your TNT), Land Mine, Spike Trap, Flamethrower, Launch Pad, Conveyor, Sprinkler, Healing Beacon and TNT Dropper (wire it). They only hurt enemies, and only once the war starts.</p>
+              <p><b>Combat:</b> like Minecraft: charge each swing, hit while falling for a critical, sprint into a hit for extra knockback, and a short immunity follows every hit.</p>
+              <p><b>Physics:</b> blocks need support. Cut the base of a tower and it falls, crushing what is below. Sand and gravel fall. Water flows, lava burns, fire spreads on wood.</p>
+              <p><b>Swings and crits:</b> every weapon has a cooldown (the ring around your crosshair); you cannot swing again until it fills. Crits work like Minecraft: hit while falling from a jump (not sprinting) once your weapon has fully recovered. Sword crits deal 1.5x, the slower axe 2x.</p>
+              <p><b>Arrows:</b> your quiver holds a limited number of arrows (shown on the bow slot). It refills slowly when you stop shooting, and you take arrows from players you eliminate.</p>
+              <p><b>The vault (centre):</b> an obstacle course in three stages, each paying more than the last. 1 THE GATE: get through the courtyard (mind the lava) and the narrow door, then hold the gold pad. 2 THE ROOF: parkour up the pillars to the roof corner pad. 3 THE SPIRE: climb to the very top for the big prize. You cannot build inside the vault.</p>
+              <p><b>Pickaxe skins:</b> they boost mining, not fighting: faster on stone, faster in enemy land, two blocks deep, healing while you dig...</p>
+              <p><b>Skill beats gear:</b> crits (hit while falling from a jump) and arrow headshots ignore armor completely, and heavy armor takes extra crit damage. Start blocking (right click) just as a swing lands to <b>parry</b>: no damage, and the attacker is staggered. The free Standard weapons deal +25% crit and headshot damage.</p>
+              <p><b>Progress:</b> coins come slowly (about 100 a match, more for wins and daily challenges). The best skins and armor take a long time to earn.</p>
+              <p><b>TNT:</b> normal TNT is safe to place and only goes off when lit (lighter, fire, lava, a trap or another explosion). <b>Live TNT</b> lights itself the moment you place it. Every lit TNT has the same short fuse: 2.5 seconds (Live TNT 2 seconds, chain reactions 0.5 seconds).</p>
+              <p><b>Water is deadly:</b> once your chest is under water your breath runs out in about 5 seconds, then you drown fast. Deep water holds you down and you cannot build while swimming. The way out: pour <b>lava</b> into the water. The water around you hardens into stone and the rest boils away (in a flood, only a patch dries).</p>
+              <p><b>Bucket:</b> left click scoops water or lava, right click pours a small pool (about 4 blocks). Dump it on enemies in a pit to trap them.</p>
+              <p><b>Armor (Locker):</b> leather, chainmail, a diving suit, magma mail, titan plate and more. Every set has a perk and a drawback.</p>
+              <p><b>Supply drops:</b> during the war, crates parachute onto neutral ground (look for the blue beam). Stand on one to claim it: rage, speed, iron skin, a medkit, TNT or arrows.</p>
+              <p><b>Kill streaks:</b> 2 kills = +5 arrows, 3 = rage, 5 = a TNT strike on the nearest enemy core, 7+ = unstoppable. Dying resets your streak.</p>
+              <p><b>Daily challenges:</b> three new goals every day on the main menu, each worth bonus coins.</p>
+              <p><b>Weapon skins (Locker):</b> buy skins for your sword, axe, pickaxe and bow with coins. Each collection plays differently: Glacier freezes, Inferno burns, Bloodmoon heals you, Voltage makes you faster, Titan hits hardest, Phantom backstabs. Every perk comes with a drawback.</p>
+            </div>
+          </div>
+          <button class="btn small back">BACK</button>
+        </div>
+      </div>
+
+      <div id="panelSettings" class="panelview hidden">
+        <div class="panel">
+          <h2>SETTINGS</h2>
+          <label>Mouse sensitivity <output id="outSens"></output>
+            <input id="setSens" type="range" min="0.3" max="2.5" step="0.05"></label>
+          <label>Field of view <output id="outFov"></output>
+            <input id="setFov" type="range" min="60" max="110" step="1"></label>
+          <label>Volume <output id="outVol"></output>
+            <input id="setVol" type="range" min="0" max="1" step="0.05"></label>
+          <button class="btn small back">BACK</button>
+        </div>
+      </div>
+
+      <div id="panelAdmin" class="panelview hidden">
+        <div class="panel wide">
+          <h2>ADMIN PANEL</h2>
+          <p class="hint" id="adminNote"></p>
+          <div id="adminBody"></div>
+          <button class="btn small back">BACK</button>
+        </div>
+      </div>
+
+      <div id="panelStats" class="panelview hidden">
+        <div class="panel">
+          <h2>STATS</h2>
+          <div id="statsLevel"></div>
+          <table class="keys" id="statsTable"></table>
+          <h3>TITLES</h3>
+          <div id="titleList"></div>
+          <button class="btn small back">BACK</button>
+        </div>
+      </div>
+
+      <p id="errorBox" class="hidden"></p>
+      <p id="footer">Click SINGLE PLAYER to start &middot; the mouse is captured while you fight &middot; Esc releases it</p>
+    </div>
+  </div>
+
+  <script src="game.js?v=2.9"></script>
+</body>
+</html>
+
 <body>
   <canvas id="gl"></canvas>
   <div id="nameplates"></div>
